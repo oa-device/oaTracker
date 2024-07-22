@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+
+# Script modified from:
+# <https://aws.amazon.com/ru/blogs/devops/secure-aws-codecommit-with-multi-factor-authentication/>
+
+# Fail immediately if a command has non-zero exit code
+set -e
+
+# Parameter 1 is the name of the profile used to generate the session tokens.
+# It must contain the IAM access key.
+PERMANENT_PROFILE="$1"
+if [[ -z "$PERMANENT_PROFILE" ]]; then
+    PERMANENT_PROFILE="permanent"
+fi
+
+if [[ $(aws configure --profile "$PERMANENT_PROFILE" list 2>&1) && $? -eq 0 ]]; then
+    # permanent profile exists, so it's okay to continue
+    true
+else
+    # permanent profile doesn't exist
+    echo "Could not find permanent profile $PERMANENT_PROFILE. Exiting..."
+    exit 1
+fi
+
+
+# Parameter 2 is the name of the profile that will contain the session tokens.
+# It must contain mfa_serial configuration and get_session_token_duration_seconds.
+DEFAULT_PROFILE=$2
+if [[ -z "$DEFAULT_PROFILE" ]]; then
+    DEFAULT_PROFILE="default"
+fi
+
+# The STS response contains an expiration date/ time.
+# This is checked to only set the keys if they are expired.
+EXPIRATION=$(aws configure get expiration --profile "$DEFAULT_PROFILE" || printf '')
+
+RELOAD="true"
+if [ -n "$EXPIRATION" ];
+then
+        # get time 12 hours from now and expiry time in a similar format
+        if [[ $(uname -s) = 'Darwin' ]]; then
+            NOW=$(date -j -u -v+12H +"%Y-%m-%dT%H:%M:%SZ")
+        else
+            NOW=$(date --date="12 hours" -u +"%Y-%m-%dT%H:%M:%SZ")
+        fi
+
+        # if tokens are set and will not expire in the next 12 hours
+        if [[ "$EXPIRATION" > "$NOW" ]];
+        then
+                echo "Will not fetch new credentials. They expire at (UTC) $EXPIRATION"
+                RELOAD="false"
+        fi
+fi
+
+if [ "$RELOAD" = "true" ];
+then
+        echo "Need to fetch new STS credentials"
+        MFA_SERIAL=$(aws configure get mfa_serial --profile "$DEFAULT_PROFILE")
+        DURATION=$(aws configure get get_session_token_duration_seconds --profile "$DEFAULT_PROFILE")
+        read -p "Token for MFA Device ($MFA_SERIAL): " TOKEN_CODE
+        read -r AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN EXPIRATION AWS_ACCESS_KEY_ID < <(aws sts get-session-token \
+                --profile "$PERMANENT_PROFILE" \
+                --output text \
+                --query '[Credentials.SecretAccessKey, Credentials.SessionToken, Credentials.Expiration, Credentials.AccessKeyId]' \
+                --serial-number $MFA_SERIAL \
+                --duration-seconds $DURATION \
+                --token-code "$TOKEN_CODE")
+
+        aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY" --profile "$DEFAULT_PROFILE"
+        aws configure set aws_session_token "$AWS_SESSION_TOKEN" --profile "$DEFAULT_PROFILE"
+        aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID" --profile "$DEFAULT_PROFILE"
+        aws configure set expiration "$EXPIRATION" --profile "$DEFAULT_PROFILE"
+        echo 'Success'
+fi
