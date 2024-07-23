@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -49,6 +49,15 @@
 		0DFC8B93297C886700D1B3C9 /* Videos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFC8B92297C886700D1B3C9 /* Videos.swift */; };
 		0DFC8B95297C88F800D1B3C9 /* Base.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFC8B94297C88F800D1B3C9 /* Base.swift */; };
 		0DFC8B97297C96FA00D1B3C9 /* CoreMLModelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFC8B96297C96FA00D1B3C9 /* CoreMLModelView.swift */; };
+		F112C4EC2C4FDC6300B3B93B /* Vapor in Frameworks */ = {isa = PBXBuildFile; productRef = F112C4EB2C4FDC6300B3B93B /* Vapor */; };
+		F112C4EE2C4FDC6300B3B93B /* XCTVapor in Frameworks */ = {isa = PBXBuildFile; productRef = F112C4ED2C4FDC6300B3B93B /* XCTVapor */; };
+		F112C4F12C4FE61700B3B93B /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F112C4F02C4FE61700B3B93B /* XCTest.framework */; };
+		F112C4F32C4FE62300B3B93B /* CoreAudioTypes.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F112C4F22C4FE62200B3B93B /* CoreAudioTypes.framework */; };
+		F112C4F52C4FE7D700B3B93B /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F112C4F42C4FE7D700B3B93B /* Foundation.framework */; };
+		F112C4F72C4FE7DC00B3B93B /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F112C4F62C4FE7DC00B3B93B /* AppKit.framework */; };
+		F112C4F92C4FFEB600B3B93B /* AVKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F112C4F82C4FFEB600B3B93B /* AVKit.framework */; };
+		F1DB10892C5010CD004F1943 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = F1DB10882C5010CD004F1943 /* ArgumentParser */; };
+		F1FB47052C4FFFFA005BABA2 /* Accessibility.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F1FB47042C4FFFFA005BABA2 /* Accessibility.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -97,6 +106,12 @@
 		0DFC8B92297C886700D1B3C9 /* Videos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Videos.swift; sourceTree = "<group>"; };
 		0DFC8B94297C88F800D1B3C9 /* Base.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base.swift; sourceTree = "<group>"; };
 		0DFC8B96297C96FA00D1B3C9 /* CoreMLModelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLModelView.swift; sourceTree = "<group>"; };
+		F112C4F02C4FE61700B3B93B /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
+		F112C4F22C4FE62200B3B93B /* CoreAudioTypes.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudioTypes.framework; path = System/Library/Frameworks/CoreAudioTypes.framework; sourceTree = SDKROOT; };
+		F112C4F42C4FE7D700B3B93B /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		F112C4F62C4FE7DC00B3B93B /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
+		F112C4F82C4FFEB600B3B93B /* AVKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVKit.framework; path = System/Library/Frameworks/AVKit.framework; sourceTree = SDKROOT; };
+		F1FB47042C4FFFFA005BABA2 /* Accessibility.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accessibility.framework; path = System/Library/Frameworks/Accessibility.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +119,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F112C4F92C4FFEB600B3B93B /* AVKit.framework in Frameworks */,
+				F112C4F72C4FE7DC00B3B93B /* AppKit.framework in Frameworks */,
+				F112C4F52C4FE7D700B3B93B /* Foundation.framework in Frameworks */,
+				F1DB10892C5010CD004F1943 /* ArgumentParser in Frameworks */,
+				F1FB47052C4FFFFA005BABA2 /* Accessibility.framework in Frameworks */,
+				F112C4F32C4FE62300B3B93B /* CoreAudioTypes.framework in Frameworks */,
+				F112C4F12C4FE61700B3B93B /* XCTest.framework in Frameworks */,
+				F112C4EC2C4FDC6300B3B93B /* Vapor in Frameworks */,
+				F112C4EE2C4FDC6300B3B93B /* XCTVapor in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -149,6 +173,7 @@
 			children = (
 				0D680A27297B38E7004F3839 /* CoreMLPlayer */,
 				0D680A26297B38E7004F3839 /* Products */,
+				F112C4EF2C4FE61700B3B93B /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -241,6 +266,19 @@
 			path = Structs;
 			sourceTree = "<group>";
 		};
+		F112C4EF2C4FE61700B3B93B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				F1FB47042C4FFFFA005BABA2 /* Accessibility.framework */,
+				F112C4F82C4FFEB600B3B93B /* AVKit.framework */,
+				F112C4F62C4FE7DC00B3B93B /* AppKit.framework */,
+				F112C4F42C4FE7D700B3B93B /* Foundation.framework */,
+				F112C4F22C4FE62200B3B93B /* CoreAudioTypes.framework */,
+				F112C4F02C4FE61700B3B93B /* XCTest.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -257,6 +295,11 @@
 			dependencies = (
 			);
 			name = "CoreML Player";
+			packageProductDependencies = (
+				F112C4EB2C4FDC6300B3B93B /* Vapor */,
+				F112C4ED2C4FDC6300B3B93B /* XCTVapor */,
+				F1DB10882C5010CD004F1943 /* ArgumentParser */,
+			);
 			productName = CoreMLPlayer;
 			productReference = 0D680A25297B38E7004F3839 /* CoreML Player.app */;
 			productType = "com.apple.product-type.application";
@@ -269,7 +312,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1420;
-				LastUpgradeCheck = 1420;
+				LastUpgradeCheck = 1540;
 				TargetAttributes = {
 					0D680A24297B38E7004F3839 = {
 						CreatedOnToolsVersion = 14.2;
@@ -277,7 +320,7 @@
 				};
 			};
 			buildConfigurationList = 0D680A20297B38E7004F3839 /* Build configuration list for PBXProject "CoreMLPlayer" */;
-			compatibilityVersion = "Xcode 14.0";
+			compatibilityVersion = "Xcode 15.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -285,6 +328,10 @@
 				Base,
 			);
 			mainGroup = 0D680A1C297B38E7004F3839;
+			packageReferences = (
+				F112C4EA2C4FDC6300B3B93B /* XCRemoteSwiftPackageReference "vapor" */,
+				F1DB10872C5010CC004F1943 /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
+			);
 			productRefGroup = 0D680A26297B38E7004F3839 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -390,9 +437,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -450,9 +499,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -475,15 +526,24 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = CoreMLPlayer/CoreMLPlayer.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 3;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"CoreMLPlayer/Preview Content\"";
 				DEVELOPMENT_TEAM = GC9B8DN6Q4;
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)/**",
+					"$(SRCROOT)/**",
+					"$(SRCROOT)/Frameworks/**",
+					"/System/Library/Frameworks/**",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(inherited)/**";
 				INFOPLIST_FILE = CoreMLPlayer/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "CoreML Player";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -492,9 +552,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)/**";
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0.2;
-				PRODUCT_BUNDLE_IDENTIFIER = useYourOwn.Identifier;
+				PRODUCT_BUNDLE_IDENTIFIER = coreMLplayer.Identifier;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -506,15 +567,24 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = CoreMLPlayer/CoreMLPlayer.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 3;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"CoreMLPlayer/Preview Content\"";
 				DEVELOPMENT_TEAM = GC9B8DN6Q4;
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)/**",
+					"$(SRCROOT)/**",
+					"$(SRCROOT)/Frameworks/**",
+					"/System/Library/Frameworks/**",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(inherited)/**";
 				INFOPLIST_FILE = CoreMLPlayer/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "CoreML Player";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -523,9 +593,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)/**";
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MARKETING_VERSION = 1.0.2;
-				PRODUCT_BUNDLE_IDENTIFIER = useYourOwn.Identifier;
+				PRODUCT_BUNDLE_IDENTIFIER = coreMLplayer.Identifier;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -554,6 +625,43 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F112C4EA2C4FDC6300B3B93B /* XCRemoteSwiftPackageReference "vapor" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/vapor/vapor.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.102.1;
+			};
+		};
+		F1DB10872C5010CC004F1943 /* XCRemoteSwiftPackageReference "swift-argument-parser" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-argument-parser.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F112C4EB2C4FDC6300B3B93B /* Vapor */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F112C4EA2C4FDC6300B3B93B /* XCRemoteSwiftPackageReference "vapor" */;
+			productName = Vapor;
+		};
+		F112C4ED2C4FDC6300B3B93B /* XCTVapor */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F112C4EA2C4FDC6300B3B93B /* XCRemoteSwiftPackageReference "vapor" */;
+			productName = XCTVapor;
+		};
+		F1DB10882C5010CD004F1943 /* ArgumentParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F1DB10872C5010CC004F1943 /* XCRemoteSwiftPackageReference "swift-argument-parser" */;
+			productName = ArgumentParser;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 0D680A1D297B38E7004F3839 /* Project object */;
 }

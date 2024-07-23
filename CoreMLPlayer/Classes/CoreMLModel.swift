@@ -8,11 +8,17 @@
 import SwiftUI
 import CoreML
 import Vision
+import AVFoundation
+import Vapor
 
 class CoreMLModel: Base, ObservableObject {
     @Published var isValid = false
     @Published var isLoading = false
     @Published var name: String?
+    @Published var detections: [DetectedObject] = []
+    @Published var selectedCameraID: String?
+    @Published var rtspURL: String?
+    @Published var isRTSPStreamActive = false
     
     @AppStorage("CoreMLModel-selectedBuiltInModel") var selectedBuiltInModel: String?
     @AppStorage("CoreMLModel-autoloadSelection") var autoloadSelection: AutoloadChoices = .disabled
@@ -287,4 +293,64 @@ class CoreMLModel: Base, ObservableObject {
             return nil
         }
     }
+    
+    func loadModel(mlmodel: MLModel) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let vnModel = try VNCoreMLModel(for: mlmodel)
+                DispatchQueue.main.async {
+                    self.model = vnModel
+                    self.name = mlmodel.modelDescription.metadata[.description] as? String ?? "Unnamed Model"
+                    withAnimation {
+                        self.isValid = true
+                        self.isLoading = false
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.isValid = false
+                    self.isLoading = false
+                    print("Failed to load model: \(error)")
+                }
+            }
+        }
+    }
+    
+    // New Methods for Camera, Labels, RTSP, and HTTP Server
+    func selectCamera(byID id: String) {
+        selectedCameraID = id
+        // TODO: Implement camera selection logic
+    }
+    
+    func startRTSPStream(withURL url: String) {
+        rtspURL = url
+        isRTSPStreamActive = true
+        guard let streamURL = URL(string: url) else {
+            print("Invalid RTSP URL")
+            return
+        }
+        let asset = AVURLAsset(url: streamURL)
+        let playerItem = AVPlayerItem(asset: asset)
+        let player = AVPlayer(playerItem: playerItem)
+        _ = AVPlayerLayer(player: player)
+        // mainView.layer.addSublayer(playerLayer)
+        player.play()
+    }
+    
+    func filterLabels(_ labels: [String]) {
+        // TODO: Implement label filtering logic
+    }
+    
+    func startHTTPServer(onPort port: String) {
+            let app = Application(.development)
+            defer { app.shutdown() }
+            
+            app.get("detections") { req -> String in
+                let detections = self.detections
+                let jsonData = try JSONEncoder().encode(detections)
+                return String(data: jsonData, encoding: .utf8) ?? "[]"
+            }
+            
+            try? app.run()
+        }
 }

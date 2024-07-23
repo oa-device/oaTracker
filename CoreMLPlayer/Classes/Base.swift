@@ -98,7 +98,8 @@ class Base {
                     width: obj.boundingBox.width,
                     height: obj.boundingBox.height,
                     x: obj.boundingBox.origin.x,
-                    y: obj.boundingBox.origin.y
+                    y: obj.boundingBox.origin.y,
+                    isClassification: false
                 )
                 
                 detectedObjects.append(newObject)
