@@ -6,21 +6,13 @@ oaCoreML is an application for MacOS that utilizes CoreML for real-time video pr
 
 ## Checklist
 
-- [x] Create and switch to the `dev_kai` branch
-- [x] Clean the existing project files
-- [x] Create a new Xcode project named `oaCoreML`
+- [ ] Clean the existing project files
 - [ ] Initialize version control and commit the new project
-- [ ] Set up dependencies using Swift Package Manager
+- [ ] Set up dependencies
 - [ ] Implement CLI options
-  - [ ] `-listCameras`
-  - [ ] `-listScreens`
   - [ ] `-camera id`
-  - [ ] `-video pathname`
   - [ ] `-model pathname`
-  - [ ] `-fullScreen id`
-  - [ ] `-overlay`
   - [ ] `-labels labels`
-  - [ ] `-loop`
   - [ ] `-server port`
   - [ ] `-rtsp username:password@http://...`
 - [ ] Add support for USB camera video feed
@@ -33,77 +25,45 @@ oaCoreML is an application for MacOS that utilizes CoreML for real-time video pr
 ### Prerequisites
 
 - MacOS with ARM chip
-- Xcode installed
+- Python installed
 - Git installed
 
 ### Setup
 
-1. Install dependencies using Swift Package Manager:
+1. Install dependencies using pip:
 
    ```sh
-   swift package init
-   swift package update
+   pip install opencv-python ultralytics
    ```
 
-### Building the Project
+### Running the Project
 
-1. Clean the current build:
-
-   ```sh
-   xcodebuild clean
-   ```
-
-2. Rebuild the project:
+1. Run the script:
 
    ```sh
-   xcodebuild build -project oaCoreML.xcodeproj
+   python tracker.py
    ```
 
 ### CLI Options
 
-- `-listCameras`: List available cameras and exit.
-
-  - Example: `sh oaCoreML -listCameras`
-
-- `-listScreens`: List available screens and exit.
-
-  - Example: `sh oaCoreML -listScreens`
-
 - `-camera id`: Select a camera as video feed using the provided ID.
 
-  - Example: `sh oaCoreML -camera 1`
+  - Example: `sh python tracker.py -camera 1`
 
-- `-video pathname`: Use a video file as the source. The path can be relative or absolute.
+- `-model pathname`: Use a provided YOLO model file. The path can be relative or absolute.
 
-  - Example: `sh oaCoreML -video /path/to/video.mp4`
-
-- `-model pathname`: Use a provided CoreML model file. The path can be relative or absolute.
-
-  - Example: `sh oaCoreML -model /path/to/model.mlmodel`
-  - Note: If no model is provided, the internal model `yolov3.mlmodel` is used.
-
-- `-fullScreen id`: Select the screen as video output using the provided ID. The video is full screen without any UI component.
-
-  - Example: `sh oaCoreML -fullScreen 2`
-
-- `-overlay`: Overlay detection boxes, labels, fps, and the number of items detected on the video.
-
-  - Example: `sh oaCoreML -overlay`
+  - Example: `sh python tracker.py -model /path/to/model.pt`
 
 - `-labels labels`: Keep only the provided labels, specified as a comma-separated list.
 
-  - Example: `sh oaCoreML -labels person,car,dog`
-
-- `-loop`: Loop the video if the mode is `-video`. Has no effect in `-camera` mode.
-
-  - Example: `sh oaCoreML -loop`
+  - Example: `sh python tracker.py -labels person,car,dog`
 
 - `-server port`: Enable the HTTP API at the provided port number.
 
-  - Example: `sh oaCoreML -server 8080`
+  - Example: `sh python tracker.py -server 8080`
 
 - `-rtsp username:password@http://...`: Connect to a camera's RTSP stream. Supported cameras are Reolink. The application must be able to reconnect when the connection expires.
-  - Example: `sh oaCoreML -rtsp username:password@http://192.168.1.100:554/`
+  - Example: `sh python tracker.py -rtsp username:password@http://192.168.1.100:554/`
 
 ### HTTP API
 
@@ -114,7 +74,7 @@ oaCoreML is an application for MacOS that utilizes CoreML for real-time video pr
 1. Run unit tests:
 
    ```sh
-   xcodebuild test -project oaCoreML.xcodeproj
+   pytest
    ```
 
 2. Test USB camera integration on various devices.
