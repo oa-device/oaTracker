@@ -19,7 +19,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # Save the installed packages to requirements.txt
-pip freeze >requirements.txt
+# pip freeze >requirements.txt
 
 # Deactivate the virtual environment
 deactivate
