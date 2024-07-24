@@ -1,82 +1,134 @@
-# oaCoreML
+# oaTracker
 
 ## Overview
 
-oaCoreML is an application for MacOS that utilizes CoreML for real-time video processing. It supports video feeds from USB cameras and provides a simple HTTP API for detection retrieval.
-
-## Checklist
-
-- [ ] Clean the existing project files
-- [ ] Initialize version control and commit the new project
-- [ ] Set up dependencies
-- [ ] Implement CLI options
-  - [ ] `-camera id`
-  - [ ] `-model pathname`
-  - [ ] `-labels labels`
-  - [ ] `-server port`
-  - [ ] `-rtsp username:password@http://...`
-- [ ] Add support for USB camera video feed
-- [ ] Develop HTTP API for detection retrieval
-- [ ] Write and run unit tests
-- [ ] Document setup, build, and usage instructions
+oaTracker is an application for MacOS that utilizes Ultralytics and OpenCV for real-time video processing.
+It supports video feeds from USB cameras and provides a simple HTTP API for detection retrieval.
 
 ## Getting Started
 
 ### Prerequisites
 
-- MacOS with ARM chip
-- Python installed
+- Mac devices
+- Xcode installed
 - Git installed
+- Python 3 installed
 
 ### Setup
 
-1. Install dependencies using pip:
+1. Clone the repository:
 
    ```sh
-   pip install opencv-python ultralytics
+   git clone <repository-url>
+   cd oaTracker
    ```
 
-### Running the Project
-
-1. Run the script:
+2. Run the setup script:
 
    ```sh
-   python tracker.py
+   ./setup.sh
    ```
 
-### CLI Options
+3. To activate the virtual environment:
 
-- `-camera id`: Select a camera as video feed using the provided ID.
+   ```sh
+   source oaTracker-env/bin/activate
+   # For fish shell:
+   # source oaTracker-env/bin/activate.fish
+   ```
 
-  - Example: `sh python tracker.py -camera 1`
+### Usage
 
-- `-model pathname`: Use a provided YOLO model file. The path can be relative or absolute.
+Run the tracker:
 
-  - Example: `sh python tracker.py -model /path/to/model.pt`
+```sh
+./tracker.py --camera 0 --model yolov8n.pt --serverPort 9999 --show --fps --trackAll
+```
 
-- `-labels labels`: Keep only the provided labels, specified as a comma-separated list.
+### Command-line Options
 
-  - Example: `sh python tracker.py -labels person,car,dog`
+- `--listCameras`, `-l`: List available cameras.
+- `--camera`, `-c`: Select a camera as video feed using the provided ID (default is 0 - Embedded camera).
+- `--model`, `-m`: Use a provided CoreML model file (default is yolov8n.pt).
+- `--serverPort`, `-s`: Start HTTP server on the provided port number (default port is 9999).
+- `--show`: Display annotated camera stream.
+- `--fps`: Display fps on the annotated stream.
+- `--rtsp`: Use an RTSP stream instead of a camera.
+- `--trackAll`: Track all classes instead of just 'person'.
 
-- `-server port`: Enable the HTTP API at the provided port number.
+### Frequently Used Examples
 
-  - Example: `sh python tracker.py -server 8080`
+- List available cameras:
 
-- `-rtsp username:password@http://...`: Connect to a camera's RTSP stream. Supported cameras are Reolink. The application must be able to reconnect when the connection expires.
-  - Example: `sh python tracker.py -rtsp username:password@http://192.168.1.100:554/`
+  ```sh
+  ./tracker.py -l
+  ```
+
+- Show the camera stream with annotations and FPS:
+
+  ```sh
+  ./tracker.py --show --fps
+  ```
+
+- Use an RTSP stream:
+
+  ```sh
+  ./tracker.py --rtsp username:password@http://192.168.1.100:554/
+  ```
+
+- Use a video file as the source:
+
+  ```sh
+  ./tracker.py --rtsp path/to/video.mp4
+  ```
+
+- Start the server on port 8080:
+
+  ```sh
+  ./tracker.py --serverPort 8080
+  ```
 
 ### HTTP API
 
 - `GET /detections`: Returns the detections of the current frame as a JSON array with boxes, labels, and confidence.
 
-### Testing
+  - Example:
 
-1. Run unit tests:
+  ```json
+  [
+   {
+    "timestamp": 1623242342,
+    "camera_id": 0,
+    "camera_name": "FaceTime HD Camera",
+    "camera_uniqueID": "3F45E80A-0176-46F7-B185-BB9E2C0E82E3",
+    "model_name": "yolov8n.pt",
+    "fps": 14.9,
+    "boxes": [[918.01, 624.84, 1283.5, 891.73]],
+    "labels": ["person"],
+    "confidence": [0.9026],
+    "processing_time": {
+     "preprocess": 0.6,
+     "inference": 24.0,
+     "postprocess": 0.2
+    }
+   }
+  ]
+  ```
 
-   ```sh
-   pytest
-   ```
+## Notes
 
-2. Test USB camera integration on various devices.
+- To save the installed packages to requirements.txt:
 
-3. Test HTTP API with different clients.
+  ```sh
+  # pip freeze > requirements.txt
+  ```
+
+- To deactivate the virtual environment:
+
+  ```sh
+  # deactivate
+  ```
+
+## Future Work
+
+- Write and run unit tests.
