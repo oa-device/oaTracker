@@ -7,6 +7,7 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
 import json
+from datetime import datetime
 from Foundation import *
 from AVFoundation import (
     AVCaptureDeviceDiscoverySession,
@@ -19,8 +20,9 @@ import os
 # Set environment variable to suppress OpenCV logging
 os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
 
-# Global variable to store detection results
+# Global variables to store detection results and camera information
 latest_detections = []
+camera_info = {}
 
 
 # Lists available camera indices up to a maximum number
@@ -56,7 +58,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             global latest_detections
             self.wfile.write(json.dumps(latest_detections).encode())
         else:
-            self.send_response(404)
+            self.send_response(302)
+            self.send_header("Location", "/detections")
             self.end_headers()
 
 
@@ -69,25 +72,55 @@ def start_server(port_number):
 
 
 # Captures video from the specified camera, runs YOLO object detection, and optionally displays the annotated frames
-def track(camera_id, model_name, show_flag, fps_flag):
-    global latest_detections
+def track(camera_id, model_name, show_flag, fps_flag, track_all):
+    global latest_detections, camera_info
     model = YOLO(model_name)
 
     # Initialize video capture object
     vid = cv2.VideoCapture(camera_id)
     prev_time = 0
 
+    # Fetch camera name and unique ID from camera info
+    camera_details = camera_info.get(str(camera_id), {})
+    camera_name = camera_details.get("name", "Unknown Camera")
+    camera_uniqueID = camera_details.get("id", "Unknown ID")
+
     while True:
         # Capture video frame-by-frame
         success, frame = vid.read()
         if success:
-            # Run YOLO object detection
-            results = model.track(frame, persist=False, classes=[0])
+            # Run YOLO object detection, filtering for "person" class (index 0) if not track_all
+            classes = [0] if not track_all else None
+            results = model.track(frame, persist=False, classes=classes)
+
+            # Get the current timestamp in epoch format
+            timestamp = int(datetime.now().timestamp())
+
+            # Calculate FPS
+            current_time = time.time()
+            fps = 1 / (current_time - prev_time) if prev_time != 0 else 0
+            prev_time = current_time
 
             # Update latest detections
             latest_detections = [
-                {"boxes": result.boxes.xywh.cpu().tolist(), "labels": result.names, "confidence": result.boxes.conf.cpu().tolist()}
+                {
+                    "timestamp": timestamp,
+                    "camera_id": camera_id,
+                    "camera_name": camera_name,
+                    "camera_uniqueID": camera_uniqueID,
+                    "model_name": model_name,
+                    "fps": fps,
+                    "boxes": result.boxes.xywh.cpu().tolist(),
+                    "labels": ["person" if i == 0 else result.names[i] for i in result.boxes.cls.cpu().tolist()],
+                    "confidence": result.boxes.conf.cpu().tolist(),
+                    "processing_time": {
+                        "preprocess": results[0].speed["preprocess"] if results else None,
+                        "inference": results[0].speed["inference"] if results else None,
+                        "postprocess": results[0].speed["postprocess"] if results else None,
+                    },
+                }
                 for result in results
+                if len(result.boxes) > 0
             ]
 
             if show_flag:
@@ -95,10 +128,7 @@ def track(camera_id, model_name, show_flag, fps_flag):
                 annotated_frame = results[0].plot()
 
                 if fps_flag:
-                    # Calculate and display FPS
-                    current_time = time.time()
-                    fps = 1 / (current_time - prev_time)
-                    prev_time = current_time
+                    # Display FPS on the frame
                     annotated_frame = cv2.putText(
                         annotated_frame,
                         f"FPS: {fps:.2f}",
@@ -123,6 +153,7 @@ def track(camera_id, model_name, show_flag, fps_flag):
 
 # Parses command-line arguments and initiates the appropriate functions
 def main():
+    global camera_info
     parser = argparse.ArgumentParser(prog="tracker", description="Detect and track object from a camera.")
 
     # Add command-line arguments
@@ -133,9 +164,14 @@ def main():
     parser.add_argument("--show", action="store_true", help="Display annotated camera stream.")
     parser.add_argument("--fps", action="store_true", help="Display fps.")
     parser.add_argument("--rtsp", help="RTSP stream instead of a camera")
+    parser.add_argument("--trackAll", action="store_true", help="Track all classes instead of just 'person'")
 
     # Parse the arguments
     args = parser.parse_args()
+
+    # Get camera info for tracking and listing
+    cameras = list_available_cameras()
+    camera_info = {str(cam["index"]): cam for cam in cameras}
 
     if args.listCameras:
         list_cameras()
@@ -151,7 +187,7 @@ def main():
         camera = args.rtsp
 
     # Start tracking with the specified camera or RTSP stream and model
-    track(camera, args.model, args.show, args.fps)
+    track(camera, args.model, args.show, args.fps, args.trackAll)
 
 
 if __name__ == "__main__":
