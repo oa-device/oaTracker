@@ -7,10 +7,10 @@ if ! command -v python3 &>/dev/null; then
 fi
 
 # Create a virtual environment
-python3 -m venv oaCoreML-env
+python3 -m venv oaTracker-env
 
 # Activate the virtual environment
-source oaCoreML-env/bin/activate
+source oaTracker-env/bin/activate
 
 # Upgrade pip
 pip install --upgrade pip
@@ -22,6 +22,8 @@ pip install -r requirements.txt
 # pip freeze >requirements.txt
 
 # Deactivate the virtual environment
-deactivate
+# deactivate
 
-echo "Setup complete. To activate the virtual environment, run 'source oaCoreML-env/bin/activate'."
+# To activate the virtual environment
+# source oaTracker-env/bin/activate
+# source oaTracker-env/bin/activate.fish
