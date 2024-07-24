@@ -8,13 +8,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
 import json
 from datetime import datetime
-from Foundation import *
-from AVFoundation import (
-    AVCaptureDeviceDiscoverySession,
-    AVCaptureDeviceTypeBuiltInWideAngleCamera,
-    AVCaptureDeviceTypeExternal,
-    AVCaptureDeviceTypeContinuityCamera,
-)
 import os
 
 # Set environment variable to suppress OpenCV logging
@@ -24,17 +17,42 @@ os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
 latest_detections = []
 camera_info = {}
 
+# Check if running on a MacOS or Ubuntu server
+try:
+    from Foundation import *
+    from AVFoundation import (
+        AVCaptureDeviceDiscoverySession,
+        AVCaptureDeviceTypeBuiltInWideAngleCamera,
+        AVCaptureDeviceTypeExternal,
+        AVCaptureDeviceTypeContinuityCamera,
+    )
 
-# Lists available camera indices up to a maximum number
-def list_available_cameras():
-    devices = AVCaptureDeviceDiscoverySession.discoverySessionWithDeviceTypes_mediaType_position_(
-        [AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureDeviceTypeExternal, AVCaptureDeviceTypeContinuityCamera], None, 0
-    ).devices()
+    MACOS = True
+except ImportError:
+    MACOS = False
 
-    available_cameras = []
-    for index, device in enumerate(devices):
-        available_cameras.append({"index": index, "id": device.uniqueID(), "name": device.localizedName()})
-    return available_cameras
+if MACOS:
+    # Lists available camera indices up to a maximum number for MacOS
+    def list_available_cameras():
+        devices = AVCaptureDeviceDiscoverySession.discoverySessionWithDeviceTypes_mediaType_position_(
+            [AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureDeviceTypeExternal, AVCaptureDeviceTypeContinuityCamera], None, 0
+        ).devices()
+
+        available_cameras = []
+        for index, device in enumerate(devices):
+            available_cameras.append({"index": index, "id": device.uniqueID(), "name": device.localizedName()})
+        return available_cameras
+
+else:
+    # Lists available camera indices up to a maximum number for Ubuntu
+    def list_available_cameras():
+        available_cameras = []
+        for index in range(10):  # Adjust the range as needed
+            cap = cv2.VideoCapture(index)
+            if cap.isOpened():
+                available_cameras.append({"index": index, "id": index, "name": f"Camera {index}"})
+                cap.release()
+        return available_cameras
 
 
 # Prints the list of available cameras with more informative names
@@ -93,7 +111,7 @@ def track(camera_id, model_name, show_flag, fps_flag, track_all):
         if success:
             # Run YOLO object detection, filtering for "person" class (index 0) if not track_all
             classes = [0] if not track_all else None
-            results = model.track(frame, persist=False, classes=classes)
+            results = model.track(frame, persist=True, classes=classes)
 
             # Get the current timestamp in epoch format
             timestamp = int(datetime.now().timestamp())
@@ -125,7 +143,7 @@ def track(camera_id, model_name, show_flag, fps_flag, track_all):
                 if len(result.boxes) > 0
             ]
 
-            if show_flag:
+            if show_flag and MACOS:
                 # Annotate frame with detection results
                 annotated_frame = results[0].plot()
 
@@ -150,7 +168,8 @@ def track(camera_id, model_name, show_flag, fps_flag, track_all):
 
     # Release the video capture object and close display windows
     vid.release()
-    cv2.destroyAllWindows()
+    if MACOS:
+        cv2.destroyAllWindows()
 
 
 # Parses command-line arguments and initiates the appropriate functions
