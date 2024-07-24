@@ -1,80 +1,122 @@
-<p align="center">
-<img width="128" src="CoreMLPlayer/Assets.xcassets/AppIcon.appiconset/Icon-128@2x.png">
-</p>
+# oaCoreML
 
-<h1 align="center">CoreML Player</h1>
-<p align="center">Try your CoreML Models on multiple videos and images easily and quickly.</p>
+## Overview
 
----
+oaCoreML is an application for MacOS that utilizes CoreML for real-time video processing. It supports video feeds from USB cameras and provides a simple HTTP API for detection retrieval.
 
-# Requirements
+## Checklist
 
-macOS 13.0+
+- [x] Create and switch to the `dev_kai` branch
+- [x] Clean the existing project files
+- [x] Create a new Xcode project named `oaCoreML`
+- [ ] Initialize version control and commit the new project
+- [ ] Set up dependencies using Swift Package Manager
+- [ ] Implement CLI options
+  - [ ] `-listCameras`
+  - [ ] `-listScreens`
+  - [ ] `-camera id`
+  - [ ] `-video pathname`
+  - [ ] `-model pathname`
+  - [ ] `-fullScreen id`
+  - [ ] `-overlay`
+  - [ ] `-labels labels`
+  - [ ] `-loop`
+  - [ ] `-server port`
+  - [ ] `-rtsp username:password@http://...`
+- [ ] Add support for USB camera video feed
+- [ ] Develop HTTP API for detection retrieval
+- [ ] Write and run unit tests
+- [ ] Document setup, build, and usage instructions
 
-Currently supports Object Detection and Classification models that can be used with Vision framework.
+## Getting Started
 
-# Features
+### Prerequisites
 
-- Control main configuration via CLI
-- Support for USB camera video feed
-- Simple HTTP API to retrieve current detections
+- MacOS with ARM chip
+- Xcode installed
+- Git installed
 
-## CLI Options
+### Setup
 
-### -listCameras
+1. Install dependencies using Swift Package Manager:
 
-List available cameras and exit. Each camera has a Unique ID allowing selecting it with the option `-camera`.
+   ```sh
+   swift package init
+   swift package update
+   ```
 
-### -listScreens
+### Building the Project
 
-List available screens and exit. Each screen has a Unique ID allowing selecting it with the option `-fullscreen`.
+1. Clean the current build:
 
-### -camera id
+   ```sh
+   xcodebuild clean
+   ```
 
-Use the provided ID to select a camera as the video feed. The camera ID is provided with the option `-listCameras`. This option cannot be used with the option `-video` as they are mutually exclusive.
+2. Rebuild the project:
 
-### -video pathname
+   ```sh
+   xcodebuild build -project oaCoreML.xcodeproj
+   ```
 
-Use the provided video file as the source. The path can be relative or absolute.
+### CLI Options
 
-### -model pathname
+- `-listCameras`: List available cameras and exit.
 
-Use the provided model file. The path can be relative or absolute. The provided model is a CoreML model. If no model is provided, the internal model `yolov3.mlmodel` is used.
+  - Example: `sh oaCoreML -listCameras`
 
-### -fullScreen id
+- `-listScreens`: List available screens and exit.
 
-Use the provided ID to select the screen as video output. The video is full screen without any UI component. Note that the video and/or the screen can be portrait or landscape. The video will be displayed with a maximum fitting size while keeping its aspect ratio.
+  - Example: `sh oaCoreML -listScreens`
 
-### -overlay
+- `-camera id`: Select a camera as video feed using the provided ID.
 
-Overlay detection boxes, labels, FPS, and the current number of items detected on the video.
+  - Example: `sh oaCoreML -camera 1`
 
-### -labels labels
+- `-video pathname`: Use a video file as the source. The path can be relative or absolute.
 
-Keep only the provided labels. They are provided as a comma-separated list. Overlays will then only display these labels.
+  - Example: `sh oaCoreML -video /path/to/video.mp4`
 
-### -loop
+- `-model pathname`: Use a provided CoreML model file. The path can be relative or absolute.
 
-If the mode is `-video`, loop the video. Has no effect in `-camera` mode.
+  - Example: `sh oaCoreML -model /path/to/model.mlmodel`
+  - Note: If no model is provided, the internal model `yolov3.mlmodel` is used.
 
-### -server port
+- `-fullScreen id`: Select the screen as video output using the provided ID. The video is full screen without any UI component.
 
-Enable the following HTTP API at the provided port number:
+  - Example: `sh oaCoreML -fullScreen 2`
 
-#### GET /detections
+- `-overlay`: Overlay detection boxes, labels, fps, and the number of items detected on the video.
 
-Returns the detections of the current frame (JSON array: boxes, labels, confidence).
+  - Example: `sh oaCoreML -overlay`
 
-# Screenshots
+- `-labels labels`: Keep only the provided labels, specified as a comma-separated list.
 
-![videos](https://user-images.githubusercontent.com/80475242/216794698-49bfb420-9850-4895-9ca9-ad722f7745d1.png)
-<sub>[Video by Brett Sayles from Pexels](https://www.pexels.com/video/dog-waiting-along-the-sidewalk-2048206/)</sub>
+  - Example: `sh oaCoreML -labels person,car,dog`
 
-![images](https://user-images.githubusercontent.com/80475242/216794699-2c5c733a-aeb5-4b99-a2c8-e0e743074213.png)
-<sub>[Photo by Patrick Tomasso from Unsplash](https://unsplash.com/photos/nApljhT9kfM)</sub>
+- `-loop`: Loop the video if the mode is `-video`. Has no effect in `-camera` mode.
 
----
+  - Example: `sh oaCoreML -loop`
 
-For demo purposes and being able to test the functionality quickly, the project includes a sample mlmodel file:
+- `-server port`: Enable the HTTP API at the provided port number.
 
-- YOLOv3Tiny: [https://github.com/pjreddie/darknet](https://github.com/pjreddie/darknet) (downloaded from [Apple's website](https://developer.apple.com/machine-learning/models/))
+  - Example: `sh oaCoreML -server 8080`
+
+- `-rtsp username:password@http://...`: Connect to a camera's RTSP stream. Supported cameras are Reolink. The application must be able to reconnect when the connection expires.
+  - Example: `sh oaCoreML -rtsp username:password@http://192.168.1.100:554/`
+
+### HTTP API
+
+- `GET /detections`: Returns the detections of the current frame as a JSON array with boxes, labels, and confidence.
+
+### Testing
+
+1. Run unit tests:
+
+   ```sh
+   xcodebuild test -project oaCoreML.xcodeproj
+   ```
+
+2. Test USB camera integration on various devices.
+
+3. Test HTTP API with different clients.
