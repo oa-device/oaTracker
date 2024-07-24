@@ -111,7 +111,7 @@ def track(camera_id, model_name, show_flag, fps_flag, track_all):
         if success:
             # Run YOLO object detection, filtering for "person" class (index 0) if not track_all
             classes = [0] if not track_all else None
-            results = model.track(frame, persist=False, classes=classes)
+            results = model.track(frame, persist=True, classes=classes)
 
             # Get the current timestamp in epoch format
             timestamp = int(datetime.now().timestamp())
