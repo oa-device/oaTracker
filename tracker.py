@@ -56,7 +56,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-type", "application/json")
             self.end_headers()
             global latest_detections
-            self.wfile.write(json.dumps(latest_detections).encode())
+            # Pretty-print JSON response
+            pretty_json = json.dumps(latest_detections, indent=4)
+            self.wfile.write(pretty_json.encode())
         else:
             self.send_response(302)
             self.send_header("Location", "/detections")
