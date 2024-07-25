@@ -32,9 +32,9 @@ It supports video feeds from USB cameras and provides a simple HTTP API for dete
 3. To activate the virtual environment:
 
    ```sh
-   source oaTracker-env/bin/activate
+   source oa-env/bin/activate
    # For fish shell:
-   # source oaTracker-env/bin/activate.fish
+   # source oa-env/bin/activate.fish
    ```
 
 ### Usage
@@ -96,22 +96,22 @@ Run the tracker:
 
   ```json
   [
-   {
-    "timestamp": 1623242342,
-    "camera_id": 0,
-    "camera_name": "FaceTime HD Camera",
-    "camera_uniqueID": "3F45E80A-0176-46F7-B185-BB9E2C0E82E3",
-    "model_name": "yolov8n.pt",
-    "fps": 14.9,
-    "boxes": [[918.01, 624.84, 1283.5, 891.73]],
-    "labels": ["person"],
-    "confidence": [0.9026],
-    "processing_time": {
-     "preprocess": 0.6,
-     "inference": 24.0,
-     "postprocess": 0.2
+    {
+      "timestamp": 1623242342,
+      "camera_id": 0,
+      "camera_name": "FaceTime HD Camera",
+      "camera_uniqueID": "3F45E80A-0176-46F7-B185-BB9E2C0E82E3",
+      "model_name": "yolov8n.pt",
+      "fps": 14.9,
+      "boxes": [[918.01, 624.84, 1283.5, 891.73]],
+      "labels": ["person"],
+      "confidence": [0.9026],
+      "processing_time": {
+        "preprocess": 0.6,
+        "inference": 24.0,
+        "postprocess": 0.2
+      }
     }
-   }
   ]
   ```
 

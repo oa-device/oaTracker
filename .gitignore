@@ -1,5 +1,5 @@
 # Ignore virtual environment
-oaTracker-env/
+oa-env/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -99,7 +99,7 @@ celerybeat.pid
 .env.*
 
 # virtualenv
-oaTracker-env/
+oa-env/
 venv/
 ENV/
 env/
