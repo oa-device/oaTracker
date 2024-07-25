@@ -15,7 +15,7 @@ def main():
     # Add command-line arguments
     parser.add_argument("--listCameras", "-l", action="store_true", help="List available cameras.")
     parser.add_argument("--camera", "-c", type=int, default=0, help="Camera to use. (Default is 0 - Embedded camera)")
-    parser.add_argument("--model", "-m", default="models/yolov8n.pt", help="ML Model to use. (Default is models/yolov8n.pt)")
+    parser.add_argument("--model", "-m", default="yolov8n.pt", help="ML Model to use. (Default is yolov8n.pt)")
     parser.add_argument("--serverPort", "-s", type=int, default=9999, help="Start HTTP server on port. (Default port is 9999)")
     parser.add_argument("--show", action="store_true", help="Display annotated camera stream.")
     parser.add_argument("--fps", action="store_true", help="Display fps.")
@@ -24,6 +24,9 @@ def main():
 
     # Parse the arguments
     args = parser.parse_args()
+
+    # Prepend 'models/' to the model path
+    model_path = f"models/{args.model}"
 
     # Get camera info for tracking and listing
     cameras = list_available_cameras()
@@ -43,7 +46,7 @@ def main():
         camera = args.rtsp
 
     # Start tracking with the specified camera or RTSP stream and model
-    track(camera, args.model, args.show, args.fps, args.trackAll)
+    track(camera, model_path, args.show, args.fps, args.trackAll)
 
 
 if __name__ == "__main__":
