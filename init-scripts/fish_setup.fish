@@ -11,13 +11,9 @@ function install_ubuntu_dependencies
     sudo apt-get install -y python3 python3-venv python3-pip python3-opencv
 end
 
-# Function to install packages on MacOS
+# Function to install MacOS-specific dependencies inside the virtual environment
 function install_macos_dependencies
-    if not command_exists brew
-        echo "Homebrew is not installed. Please install Homebrew first."
-        exit 1
-    end
-    brew install python
+    pip install pyobjc
 end
 
 # Detect the operating system
@@ -28,7 +24,11 @@ if not command_exists python3
     if test "$os_type" = "Linux"
         install_ubuntu_dependencies
     else if test "$os_type" = "Darwin"
-        install_macos_dependencies
+        if not command_exists brew
+            echo "Homebrew is not installed. Please install Homebrew first."
+            exit 1
+        end
+        brew install python
     else
         echo "Unsupported operating system: $os_type"
         exit 1
@@ -46,6 +46,12 @@ pip install --upgrade pip
 
 # Install required packages from requirements.txt
 pip install -r requirements.txt
+
+# Install MacOS-specific dependencies inside the virtual environment
+if test "$os_type" = "Darwin"
+    install_macos_dependencies
+end
+
 
 # Deactivate the virtual environment
 deactivate

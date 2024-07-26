@@ -2,14 +2,13 @@
 
 ## Overview
 
-oaTracker is an application for MacOS that utilizes Ultralytics and OpenCV for real-time video processing.
-It supports video feeds from USB cameras and provides a simple HTTP API for detection retrieval.
+oaTracker is an application for MacOS that utilizes Ultralytics and OpenCV for real-time video processing. It supports video feeds from USB cameras and provides a simple HTTP API for detection retrieval.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Mac devices
+- MacOS or Ubuntu
 - Xcode installed
 - Git installed
 - Python 3 installed
