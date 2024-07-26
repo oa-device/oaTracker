@@ -1,2 +1,3 @@
 opencv-python
 ultralytics
+lapx>=0.5.2
