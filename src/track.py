@@ -2,9 +2,11 @@ import cv2  # type: ignore
 import os
 import time
 import platform
+import sys
 from ultralytics import YOLO  # type: ignore
 from datetime import datetime
 from src.shared_state import latest_detections, camera_info
+from collections import Counter
 
 # Set environment variable to suppress OpenCV logging
 os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
@@ -12,6 +14,12 @@ os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
 # Check if running on MacOS
 MACOS = platform.system() == "Darwin"
 
+def sticky_print(message):
+    # Move cursor to the beginning of the line and clear the line
+    sys.stdout.write('\033[H\033[J')
+    # Print the message
+    sys.stdout.write(message)
+    sys.stdout.flush()
 
 # Captures video from the specified camera, runs YOLO object detection, and optionally displays the annotated frames
 def track(camera_id, model_name, show_flag, fps_flag, track_all):
@@ -27,13 +35,27 @@ def track(camera_id, model_name, show_flag, fps_flag, track_all):
     camera_name = camera_details.get("name", "Unknown Camera")
     camera_uniqueID = camera_details.get("id", "Unknown ID")
 
+    frame_count = 0
+    start_time = time.time()
+
+    # Get frame resolution
+    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    print("\n\033[1;32m--- Tracking Started ---\033[0m")  # Bold Green color
+    print(f"Camera: {camera_name}")
+    print(f"Model: {model_name}")
+    print(f"Resolution: {width}x{height}")
+    print("Press 'q' to stop tracking\n")
+
     while True:
         # Capture video frame-by-frame
         success, frame = vid.read()
         if success:
             # Run YOLO object detection, filtering for "person" class (index 0) if not track_all
+            frame_count += 1
             classes = [0] if not track_all else None
-            results = model.track(frame, persist=True, classes=classes)
+            results = model.track(frame, persist=True, classes=classes, verbose=False, device="mps", tracker="bytetrack.yaml")
 
             # Get the current timestamp in epoch format
             timestamp = int(datetime.now().timestamp())
@@ -44,7 +66,7 @@ def track(camera_id, model_name, show_flag, fps_flag, track_all):
             prev_time = current_time
 
             # Update latest detections
-            latest_detections.clear()  # Clear the previous detections
+            latest_detections.clear()
             latest_detections.extend(
                 [
                     {
@@ -67,6 +89,33 @@ def track(camera_id, model_name, show_flag, fps_flag, track_all):
                     if len(result.boxes) > 0
                 ]
             )
+
+            # Prepare sticky print information
+            elapsed_time = time.time() - start_time
+            avg_fps = frame_count / elapsed_time
+            
+            # Count detected objects
+            detected_objects = Counter()
+            for result in results:
+                for cls in result.boxes.cls.cpu().tolist():
+                    detected_objects[result.names[int(cls)]] += 1
+
+            total_objects = sum(detected_objects.values())
+
+            # Prepare the info string
+            info = "\033[1;36m--- Tracking Info ---\033[0m\n"
+            info += f"Camera: {camera_name} | Resolution: {width}x{height}\n"
+            info += f"FPS: {fps:.2f} | Avg FPS: {avg_fps:.2f} | Elapsed Time: {elapsed_time:.2f}s\n"
+            info += f"Total Detected Objects: {total_objects}\n"
+            for obj, count in detected_objects.items():
+                info += f"  - {obj}: {count}\n"
+            if results:
+                info += f"Processing Times: "
+                info += f"Preprocess: {results[0].speed['preprocess']:.2f}ms | "
+                info += f"Inference: {results[0].speed['inference']:.2f}ms | "
+                info += f"Postprocess: {results[0].speed['postprocess']:.2f}ms\n"
+
+            sticky_print(info)
 
             if show_flag and MACOS:
                 # Annotate frame with detection results
@@ -95,3 +144,5 @@ def track(camera_id, model_name, show_flag, fps_flag, track_all):
     vid.release()
     if MACOS:
         cv2.destroyAllWindows()
+    
+    print("\n\033[1;31m--- Tracking Stopped ---\033[0m")  # Red color
