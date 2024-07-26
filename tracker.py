@@ -5,6 +5,7 @@ import threading
 from src.list_cameras import list_available_cameras, list_cameras
 from src.request_handler import start_server
 from src.track import track
+from src.shared_state import camera_info
 
 
 # Parses command-line arguments and initiates the appropriate functions
@@ -30,7 +31,7 @@ def main():
 
     # Get camera info for tracking and listing
     cameras = list_available_cameras()
-    camera_info = {str(cam["index"]): cam for cam in cameras}
+    camera_info.update({str(cam["index"]): cam for cam in cameras})
 
     if args.listCameras:
         list_cameras()

@@ -1,7 +1,6 @@
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
-
-latest_detections = []
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from src.shared_state import latest_detections
 
 
 # Handles HTTP requests and returns the latest detection results for GET requests to /detections
@@ -11,7 +10,6 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.end_headers()
-            global latest_detections
             # Pretty-print JSON response
             pretty_json = json.dumps(latest_detections, indent=4)
             self.wfile.write(pretty_json.encode())

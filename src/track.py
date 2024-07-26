@@ -1,32 +1,21 @@
 import cv2  # type: ignore
-from ultralytics import YOLO  # type: ignore
 import os
 import time
+import platform
+from ultralytics import YOLO  # type: ignore
 from datetime import datetime
+from src.shared_state import latest_detections, camera_info
 
 # Set environment variable to suppress OpenCV logging
 os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
 
-# Global variables to store detection results and camera information
-latest_detections = []
-camera_info = {}
-try:
-    from Foundation import *
-    from AVFoundation import (
-        AVCaptureDeviceDiscoverySession,
-        AVCaptureDeviceTypeBuiltInWideAngleCamera,
-        AVCaptureDeviceTypeExternal,
-        AVCaptureDeviceTypeContinuityCamera,
-    )
-
-    MACOS = True
-except ImportError:
-    MACOS = False
+# Check if running on MacOS
+MACOS = platform.system() == "Darwin"
 
 
 # Captures video from the specified camera, runs YOLO object detection, and optionally displays the annotated frames
 def track(camera_id, model_name, show_flag, fps_flag, track_all):
-    global latest_detections, camera_info
+    global latest_detections
     model = YOLO(model_name)
 
     # Initialize video capture object
@@ -55,26 +44,29 @@ def track(camera_id, model_name, show_flag, fps_flag, track_all):
             prev_time = current_time
 
             # Update latest detections
-            latest_detections = [
-                {
-                    "timestamp": timestamp,
-                    "camera_id": camera_id,
-                    "camera_name": camera_name,
-                    "camera_uniqueID": camera_uniqueID,
-                    "model_name": model_name,
-                    "fps": fps,
-                    "boxes": result.boxes.xywh.cpu().tolist(),
-                    "labels": ["person" if i == 0 else result.names[i] for i in result.boxes.cls.cpu().tolist()],
-                    "confidence": result.boxes.conf.cpu().tolist(),
-                    "processing_time": {
-                        "preprocess": results[0].speed["preprocess"] if results else None,
-                        "inference": results[0].speed["inference"] if results else None,
-                        "postprocess": results[0].speed["postprocess"] if results else None,
-                    },
-                }
-                for result in results
-                if len(result.boxes) > 0
-            ]
+            latest_detections.clear()  # Clear the previous detections
+            latest_detections.extend(
+                [
+                    {
+                        "timestamp": timestamp,
+                        "camera_id": camera_id,
+                        "camera_name": camera_name,
+                        "camera_uniqueID": camera_uniqueID,
+                        "model_name": model_name,
+                        "fps": fps,
+                        "boxes": result.boxes.xywh.cpu().tolist(),
+                        "labels": ["person" if i == 0 else result.names[i] for i in result.boxes.cls.cpu().tolist()],
+                        "confidence": result.boxes.conf.cpu().tolist(),
+                        "processing_time": {
+                            "preprocess": results[0].speed["preprocess"] if results else None,
+                            "inference": results[0].speed["inference"] if results else None,
+                            "postprocess": results[0].speed["postprocess"] if results else None,
+                        },
+                    }
+                    for result in results
+                    if len(result.boxes) > 0
+                ]
+            )
 
             if show_flag and MACOS:
                 # Annotate frame with detection results

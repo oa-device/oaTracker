@@ -1,7 +1,10 @@
 import cv2  # type: ignore
+import platform
 
-# Check if running on a MacOS or Ubuntu server
-try:
+# Check if running on MacOS
+MACOS = platform.system() == "Darwin"
+
+if MACOS:
     from Foundation import *
     from AVFoundation import (
         AVCaptureDeviceDiscoverySession,
@@ -10,11 +13,6 @@ try:
         AVCaptureDeviceTypeContinuityCamera,
     )
 
-    MACOS = True
-except ImportError:
-    MACOS = False
-
-if MACOS:
     # Lists available camera indices up to a maximum number for MacOS
     def list_available_cameras():
         devices = AVCaptureDeviceDiscoverySession.discoverySessionWithDeviceTypes_mediaType_position_(
@@ -27,7 +25,7 @@ if MACOS:
         return available_cameras
 
 else:
-    # Lists available camera indices up to a maximum number for Ubuntu
+    # Lists available camera indices up to a maximum number for other systems
     def list_available_cameras():
         available_cameras = []
         for index in range(10):  # Adjust the range as needed
