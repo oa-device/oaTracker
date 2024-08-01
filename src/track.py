@@ -5,7 +5,7 @@ import platform
 import sys
 from ultralytics import YOLO  # type: ignore
 from datetime import datetime
-from src.shared_state import latest_detections, camera_info
+from src.shared_state import latest_detections, camera_info, add_detection
 from collections import Counter
 
 # Set environment variable to suppress OpenCV logging
@@ -14,12 +14,14 @@ os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
 # Check if running on MacOS
 MACOS = platform.system() == "Darwin"
 
+
 def sticky_print(message):
     # Move cursor to the beginning of the line and clear the line
-    sys.stdout.write('\033[H\033[J')
+    sys.stdout.write("\033[H\033[J")
     # Print the message
     sys.stdout.write(message)
     sys.stdout.flush()
+
 
 # Captures video from the specified camera, runs YOLO object detection, and optionally displays the annotated frames
 def track(camera_id, model_name, show_flag, fps_flag, track_all):
@@ -67,33 +69,42 @@ def track(camera_id, model_name, show_flag, fps_flag, track_all):
 
             # Update latest detections
             latest_detections.clear()
-            latest_detections.extend(
-                [
-                    {
-                        "timestamp": timestamp,
-                        "camera_id": camera_id,
-                        "camera_name": camera_name,
-                        "camera_uniqueID": camera_uniqueID,
-                        "model_name": model_name,
-                        "fps": fps,
-                        "boxes": result.boxes.xywh.cpu().tolist(),
-                        "labels": ["person" if i == 0 else result.names[i] for i in result.boxes.cls.cpu().tolist()],
-                        "confidence": result.boxes.conf.cpu().tolist(),
-                        "processing_time": {
-                            "preprocess": results[0].speed["preprocess"] if results else None,
-                            "inference": results[0].speed["inference"] if results else None,
-                            "postprocess": results[0].speed["postprocess"] if results else None,
-                        },
-                    }
-                    for result in results
-                    if len(result.boxes) > 0
-                ]
-            )
+            if results and len(results[0].boxes) > 0:
+                boxes = results[0].boxes
+                detection = {
+                    "timestamp": timestamp,
+                    "camera_id": camera_id,
+                    "camera_name": camera_name,
+                    "camera_uniqueID": camera_uniqueID,
+                    "model_name": model_name,
+                    "fps": fps,
+                    "tracked_objects": [
+                        {
+                            "id": int(id) if id is not None else None,
+                            "label": model.names[int(cls)],
+                            "box": box,  # Remove .tolist() as box is already a list
+                            "confidence": float(conf),  # Convert to float for JSON serialization
+                        }
+                        for id, cls, box, conf in zip(
+                            boxes.id.int().cpu().tolist() if boxes.id is not None else [None] * len(boxes),
+                            boxes.cls.int().cpu().tolist(),
+                            boxes.xywh.cpu().tolist(),
+                            boxes.conf.cpu().tolist(),
+                        )
+                    ],
+                    "processing_time": {
+                        "preprocess": results[0].speed["preprocess"],
+                        "inference": results[0].speed["inference"],
+                        "postprocess": results[0].speed["postprocess"],
+                    },
+                }
+                latest_detections.append(detection)
+                add_detection(detection)
 
             # Prepare sticky print information
             elapsed_time = time.time() - start_time
             avg_fps = frame_count / elapsed_time
-            
+
             # Count detected objects
             detected_objects = Counter()
             for result in results:
@@ -144,5 +155,5 @@ def track(camera_id, model_name, show_flag, fps_flag, track_all):
     vid.release()
     if MACOS:
         cv2.destroyAllWindows()
-    
+
     print("\n\033[1;31m--- Tracking Stopped ---\033[0m")  # Red color
