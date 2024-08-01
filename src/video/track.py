@@ -5,8 +5,13 @@ import platform
 import sys
 from ultralytics import YOLO  # type: ignore
 from datetime import datetime
-from src.shared_state import latest_detections, camera_info, add_detection
+from src.utils.shared_state import latest_detections, camera_info, add_detection
 from collections import Counter
+import yaml
+
+# Load configuration
+with open("config.yaml", "r") as config_file:
+    config = yaml.safe_load(config_file)
 
 # Set environment variable to suppress OpenCV logging
 os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
@@ -23,10 +28,25 @@ def sticky_print(message):
     sys.stdout.flush()
 
 
-# Captures video from the specified camera, runs YOLO object detection, and optionally displays the annotated frames
-def track(camera_id, model_name, show_flag, fps_flag, track_all):
+def track(camera_id=None, model_name=None, show_flag=False, fps_flag=False, track_all=False):
     global latest_detections
-    model = YOLO(model_name)
+
+    if camera_id is None:
+        camera_id = config["default_camera"]
+
+    if model_name is None:
+        model_name = config["default_model"]
+
+    # Handle the model path
+    if model_name.startswith("models/"):
+        model_path = model_name
+    elif os.path.isfile(model_name):
+        model_path = model_name
+    else:
+        model_path = f"models/{model_name}"
+
+    print(f"Loading model from: {model_path}")
+    model = YOLO(model_path)
 
     # Initialize video capture object
     vid = cv2.VideoCapture(camera_id)

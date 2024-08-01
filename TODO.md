@@ -8,11 +8,11 @@
 
 ## Code Structure
 
-- [ ] Reorganize the project into a more modular structure
-  - [ ] Separate modules for video processing
-  - [ ] Separate modules for API handling
-  - [ ] Separate modules for utilities
-- [ ] Implement a configuration file (e.g., YAML) for easier management of default settings
+- [x] Reorganize the project into a more modular structure
+  - [x] Separate modules for video processing
+  - [x] Separate modules for API handling
+  - [x] Separate modules for utilities
+- [x] Implement a configuration file (e.g., YAML) for easier management of default settings
 
 ## Testing
 
@@ -77,7 +77,7 @@
 
 ## Documentation Updates
 
-- [ ] Keep README.md updated with new features and changes
-- [ ] Create and maintain a CHANGELOG.md file
+- [x] Keep README.md updated with new features and changes
+- [x] Create and maintain a CHANGELOG.md file
 
 Remember to update this TODO list as you complete tasks or identify new areas for improvement. This list will help guide the project's development and make it easier for contributors to understand the project's direction and outstanding tasks.

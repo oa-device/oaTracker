@@ -1,7 +1,12 @@
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
-from src.shared_state import latest_detections, get_unique_object_counts
+from src.utils.shared_state import latest_detections, get_unique_object_counts
+import yaml
+
+# Load configuration
+with open("config.yaml", "r") as config_file:
+    config = yaml.safe_load(config_file)
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -39,8 +44,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
 
-# Starts the HTTP server on the specified port number
-def start_server(port_number):
+def start_server(port_number=None):
+    if port_number is None:
+        port_number = config["default_server_port"]
     server_address = ("", port_number)
     httpd = HTTPServer(server_address, RequestHandler)
     print(f"Starting server on port {port_number}")

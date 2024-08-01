@@ -2,22 +2,38 @@
 
 import argparse
 import threading
-from src.list_cameras import list_available_cameras, list_cameras
-from src.request_handler import start_server
-from src.track import track
-from src.shared_state import camera_info
+import yaml
+
+from src.utils.list_cameras import list_available_cameras, list_cameras
+from src.api.request_handler import start_server
+from src.video.track import track
+from src.utils.shared_state import camera_info
 
 
-# Parses command-line arguments and initiates the appropriate functions
+def load_config():
+    with open("config.yaml", "r") as config_file:
+        return yaml.safe_load(config_file)
+
+
 def main():
     global camera_info
+    config = load_config()
+
     parser = argparse.ArgumentParser(prog="tracker", description="Detect and track object from a camera.")
 
     # Add command-line arguments
     parser.add_argument("--listCameras", "-l", action="store_true", help="List available cameras.")
-    parser.add_argument("--camera", "-c", type=int, default=0, help="Camera to use. (Default is 0 - Embedded camera)")
-    parser.add_argument("--model", "-m", default="yolov10n.pt", help="ML Model to use. (Default is yolov10n.pt)")
-    parser.add_argument("--serverPort", "-s", type=int, default=9999, help="Start HTTP server on port. (Default port is 9999)")
+    parser.add_argument(
+        "--camera", "-c", type=int, default=config["default_camera"], help=f"Camera to use. (Default is {config['default_camera']} - Embedded camera)"
+    )
+    parser.add_argument("--model", "-m", default=config["default_model"], help=f"ML Model to use. (Default is {config['default_model']})")
+    parser.add_argument(
+        "--serverPort",
+        "-s",
+        type=int,
+        default=config["default_server_port"],
+        help=f"Start HTTP server on port. (Default port is {config['default_server_port']})",
+    )
     parser.add_argument("--show", action="store_true", help="Display annotated camera stream.")
     parser.add_argument("--fps", action="store_true", help="Display fps.")
     parser.add_argument("--rtsp", help="RTSP stream instead of a camera")
@@ -25,9 +41,6 @@ def main():
 
     # Parse the arguments
     args = parser.parse_args()
-
-    # Prepend 'models/' to the model path
-    model_path = f"models/{args.model}"
 
     # Get camera info for tracking and listing
     cameras = list_available_cameras()
@@ -47,7 +60,7 @@ def main():
         camera = args.rtsp
 
     # Start tracking with the specified camera or RTSP stream and model
-    track(camera, model_path, args.show, args.fps, args.trackAll)
+    track(camera, args.model, args.show, args.fps, args.trackAll)
 
 
 if __name__ == "__main__":

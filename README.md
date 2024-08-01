@@ -9,6 +9,25 @@ oaTracker is an application for MacOS that utilizes Ultralytics and OpenCV for r
 - **Object Tracking**: The application now uses YOLO's built-in tracking feature to track individual objects across frames.
 - **Unique Object Counting**: The HTTP API now provides counts of unique objects detected within a specified time range.
 - **Time-based Queries**: You can now query for detections within the last X seconds (1 <= X <= 30).
+- **Modular Structure**: The project has been reorganized into a more modular structure for better maintainability.
+- **Configuration File**: A `config.yaml` file has been added for easier management of default settings.
+
+## Project Structure
+
+To view the current project structure, run the following command from the project root:
+
+```sh
+tree -CF -L 3 -I 'oa-env' -I '__pycache__'
+```
+
+This command will display a tree-like structure of the project, excluding the virtual environment (`oa-env`) and Python cache files (`__pycache__`).
+
+If you don't have the `tree` command installed, you can install it using:
+
+- On macOS with Homebrew: `brew install tree`
+- On Ubuntu or Debian: `sudo apt-get install tree`
+
+Note: The actual structure may vary slightly depending on your current development state.
 
 ## Getting Started
 
@@ -42,6 +61,16 @@ oaTracker is an application for MacOS that utilizes Ultralytics and OpenCV for r
    # source oa-env/bin/activate.fish
    ```
 
+### Configuration
+
+The `config.yaml` file in the root directory contains default settings for the application. You can modify these settings to change the default behavior:
+
+```yaml
+default_camera: 0
+default_model: "yolov10n.pt"
+default_server_port: 9999
+```
+
 ### Usage
 
 Run the tracker:
@@ -53,9 +82,9 @@ Run the tracker:
 ### Command-line Options
 
 - `--listCameras`, `-l`: List available cameras.
-- `--camera`, `-c`: Select a camera as video feed using the provided ID (default is 0 - Embedded camera).
-- `--model`, `-m`: Use a provided CoreML model file (default is yolov10n.pt).
-- `--serverPort`, `-s`: Start HTTP server on the provided port number (default port is 9999).
+- `--camera`, `-c`: Select a camera as video feed using the provided ID (default is set in config.yaml).
+- `--model`, `-m`: Use a provided CoreML model file (default is set in config.yaml).
+- `--serverPort`, `-s`: Start HTTP server on the provided port number (default port is set in config.yaml).
 - `--show`: Display annotated camera stream.
 - `--fps`: Display fps on the annotated stream.
 - `--rtsp`: Use an RTSP stream instead of a camera.
@@ -109,6 +138,16 @@ Run the tracker:
   }
   ```
 
+## Development
+
+### Changelog
+
+We use [Semantic Versioning](https://semver.org/) for version numbers. All notable changes are documented in the [CHANGELOG.md](CHANGELOG.md) file.
+
+### Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
 ## Notes
 
 - To save the installed packages to requirements.txt:
@@ -125,6 +164,4 @@ Run the tracker:
 
 ## Future Work
 
-- Write and run unit tests.
-- Implement more advanced filtering options for the API.
-- Add support for multiple camera streams simultaneously.
+For a list of planned features and known issues, see the [TODO.md](TODO.md) file.
