@@ -16,7 +16,7 @@ def main():
     # Add command-line arguments
     parser.add_argument("--listCameras", "-l", action="store_true", help="List available cameras.")
     parser.add_argument("--camera", "-c", type=int, default=0, help="Camera to use. (Default is 0 - Embedded camera)")
-    parser.add_argument("--model", "-m", default="yolov8n.pt", help="ML Model to use. (Default is yolov8n.pt)")
+    parser.add_argument("--model", "-m", default="yolov10n.pt", help="ML Model to use. (Default is yolov10n.pt)")
     parser.add_argument("--serverPort", "-s", type=int, default=9999, help="Start HTTP server on port. (Default port is 9999)")
     parser.add_argument("--show", action="store_true", help="Display annotated camera stream.")
     parser.add_argument("--fps", action="store_true", help="Display fps.")
