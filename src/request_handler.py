@@ -1,18 +1,38 @@
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from src.shared_state import latest_detections
+from urllib.parse import urlparse, parse_qs
+from src.shared_state import latest_detections, get_unique_object_counts
 
 
-# Handles HTTP requests and returns the latest detection results for GET requests to /detections
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == "/detections":
-            self.send_response(200)
-            self.send_header("Content-type", "application/json")
-            self.end_headers()
-            # Pretty-print JSON response
-            pretty_json = json.dumps(latest_detections, indent=4)
-            self.wfile.write(pretty_json.encode())
+        parsed_path = urlparse(self.path)
+
+        if parsed_path.path == "/detections":
+            query_params = parse_qs(parsed_path.query)
+            from_seconds = query_params.get("from", [None])[0]
+
+            if from_seconds is not None:
+                try:
+                    from_seconds = int(from_seconds)
+                    if 1 <= from_seconds <= 30:
+                        object_counts = get_unique_object_counts(from_seconds)
+
+                        self.send_response(200)
+                        self.send_header("Content-type", "application/json")
+                        self.end_headers()
+                        response = json.dumps(object_counts)
+                        self.wfile.write(response.encode())
+                    else:
+                        self.send_error(400, "Invalid 'from' parameter. Must be between 1 and 30.")
+                except ValueError:
+                    self.send_error(400, "Invalid 'from' parameter. Must be an integer.")
+            else:
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                pretty_json = json.dumps(latest_detections, indent=4)
+                self.wfile.write(pretty_json.encode())
         else:
             self.send_response(302)
             self.send_header("Location", "/detections")
