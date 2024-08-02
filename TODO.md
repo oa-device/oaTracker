@@ -1,18 +1,37 @@
 # TODO List for oaTracker
 
+## Code Structure
+
+- [x] Reorganize the project into a more modular structure
+- [x] Implement a configuration file (config.yaml) for easier management of default settings
+- [ ] Use tools like pip-compile or poetry for better dependency management
+
 ## Documentation
 
+- [x] Enhance README with detailed setup and usage instructions
 - [ ] Create comprehensive API documentation using Swagger or ReDoc
 - [ ] Add inline comments to explain complex parts of the code
 - [ ] Create a CONTRIBUTING.md file with guidelines for contributors
 
-## Code Structure
+## Features
 
-- [x] Reorganize the project into a more modular structure
-  - [x] Separate modules for video processing
-  - [x] Separate modules for API handling
-  - [x] Separate modules for utilities
-- [x] Implement a configuration file (e.g., YAML) for easier management of default settings
+- [x] Implement object tracking across video frames
+- [x] Add unique object counting within specified time ranges
+- [x] Create HTTP API for retrieving detection data
+- [x] Add support for RTSP streams and video files as input sources
+- [ ] Implement more advanced filtering options for the API
+- [ ] Add support for multiple camera streams simultaneously
+- [ ] Explore and implement additional YOLO models for improved detection accuracy
+- [ ] Add option to save processed video with annotations
+- [ ] Implement alert system for specific detection scenarios
+
+## Setup and Installation
+
+- [x] Create comprehensive setup script with usage guide
+- [x] Improve cross-platform compatibility (MacOS and Ubuntu)
+- [ ] Add option to specify Python version in setup script
+- [ ] Implement automatic dependency updates in setup script
+- [ ] Add system requirement checks in setup script (e.g., available disk space, RAM)
 
 ## Testing
 
@@ -34,20 +53,11 @@
 
 - [ ] Create a Dockerfile to containerize the application
 
-## Version Control
-
-- [ ] Implement a clear branching strategy (e.g., GitFlow)
-- [ ] Use semantic versioning for releases
-
 ## Code Quality
 
 - [ ] Implement linting (e.g., flake8, pylint)
 - [ ] Implement formatting (e.g., black)
 - [ ] Set up pre-commit hooks to ensure code quality before commits
-
-## Dependency Management
-
-- [ ] Use tools like pip-compile or poetry for better dependency management
 
 ## Scalability
 
@@ -65,19 +75,5 @@
 ## User Interface
 
 - [ ] Create a web-based dashboard for easier interaction with the tracker
-
-## Internationalization
-
-- [ ] Prepare the project for internationalization to support multiple languages
-
-## Additional Features
-
-- [ ] Implement more advanced filtering options for the API
-- [ ] Add support for multiple camera streams simultaneously
-
-## Documentation Updates
-
-- [x] Keep README.md updated with new features and changes
-- [x] Create and maintain a CHANGELOG.md file
 
 Remember to update this TODO list as you complete tasks or identify new areas for improvement. This list will help guide the project's development and make it easier for contributors to understand the project's direction and outstanding tasks.
