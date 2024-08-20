@@ -3,7 +3,7 @@
 set -e
 
 # Desired Python version
-PYTHON_VERSION="3.12.0"
+PYTHON_VERSION="3.10.11"
 
 # Function to display usage information
 display_usage() {
