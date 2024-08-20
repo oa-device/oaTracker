@@ -1,5 +1,5 @@
 # Ignore virtual environment
-oa-env/
+venv/
 venv/
 ENV/
 

@@ -31,10 +31,10 @@ Examples:
 Note:
   - This script supports both macOS and Ubuntu.
   - It will install Homebrew on macOS if not already installed.
-  - The script creates a Python virtual environment named 'oa-env'.
+  - The script creates a Python virtual environment named 'venv'.
   - After running the script, activate the virtual environment with:
-    source oa-env/bin/activate         (for bash/zsh)
-    source oa-env/bin/activate.fish    (for fish shell)
+    source venv/bin/activate         (for bash/zsh)
+    source venv/bin/activate.fish    (for fish shell)
 
 EOF
 }
@@ -165,9 +165,9 @@ install_python() {
 
 # Function to set up Python virtual environment
 setup_venv() {
-    if [ ! -d "oa-env" ]; then
+    if [ ! -d "venv" ]; then
         echo "Creating Python virtual environment..."
-        python -m venv oa-env
+        python -m venv venv
     else
         echo "Virtual environment already exists. Updating..."
     fi
@@ -175,10 +175,10 @@ setup_venv() {
     # Activate virtual environment based on shell
     case $DETECTED_SHELL in
     fish)
-        source oa-env/bin/activate.fish
+        source venv/bin/activate.fish
         ;;
     *)
-        source oa-env/bin/activate
+        source venv/bin/activate
         ;;
     esac
 
@@ -197,7 +197,7 @@ setup_venv() {
 # Function to clean up previous installations
 cleanup() {
     echo "Cleaning up previous installations..."
-    rm -rf oa-env
+    rm -rf venv
     if command_exists pyenv; then
         pyenv uninstall -f $PYTHON_VERSION
     fi
@@ -279,8 +279,8 @@ esac
 
 echo -e "\n\n#############################################################"
 echo -e "Setup complete. To activate the virtual environment, run:"
-echo -e "source oa-env/bin/activate"
+echo -e "source venv/bin/activate"
 if [ "$DETECTED_SHELL" = "fish" ]; then
-    echo -e "For fish shell, use: source oa-env/bin/activate.fish"
+    echo -e "For fish shell, use: source venv/bin/activate.fish"
 fi
 echo -e "#############################################################\n\n"

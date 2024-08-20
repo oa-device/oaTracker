@@ -58,9 +58,9 @@ oaTracker is an internal application for MacOS and Ubuntu that utilizes Ultralyt
 3. Activate the virtual environment:
 
    ```sh
-   source oa-env/bin/activate
+   source venv/bin/activate
    # For fish shell:
-   # source oa-env/bin/activate.fish
+   # source venv/bin/activate.fish
    ```
 
 ### Configuration
@@ -166,7 +166,7 @@ Note: Replace `localhost` with the appropriate IP address or hostname if accessi
 To view the project structure:
 
 ```sh
-tree -CF -L 3 -I 'oa-env' -I '__pycache__'
+tree -CF -L 3 -I 'venv' -I '__pycache__'
 ```
 
 Install `tree`:
