@@ -1,13 +1,14 @@
-import cv2  # type: ignore
 import os
 import time
 import platform
 import sys
-from ultralytics import YOLO  # type: ignore
-from datetime import datetime
-from src.utils.shared_state import latest_detections, camera_info, add_detection
-from collections import Counter
 import yaml
+from datetime import datetime
+from collections import Counter
+import cv2  # type: ignore
+from ultralytics import YOLO  # type: ignore
+from src.utils.shared_state import latest_detections, camera_info, add_detection
+from src.utils.person_counter import PersonCounter
 
 # Load configuration
 with open("config.yaml", "r") as config_file:
@@ -102,8 +103,8 @@ def track(camera_id=None, model_name=None, show_flag=False, fps_flag=False, trac
                         {
                             "id": int(id) if id is not None else None,
                             "label": model.names[int(cls)],
-                            "box": box,  # Remove .tolist() as box is already a list
-                            "confidence": float(conf),  # Convert to float for JSON serialization
+                            "box": box, 
+                            "confidence": float(conf),  
                         }
                         for id, cls, box, conf in zip(
                             boxes.id.int().cpu().tolist() if boxes.id is not None else [None] * len(boxes),
