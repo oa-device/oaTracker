@@ -70,7 +70,7 @@ Modify `config.yaml` in the root directory to change default settings:
 ```yaml
 default_camera: 0
 default_model: "yolov10n.pt"
-default_server_port: 9999
+default_server_port: 8000
 ```
 
 ## Usage
@@ -138,15 +138,17 @@ Run the tracker using:
 
 ## HTTP API
 
-The application provides a simple HTTP API for retrieving detection data. By default, the API is accessible at `http://localhost:9999` (unless a different port is specified with the `--serverPort` option).
+The application provides a simple HTTP API for retrieving detection data. By default, the API is accessible at `http://localhost:8000` (unless a different port is specified with the `--serverPort` option).
 
 - `GET /detections`: Returns current frame detections (boxes, labels, confidence).
 - `GET /detections?from=X`: Returns unique object counts for the last X seconds (1 <= X <= 30).
+- `GET /count?from=X&to=Y&cam=Z`: Returns the count of unique persons detected between X and Y seconds ago on camera Z.
 
-Example request:
+Example requests:
 
 ```http
-GET http://localhost:9999/detections?from=10
+GET http://localhost:8000/detections?from=10
+GET http://localhost:8000/count?from=0&to=60&cam=0
 ```
 
 Example response for `/detections?from=10`:

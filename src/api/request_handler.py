@@ -1,8 +1,9 @@
 import json
+import yaml
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 from src.utils.shared_state import latest_detections, get_unique_object_counts
-import yaml
+from src.utils.person_counter import PersonCounter
 
 # Load configuration
 with open("config.yaml", "r") as config_file:
@@ -38,6 +39,24 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 pretty_json = json.dumps(latest_detections, indent=4)
                 self.wfile.write(pretty_json.encode())
+        elif parsed_path.path == "/count":
+            query_params = parse_qs(parsed_path.query)
+            from_seconds = float(query_params.get("from", [None])[0])
+            to_seconds = float(query_params.get("to", [None])[0])
+            cam = int(query_params.get("cam", [None])[0])
+
+            if from_seconds is None or to_seconds is None or cam is None:
+                self.send_error(400, "Missing required parameters")
+                return
+
+            person_counter = PersonCounter(cam)
+            count = person_counter.get_count(from_seconds, to_seconds)
+
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            response = json.dumps({"count": count})
+            self.wfile.write(response.encode())
         else:
             self.send_response(302)
             self.send_header("Location", "/detections")
