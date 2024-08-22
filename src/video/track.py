@@ -29,7 +29,7 @@ def sticky_print(message):
     sys.stdout.flush()
 
 
-def track(camera_id=None, model_name=None, show_flag=False, fps_flag=False, track_all=False):
+def track(camera_id=None, model_name=None, show_flag=False, fps_flag=False, track_all=False, loop_video=True):
     global latest_detections
 
     if camera_id is None:
@@ -71,56 +71,66 @@ def track(camera_id=None, model_name=None, show_flag=False, fps_flag=False, trac
     print(f"Resolution: {width}x{height}")
     print("Press 'q' to stop tracking\n")
 
+    person_counter = PersonCounter.get_counter(str(camera_id))
+
     while True:
         # Capture video frame-by-frame
         success, frame = vid.read()
-        if success:
-            # Run YOLO object detection, filtering for "person" class (index 0) if not track_all
-            frame_count += 1
-            classes = [0] if not track_all else None
-            results = model.track(frame, persist=True, classes=classes, verbose=False, device="mps", tracker="bytetrack.yaml")
+        if not success:
+            if loop_video and isinstance(camera_id, str) and os.path.isfile(camera_id):
+                vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                success, frame = vid.read()
+            if not success:
+                print("End of video stream")
+                break
 
-            # Get the current timestamp in epoch format
-            timestamp = int(datetime.now().timestamp())
+        # Run YOLO object detection, filtering for "person" class (index 0) if not track_all
+        frame_count += 1
+        classes = [0] if not track_all else None
+        results = model.track(frame, persist=True, classes=classes, verbose=False, device="mps", tracker="bytetrack.yaml")
 
-            # Calculate FPS
-            current_time = time.time()
-            fps = 1 / (current_time - prev_time) if prev_time != 0 else 0
-            prev_time = current_time
+        # Get the current timestamp in milliseconds since Unix epoch
+        timestamp = int(time.time() * 1000)
 
-            # Update latest detections
-            latest_detections.clear()
-            if results and len(results[0].boxes) > 0:
-                boxes = results[0].boxes
-                detection = {
-                    "timestamp": timestamp,
-                    "camera_id": camera_id,
-                    "camera_name": camera_name,
-                    "camera_uniqueID": camera_uniqueID,
-                    "model_name": model_name,
-                    "fps": fps,
-                    "tracked_objects": [
-                        {
-                            "id": int(id) if id is not None else None,
-                            "label": model.names[int(cls)],
-                            "box": box, 
-                            "confidence": float(conf),  
-                        }
-                        for id, cls, box, conf in zip(
-                            boxes.id.int().cpu().tolist() if boxes.id is not None else [None] * len(boxes),
-                            boxes.cls.int().cpu().tolist(),
-                            boxes.xywh.cpu().tolist(),
-                            boxes.conf.cpu().tolist(),
-                        )
-                    ],
-                    "processing_time": {
-                        "preprocess": results[0].speed["preprocess"],
-                        "inference": results[0].speed["inference"],
-                        "postprocess": results[0].speed["postprocess"],
-                    },
-                }
-                latest_detections.append(detection)
-                add_detection(detection)
+        # Calculate FPS
+        current_time = time.time()
+        fps = 1 / (current_time - prev_time) if prev_time != 0 else 0
+        prev_time = current_time
+
+        # Update latest detections
+        latest_detections.clear()
+        if results and len(results[0].boxes) > 0:
+            boxes = results[0].boxes
+            detection = {
+                "timestamp": timestamp,
+                "camera_id": camera_id,
+                "camera_name": camera_name,
+                "camera_uniqueID": camera_uniqueID,
+                "model_name": model_name,
+                "fps": fps,
+                "tracked_objects": [
+                    {
+                        "id": int(id) if id is not None else None,
+                        "label": model.names[int(cls)],
+                        "box": box,
+                        "confidence": float(conf),
+                    }
+                    for id, cls, box, conf in zip(
+                        boxes.id.int().cpu().tolist() if boxes.id is not None else [None] * len(boxes),
+                        boxes.cls.int().cpu().tolist(),
+                        boxes.xywh.cpu().tolist(),
+                        boxes.conf.cpu().tolist(),
+                    )
+                ],
+                "processing_time": {
+                    "preprocess": results[0].speed["preprocess"],
+                    "inference": results[0].speed["inference"],
+                    "postprocess": results[0].speed["postprocess"],
+                },
+            }
+            latest_detections.append(detection)
+            add_detection(detection)
+            person_counter.update(detection["tracked_objects"])
 
             # Prepare sticky print information
             elapsed_time = time.time() - start_time

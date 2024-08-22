@@ -36,8 +36,9 @@ def main():
     )
     parser.add_argument("--show", action="store_true", help="Display annotated camera stream.")
     parser.add_argument("--fps", action="store_true", help="Display fps.")
-    parser.add_argument("--rtsp", help="RTSP stream instead of a camera")
+    parser.add_argument("--rtsp", help="RTSP stream or video file instead of a camera")
     parser.add_argument("--trackAll", action="store_true", help="Track all classes instead of just 'person'")
+    parser.add_argument("--noLoop", action="store_true", help="Do not loop video files")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -60,7 +61,7 @@ def main():
         camera = args.rtsp
 
     # Start tracking with the specified camera or RTSP stream and model
-    track(camera, args.model, args.show, args.fps, args.trackAll)
+    track(camera, args.model, args.show, args.fps, args.trackAll, not args.noLoop)
 
 
 if __name__ == "__main__":

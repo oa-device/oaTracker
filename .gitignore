@@ -1,6 +1,5 @@
 # Ignore virtual environment
 venv/
-venv/
 ENV/
 
 # macOS system files
@@ -50,8 +49,7 @@ coverage.xml
 # Log files
 *.log
 
-# YOLO model files (if you don't want to track these)
-# Uncomment if you want to ignore model files
+# YOLO model files
 # models/*.pt
 
 # Ignore all files in the logs directory
