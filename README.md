@@ -11,8 +11,10 @@ oaTracker is an internal application for MacOS and Ubuntu that utilizes Ultralyt
 - **Unique Object Counting**: Counts unique objects detected within a specified time range.
 - **Time-based Queries**: Query detections within the last X seconds (1 <= X <= 30).
 - **Multiple Video Sources**: Supports USB cameras, RTSP streams, and video files.
-- **HTTP API**: Simple API for retrieving detection data.
+- **HTTP API**: Simple API for retrieving detection data with CORS support.
 - **Configurable Settings**: Easy configuration via `config.yaml` file.
+- **Structured Logging**: Comprehensive logging system for debugging and monitoring.
+- **Video Looping**: Option to loop video file inputs for continuous processing.
 
 ## Getting Started
 
@@ -71,6 +73,15 @@ Modify `config.yaml` in the root directory to change default settings:
 default_camera: 0
 default_model: "yolov10n.pt"
 default_server_port: 8000
+
+cors:
+  allowed_origins:
+    - "http://localhost:5173"
+  allowed_methods:
+    - "GET"
+    - "OPTIONS"
+  allowed_headers:
+    - "Content-Type"
 ```
 
 ## Usage
@@ -91,6 +102,8 @@ Run the tracker using:
 - `--fps`: Display FPS on the annotated stream.
 - `--rtsp`: Use an RTSP stream or video file instead of a camera.
 - `--trackAll`: Track all classes (default: only 'person').
+- `--noLoop`: Do not loop video files (default: loop enabled).
+- `--verbose`: Enable verbose output.
 
 ### Frequently Used Examples
 
@@ -136,19 +149,31 @@ Run the tracker using:
    ./tracker.py --trackAll --show
    ```
 
+8. Process a video file without looping:
+
+   ```sh
+   ./tracker.py --rtsp path/to/video.mp4 --show --noLoop
+   ```
+
+9. Run with verbose output:
+
+   ```sh
+   ./tracker.py --verbose
+   ```
+
 ## HTTP API
 
 The application provides a simple HTTP API for retrieving detection data. By default, the API is accessible at `http://localhost:8000` (unless a different port is specified with the `--serverPort` option).
 
 - `GET /detections`: Returns current frame detections (boxes, labels, confidence).
 - `GET /detections?from=X`: Returns unique object counts for the last X seconds (1 <= X <= 30).
-- `GET /count?from=X&to=Y&cam=Z`: Returns the count of unique persons detected between X and Y seconds ago on camera Z.
+- `GET /cam/collect?from=X&to=Y&cam=Z`: Returns the count of unique persons detected between X and Y milliseconds ago on camera Z.
 
 Example requests:
 
 ```http
 GET http://localhost:8000/detections?from=10
-GET http://localhost:8000/count?from=0&to=60&cam=0
+GET http://localhost:8000/cam/collect?from={from}&to={to}&cam=0
 ```
 
 Example response for `/detections?from=10`:

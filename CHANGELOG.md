@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2024-08-22
+
+### Added
+
+- Implemented structured logging system using a custom `CloudCompatibleFormatter`
+- Added `create_log_message` function for creating structured log messages
+- Introduced CORS handling in the HTTP API
+- Added support for looping video files
+- Implemented more detailed error handling and logging in the HTTP API
+- Added `--verbose` flag to enable verbose output in tracking
+- Introduced `PersonCounter` class for tracking unique person counts across multiple cameras
+
+### Changed
+
+- Renamed `src/video` directory to `src/vision`
+- Updated `track` function to use the new logging system
+- Improved error handling and logging throughout the application
+- Enhanced `PersonCounter` class to provide more accurate counting over time periods
+- Updated HTTP API to handle CORS and provide more informative responses
+- Modified `config.yaml` to include CORS settings
+
+### Fixed
+
+- Resolved issues with video playback for file inputs
+- Improved error handling in video capture initialization
+
 ## [0.3.0] - 2024-08-20
 
 ### Added

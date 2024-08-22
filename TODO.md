@@ -5,6 +5,7 @@
 - [x] Reorganize the project into a more modular structure
 - [x] Implement a configuration file (config.yaml) for easier management of default settings
 - [ ] Use tools like pip-compile or poetry for better dependency management
+- [x] Implement structured logging system
 
 ## Documentation
 
@@ -12,6 +13,7 @@
 - [ ] Create comprehensive API documentation using Swagger or ReDoc
 - [ ] Add inline comments to explain complex parts of the code
 - [ ] Create a CONTRIBUTING.md file with guidelines for contributors
+- [x] Keep CHANGELOG.md up-to-date with recent changes
 
 ## Features
 
@@ -19,11 +21,13 @@
 - [x] Add unique object counting within specified time ranges
 - [x] Create HTTP API for retrieving detection data
 - [x] Add support for RTSP streams and video files as input sources
-- [ ] Implement more advanced filtering options for the API
+- [x] Implement more advanced filtering options for the API
 - [ ] Add support for multiple camera streams simultaneously
 - [ ] Explore and implement additional YOLO models for improved detection accuracy
 - [ ] Add option to save processed video with annotations
 - [ ] Implement alert system for specific detection scenarios
+- [x] Add CORS support to the HTTP API
+- [x] Implement video looping for file inputs
 
 ## Setup and Installation
 
@@ -41,13 +45,15 @@
 
 ## Error Handling and Logging
 
-- [ ] Implement more robust error handling throughout the application
-- [ ] Add a logging system to help with debugging and monitoring
+- [x] Implement more robust error handling throughout the application
+- [x] Add a logging system to help with debugging and monitoring
+- [ ] Implement log rotation and archiving
 
 ## Performance Optimization
 
 - [ ] Profile the application to identify bottlenecks
 - [ ] Implement caching mechanisms where appropriate
+- [x] Optimize person counting algorithm for better performance over time periods
 
 ## Containerization
 
