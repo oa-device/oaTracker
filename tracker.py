@@ -3,11 +3,15 @@
 import argparse
 import threading
 import yaml
+import logging
 
 from src.utils.list_cameras import list_available_cameras, list_cameras
 from src.api.request_handler import start_server
-from src.video.track import track
+from src.vision.track import track
 from src.utils.shared_state import camera_info
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def load_config():
@@ -16,6 +20,7 @@ def load_config():
 
 
 def main():
+    logger.info("Starting tracker application")
     global camera_info
     config = load_config()
 
@@ -39,19 +44,23 @@ def main():
     parser.add_argument("--rtsp", help="RTSP stream or video file instead of a camera")
     parser.add_argument("--trackAll", action="store_true", help="Track all classes instead of just 'person'")
     parser.add_argument("--noLoop", action="store_true", help="Do not loop video files")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
 
     # Parse the arguments
     args = parser.parse_args()
+    logger.info(f"Parsed arguments: {args}")
 
     # Get camera info for tracking and listing
     cameras = list_available_cameras()
     camera_info.update({str(cam["index"]): cam for cam in cameras})
+    logger.info(f"Available cameras: {camera_info}")
 
     if args.listCameras:
         list_cameras()
         return
 
     # Start the HTTP server in a separate thread
+    logger.info(f"Starting HTTP server on port {args.serverPort}")
     server_thread = threading.Thread(target=start_server, args=(args.serverPort,))
     server_thread.daemon = True
     server_thread.start()
@@ -61,8 +70,11 @@ def main():
         camera = args.rtsp
 
     # Start tracking with the specified camera or RTSP stream and model
-    track(camera, args.model, args.show, args.fps, args.trackAll, not args.noLoop)
+    logger.info(f"Starting tracking with camera: {camera}, model: {args.model}")
+    track(camera, args.model, args.show, args.fps, args.trackAll, not args.noLoop, args.verbose)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)  # Ensure root logger is configured
     main()
+    logger.info("Tracker application finished")

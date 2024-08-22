@@ -4,6 +4,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 from src.utils.shared_state import latest_detections, get_unique_object_counts
 from src.utils.person_counter import PersonCounter
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Load configuration
 with open("config.yaml", "r") as config_file:
@@ -105,5 +108,5 @@ def start_server(port_number=None):
         port_number = config["default_server_port"]
     server_address = ("", port_number)
     httpd = HTTPServer(server_address, RequestHandler)
-    print(f"Starting server on port {port_number}")
+    logger.info(f"Starting server on port {port_number}")
     httpd.serve_forever()
