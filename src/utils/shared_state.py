@@ -8,6 +8,9 @@ camera_info = {}
 
 detection_history = deque(maxlen=MAX_HISTORY_SECONDS * 30)  # Assuming 30 FPS max
 
+input_source = None
+is_camera = True
+
 
 def add_detection(detection):
     detection_history.append((time.time(), detection))
@@ -35,3 +38,13 @@ def get_unique_object_counts(seconds_ago):
     return {
         label: sum(1 for obj in unique_objects.values() if obj["label"] == label) for label in set(obj["label"] for obj in unique_objects.values())
     }
+
+
+def set_input_source(source, camera=True):
+    global input_source, is_camera
+    input_source = source
+    is_camera = camera
+
+
+def get_input_source():
+    return input_source, is_camera

@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2024-08-22
+
+### Added
+
+- Support for RTSP streams and video files as input sources
+- Flexible input source handling for both development and production scenarios
+- Shared state management for input source information
+
+### Changed
+
+- Modified tracker.py to handle different input types (camera, RTSP, video file)
+- Updated request_handler.py to use actual input source regardless of API parameter
+- Refactored track.py to work consistently with various input sources
+- Enhanced logging throughout the application for better debugging
+
+### Fixed
+
+- Resolved issues with `/cam/collect` endpoint for RTSP and video file inputs
+
 ## [0.4.0] - 2024-08-22
 
 ### Added

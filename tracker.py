@@ -5,11 +5,10 @@ import threading
 import yaml
 import logging
 import json
-
 from src.utils.list_cameras import list_available_cameras, list_cameras
 from src.api.request_handler import start_server
 from src.vision.track import track
-from src.utils.shared_state import camera_info
+from src.utils.shared_state import camera_info, set_input_source
 from src.utils.logger import get_logger, create_log_message
 
 logger = get_logger(__name__)
@@ -25,7 +24,7 @@ def main():
     global camera_info
     config = load_config()
 
-    parser = argparse.ArgumentParser(prog="tracker", description="Detect and track object from a camera.")
+    parser = argparse.ArgumentParser(prog="tracker", description="Detect and track object from a camera or video source.")
 
     # Add command-line arguments
     parser.add_argument("--listCameras", "-l", action="store_true", help="List available cameras.")
@@ -66,13 +65,22 @@ def main():
     server_thread.daemon = True
     server_thread.start()
 
-    camera = args.camera
+    # Determine the input source
     if args.rtsp:
-        camera = args.rtsp
+        input_source = args.rtsp
+        is_camera = False
+    else:
+        input_source = args.camera
+        is_camera = True
 
-    # Start tracking with the specified camera or RTSP stream and model
-    logger.info(create_log_message(event="start_tracking", camera=camera, model=args.model))
-    track(camera, args.model, args.show, args.fps, args.trackAll, not args.noLoop, args.verbose)
+    # Set the input source in shared state
+    set_input_source(input_source, is_camera)
+
+    logger.info(create_log_message(event="selected_input", source=input_source, is_camera=is_camera))
+
+    # Start tracking with the specified input source and model
+    logger.info(create_log_message(event="start_tracking", input_source=input_source, model=args.model))
+    track(input_source, args.model, args.show, args.fps, args.trackAll, not args.noLoop, args.verbose)
 
 
 if __name__ == "__main__":
