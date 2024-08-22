@@ -2,9 +2,10 @@ import json
 import yaml
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
+
 from src.utils.shared_state import latest_detections, get_unique_object_counts
 from src.utils.person_counter import PersonCounter
-from src.utils.logger import get_logger
+from src.utils.logger import get_logger, create_log_message
 
 logger = get_logger(__name__)
 
@@ -28,15 +29,15 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed_path = urlparse(self.path)
 
+        logger.info(create_log_message(event="http_request", method="GET", path=self.path, client_address=self.client_address[0]))
+
         if parsed_path.path == "/detections":
             self.handle_detections()
         elif parsed_path.path == "/cam/collect":
             self.handle_cam_collect()
         else:
-            self.send_response(404)
-            self.send_cors_headers()
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": "Not found"}).encode())
+            self.send_error(404)
+            logger.warning(create_log_message(event="http_not_found", path=self.path))
 
     def handle_detections(self):
         query_params = parse_qs(urlparse(self.path).query)
@@ -108,5 +109,5 @@ def start_server(port_number=None):
         port_number = config["default_server_port"]
     server_address = ("", port_number)
     httpd = HTTPServer(server_address, RequestHandler)
-    logger.info(f"Starting server on port {port_number}")
+    logger.info(create_log_message(event="server_start", port=port_number))
     httpd.serve_forever()

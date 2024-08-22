@@ -10,7 +10,7 @@ from collections import Counter
 
 from src.utils.shared_state import latest_detections, camera_info, add_detection
 from src.utils.person_counter import PersonCounter
-from src.utils.logger import get_logger
+from src.utils.logger import get_logger, create_log_message
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,7 @@ def sticky_print(message):
 def initialize_video_capture(camera_id):
     vid = cv2.VideoCapture(camera_id)
     if not vid.isOpened():
-        logger.error(f"Failed to open video source: {camera_id}")
+        logger.error(create_log_message(event="video_capture_error", error="Failed to open video source", camera_id=camera_id))
         raise ValueError(f"Failed to open video source: {camera_id}")
     return vid
 
@@ -46,7 +46,7 @@ def load_model(model_name):
         model_path = model_name
     else:
         model_path = f"models/{model_name}"
-    logger.info(f"Loading model from: {model_path}")
+    logger.info(create_log_message(event="load_model", model_path=model_path))
     return YOLO(model_path)
 
 
@@ -118,84 +118,105 @@ def format_tracking_info(camera_name, width, height, fps, avg_fps, elapsed_time,
 
 
 def log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects, results):
-    log_message = {
-        "frame": frame_count,
-        "fps": round(fps, 2),
-        "avg_fps": round(avg_fps, 2),
-        "elapsed_time": round(elapsed_time, 2),
-        "detected_objects": dict(detected_objects),
-        "processing_times": {k: round(v, 2) for k, v in results[0].speed.items()} if results else {},
-    }
+    log_message = create_log_message(
+        event="tracking_info",
+        frame=frame_count,
+        fps=round(fps, 2),
+        avg_fps=round(avg_fps, 2),
+        elapsed_time=round(elapsed_time, 2),
+        detected_objects=dict(detected_objects),
+        processing_times={k: round(v, 2) for k, v in results[0].speed.items()} if results else {},
+    )
     logger.info(log_message)
 
 
 def track(camera_id=None, model_name=None, show_flag=False, fps_flag=False, track_all=False, loop_video=True, verbose=False):
-    logger.info(f"Starting tracking function with camera_id: {camera_id}, model_name: {model_name}")
+    logger.info(
+        create_log_message(
+            event="tracking_start",
+            camera_id=camera_id,
+            model_name=model_name,
+            show_flag=show_flag,
+            fps_flag=fps_flag,
+            track_all=track_all,
+            loop_video=loop_video,
+            verbose=verbose,
+        )
+    )
 
     camera_id = camera_id or config["default_camera"]
     model_name = model_name or config["default_model"]
 
-    model = load_model(model_name)
-    vid = initialize_video_capture(camera_id)
+    try:
+        model = load_model(model_name)
+        vid = initialize_video_capture(camera_id)
 
-    camera_details = camera_info.get(str(camera_id), {})
-    camera_name = camera_details.get("name", "Unknown Camera")
-    camera_uniqueID = camera_details.get("id", "Unknown ID")
+        camera_details = camera_info.get(str(camera_id), {})
+        camera_name = camera_details.get("name", "Unknown Camera")
+        camera_uniqueID = camera_details.get("id", "Unknown ID")
 
-    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    logger.info(f"Tracking started - Camera: {camera_name}, Model: {model_name}, Resolution: {width}x{height}")
+        logger.info(create_log_message(event="tracking_setup", camera=camera_name, model=model_name, resolution=f"{width}x{height}"))
 
-    person_counter = PersonCounter.get_counter(str(camera_id))
-    frame_count, start_time, prev_time = 0, time.time(), 0
-    last_log_time = start_time
-    log_interval = 1  # Log every 1 second
+        person_counter = PersonCounter.get_counter(str(camera_id))
+        frame_count, start_time, prev_time = 0, time.time(), 0
+        last_log_time = start_time
+        log_interval = 1  # Log every 1 second
 
-    while True:
-        success, frame = vid.read()
-        if not success:
-            if loop_video and isinstance(camera_id, str) and os.path.isfile(camera_id):
-                vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                success, frame = vid.read()
+        detected_objects = Counter()
+
+        while True:
+            success, frame = vid.read()
             if not success:
-                logger.info("End of video stream")
+                if loop_video and isinstance(camera_id, str) and os.path.isfile(camera_id):
+                    vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    success, frame = vid.read()
+                if not success:
+                    logger.info(create_log_message(event="video_end", reason="End of video stream"))
+                    break
+
+            frame_count += 1
+            classes = [0] if not track_all else None
+            results = process_frame(model, frame, classes)
+
+            current_time = time.time()
+            fps = 1 / (current_time - prev_time) if prev_time != 0 else 0
+            prev_time = current_time
+
+            detection = update_detections(results, model, camera_id, camera_name, camera_uniqueID, model_name, fps)
+            if detection:
+                person_counter.update(detection["tracked_objects"])
+
+                detected_objects.clear()
+                detected_objects.update(obj["label"] for obj in detection["tracked_objects"])
+                total_objects = sum(detected_objects.values())
+                elapsed_time = current_time - start_time
+                avg_fps = frame_count / elapsed_time if elapsed_time > 0 else 0
+
+                if current_time - last_log_time >= log_interval:
+                    log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects, results)
+                    last_log_time = current_time
+
+                if verbose:
+                    info = format_tracking_info(camera_name, width, height, fps, avg_fps, elapsed_time, total_objects, detected_objects, results)
+                    sticky_print(info)
+
+            if show_flag and display_frame(frame, results, fps, fps_flag):
+                logger.info(create_log_message(event="tracking_interrupted", reason="User interrupted"))
                 break
 
-        frame_count += 1
-        classes = [0] if not track_all else None
-        results = process_frame(model, frame, classes)
+    except Exception as e:
+        logger.error(create_log_message(event="tracking_error", error=str(e)))
+    finally:
+        if "vid" in locals():
+            vid.release()
+        if MACOS and "show_flag" in locals() and show_flag:
+            cv2.destroyAllWindows()
 
-        current_time = time.time()
-        fps = 1 / (current_time - prev_time) if prev_time != 0 else 0
-        prev_time = current_time
-
-        detection = update_detections(results, model, camera_id, camera_name, camera_uniqueID, model_name, fps)
-        if detection:
-            person_counter.update(detection["tracked_objects"])
-
-            detected_objects = Counter(obj["label"] for obj in detection["tracked_objects"])
-            total_objects = sum(detected_objects.values())
-            elapsed_time = current_time - start_time
-            avg_fps = frame_count / elapsed_time if elapsed_time > 0 else 0
-
-            if current_time - last_log_time >= log_interval:
-                log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects, results)
-                last_log_time = current_time
-
-            if verbose:
-                info = format_tracking_info(camera_name, width, height, fps, avg_fps, elapsed_time, total_objects, detected_objects, results)
-                sticky_print(info)
-
-        if show_flag and display_frame(frame, results, fps, fps_flag):
-            break
-
-    vid.release()
-    if MACOS:
-        cv2.destroyAllWindows()
-
-    logger.info("Tracking stopped")
+        logger.info(create_log_message(event="tracking_stop", total_frames=frame_count, total_time=time.time() - start_time))
 
 
 # Test the logger in this file
-logger.info("track.py module loaded")
+logger.info(create_log_message(event="module_load", module="track.py"))

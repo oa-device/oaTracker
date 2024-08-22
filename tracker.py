@@ -4,12 +4,13 @@ import argparse
 import threading
 import yaml
 import logging
+import json
 
 from src.utils.list_cameras import list_available_cameras, list_cameras
 from src.api.request_handler import start_server
 from src.vision.track import track
 from src.utils.shared_state import camera_info
-from src.utils.logger import get_logger
+from src.utils.logger import get_logger, create_log_message
 
 logger = get_logger(__name__)
 
@@ -20,7 +21,7 @@ def load_config():
 
 
 def main():
-    logger.info("Starting tracker application")
+    logger.info(create_log_message(event="application_start", description="Starting tracker application"))
     global camera_info
     config = load_config()
 
@@ -48,19 +49,19 @@ def main():
 
     # Parse the arguments
     args = parser.parse_args()
-    logger.info(f"Parsed arguments: {args}")
+    logger.info(create_log_message(event="parsed_arguments", arguments=vars(args)))
 
     # Get camera info for tracking and listing
     cameras = list_available_cameras()
     camera_info.update({str(cam["index"]): cam for cam in cameras})
-    logger.info(f"Available cameras: {camera_info}")
+    logger.info(create_log_message(event="available_cameras", cameras=camera_info))
 
     if args.listCameras:
         list_cameras()
         return
 
     # Start the HTTP server in a separate thread
-    logger.info(f"Starting HTTP server on port {args.serverPort}")
+    logger.info(create_log_message(event="start_http_server", port=args.serverPort))
     server_thread = threading.Thread(target=start_server, args=(args.serverPort,))
     server_thread.daemon = True
     server_thread.start()
@@ -70,11 +71,11 @@ def main():
         camera = args.rtsp
 
     # Start tracking with the specified camera or RTSP stream and model
-    logger.info(f"Starting tracking with camera: {camera}, model: {args.model}")
+    logger.info(create_log_message(event="start_tracking", camera=camera, model=args.model))
     track(camera, args.model, args.show, args.fps, args.trackAll, not args.noLoop, args.verbose)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)  # Ensure root logger is configured
     main()
-    logger.info("Tracker application finished")
+    logger.info(create_log_message(event="application_end", description="Tracker application finished"))
