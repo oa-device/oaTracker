@@ -4,7 +4,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 import time
 
-from src.utils.shared_state import latest_detections, get_unique_object_counts, camera_info
+from src.utils.shared_state import latest_detections, get_unique_object_counts, camera_info, get_input_source
 from src.utils.person_counter import PersonCounter
 from src.utils.logger import get_logger, create_log_message
 
@@ -87,15 +87,22 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.send_error(400, "End time must be in the past")
                 return
 
-            person_counter = PersonCounter.get_counter(cam)
+            # Get the actual input source, regardless of the 'cam' parameter
+            input_source, is_camera = get_input_source()
+            person_counter = PersonCounter.get_counter(str(input_source))
+
             if person_counter is None:
-                logger.warning(create_log_message(event="cam_collect_no_counter", cam=cam))
+                logger.warning(create_log_message(event="cam_collect_no_counter", input_source=input_source))
                 self.send_error(404, "No data available for the specified camera")
                 return
 
             count = person_counter.get_count(from_seconds, to_seconds)
 
-            logger.info(create_log_message(event="cam_collect_success", cam=cam, from_seconds=from_seconds, to_seconds=to_seconds, count=count))
+            logger.info(
+                create_log_message(
+                    event="cam_collect_success", input_source=input_source, from_seconds=from_seconds, to_seconds=to_seconds, count=count
+                )
+            )
             self.send_json_response({"count": count})
         except ValueError as e:
             logger.error(create_log_message(event="cam_collect_value_error", cam=cam, from_ms=from_ms, to_ms=to_ms, error=str(e)))

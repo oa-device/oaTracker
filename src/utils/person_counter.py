@@ -14,6 +14,7 @@ class PersonCounter:
             return next(iter(cls.counters.values())) if cls.counters else None
         if device_id not in cls.counters:
             cls.counters[device_id] = PersonCounter(device_id)
+            logger.info(create_log_message(event="person_counter_created", device_id=device_id))
         return cls.counters[device_id]
 
     def __init__(self, device_id):
@@ -27,15 +28,22 @@ class PersonCounter:
 
     def update(self, tracked_objects):
         now = int(time.time() * 1000)
+        updated_count = 0
         for obj in tracked_objects:
             if obj["id"] is not None and obj["label"] == "person":
                 if obj["id"] in self.movements_by_trackid:
                     self.movements_by_trackid[obj["id"]][1] = now
                 else:
                     self.__count_since_boot += 1
+                    updated_count += 1
                     movements = [now, now, obj["id"]]
                     self.movements.append(movements)
                     self.movements_by_trackid[obj["id"]] = movements
+        logger.debug(
+            create_log_message(
+                event="person_counter_update", device_id=self.device_id, updated_count=updated_count, total_count=self.__count_since_boot
+            )
+        )
 
     def get_count(self, from_seconds, to_seconds):
         from_ms = int(from_seconds * 1000)
