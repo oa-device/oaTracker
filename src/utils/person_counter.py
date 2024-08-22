@@ -1,11 +1,17 @@
 import time
+from src.utils.logger import get_logger, create_log_message
+
+logger = get_logger(__name__)
 
 
 class PersonCounter:
     counters = {}
 
     @classmethod
-    def get_counter(cls, device_id):
+    def get_counter(cls, device_id=None):
+        if device_id is None:
+            # If no specific device_id is provided, return the first (and possibly only) counter
+            return next(iter(cls.counters.values())) if cls.counters else None
         if device_id not in cls.counters:
             cls.counters[device_id] = PersonCounter(device_id)
         return cls.counters[device_id]
@@ -17,6 +23,7 @@ class PersonCounter:
         self.last_cleanup = time.time() * 1000
         self.track_limit = 500
         self.__count_since_boot = 0
+        logger.info(create_log_message(event="person_counter_init", device_id=device_id))
 
     def update(self, tracked_objects):
         now = int(time.time() * 1000)
@@ -34,23 +41,21 @@ class PersonCounter:
         from_ms = int(from_seconds * 1000)
         to_ms = int(to_seconds * 1000)
         count = 0
-        total_time = 0
         for first_movement, latest_movement, _ in self.movements:
-            if first_movement < to_ms and latest_movement > from_ms:
-                overlap_start = max(first_movement, from_ms)
-                overlap_end = min(latest_movement, to_ms)
-                overlap_duration = overlap_end - overlap_start
-                if overlap_duration > 300:  # 300 ms minimum duration
-                    count += 1
-                    total_time += overlap_duration
-
+            if first_movement <= to_ms and latest_movement >= from_ms:
+                count += 1
         self.cleanup()
-
-        if total_time > 0:
-            # Calculate the average count over the time period
-            time_period = to_ms - from_ms
-            return (count * time_period) / total_time
-        return 0
+        logger.info(
+            create_log_message(
+                event="person_counter_get_count",
+                device_id=self.device_id,
+                count=count,
+                from_ms=from_ms,
+                to_ms=to_ms,
+                total_movements=len(self.movements),
+            )
+        )
+        return count
 
     def cleanup(self):
         now = int(time.time() * 1000)
