@@ -88,6 +88,14 @@ def update_detections(results, model, camera_id, camera_name, camera_uniqueID, m
         }
         latest_detections.append(detection)
         add_detection(detection)
+
+        # Update PersonCounter
+        counter_id = camera_uniqueID if camera_uniqueID != "Unknown ID" else str(camera_id)
+        person_counter = PersonCounter.get_counter(counter_id)
+        person_counter.update(detection["tracked_objects"])
+
+        logger.debug(create_log_message(event="update_detections", camera_id=counter_id, objects_count=len(detection["tracked_objects"])))
+
         return detection
     return None
 
@@ -155,6 +163,10 @@ def track(camera_id=None, model_name=None, show_flag=False, fps_flag=False, trac
         camera_name = camera_details.get("name", "Unknown Camera")
         camera_uniqueID = camera_details.get("id", "Unknown ID")
 
+        # If camera_id is a file path or RTSP URL, use it as the unique identifier
+        if isinstance(camera_id, str) and (camera_id.startswith("rtsp://") or os.path.isfile(camera_id)):
+            camera_uniqueID = camera_id
+
         width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -178,6 +190,7 @@ def track(camera_id=None, model_name=None, show_flag=False, fps_flag=False, trac
                     break
 
             frame_count += 1
+            logger.debug(create_log_message(event="processing_frame", frame_count=frame_count, camera_id=camera_id))
             classes = [0] if not track_all else None
             results = process_frame(model, frame, classes)
 

@@ -2,8 +2,9 @@ import json
 import yaml
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
+import time
 
-from src.utils.shared_state import latest_detections, get_unique_object_counts
+from src.utils.shared_state import latest_detections, get_unique_object_counts, camera_info
 from src.utils.person_counter import PersonCounter
 from src.utils.logger import get_logger, create_log_message
 
@@ -58,27 +59,49 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def handle_cam_collect(self):
         query_params = parse_qs(urlparse(self.path).query)
-        from_ms = query_params.get("from", [None])[0]
+        cam = query_params.get("cam", [None])[0]
         to_ms = query_params.get("to", [None])[0]
-        cam = query_params.get("cam", ["0"])[0]
+        from_ms = query_params.get("from", [None])[0]
 
-        if from_ms is None or to_ms is None:
-            self.send_error(400, "Invalid parameters")
+        logger.info(create_log_message(event="cam_collect_request", cam=cam, from_ms=from_ms, to_ms=to_ms))
+
+        if None in (to_ms, from_ms):
+            logger.warning(create_log_message(event="cam_collect_invalid_params", cam=cam, from_ms=from_ms, to_ms=to_ms))
+            self.send_error(400, "Missing required parameters: 'from' and 'to'")
             return
 
         try:
-            from_seconds = float(from_ms) / 1000
             to_seconds = float(to_ms) / 1000
+            from_seconds = float(from_ms) / 1000
+            now = time.time()
+
+            logger.debug(create_log_message(event="cam_collect_time_conversion", from_seconds=from_seconds, to_seconds=to_seconds, now=now))
+
+            if from_seconds >= to_seconds:
+                logger.warning(create_log_message(event="cam_collect_invalid_time_range", from_seconds=from_seconds, to_seconds=to_seconds))
+                self.send_error(400, "Invalid time range")
+                return
+
+            if to_seconds > now:
+                logger.warning(create_log_message(event="cam_collect_future_time", to_seconds=to_seconds, now=now))
+                self.send_error(400, "End time must be in the past")
+                return
+
             person_counter = PersonCounter.get_counter(cam)
+            if person_counter is None:
+                logger.warning(create_log_message(event="cam_collect_no_counter", cam=cam))
+                self.send_error(404, "No data available for the specified camera")
+                return
+
             count = person_counter.get_count(from_seconds, to_seconds)
 
-            if count > 0:
-                self.send_json_response({"count": count})
-            else:
-                self.send_json_response({"count": 0, "message": "No data available for the specified time range"}, status_code=404)
-        except ValueError:
+            logger.info(create_log_message(event="cam_collect_success", cam=cam, from_seconds=from_seconds, to_seconds=to_seconds, count=count))
+            self.send_json_response({"count": count})
+        except ValueError as e:
+            logger.error(create_log_message(event="cam_collect_value_error", cam=cam, from_ms=from_ms, to_ms=to_ms, error=str(e)))
             self.send_error(400, "Invalid parameters")
         except Exception as e:
+            logger.error(create_log_message(event="cam_collect_error", error=str(e), cam=cam, from_ms=from_ms, to_ms=to_ms))
             self.send_error(500, f"Internal server error: {str(e)}")
 
     def send_cors_headers(self):
