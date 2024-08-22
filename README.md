@@ -163,11 +163,11 @@ Run the tracker using:
 
 ## HTTP API
 
-The application provides a simple HTTP API for retrieving detection data. By default, the API is accessible at `http://localhost:8000` (unless a different port is specified with the `--serverPort` option).
+The application provides a simple HTTP API for retrieving detection data. By default, the API is accessible at `http://localhost:8000`.
 
 - `GET /detections`: Returns current frame detections (boxes, labels, confidence).
 - `GET /detections?from=X`: Returns unique object counts for the last X seconds (1 <= X <= 30).
-- `GET /cam/collect?from=X&to=Y&cam=Z`: Returns the count of unique persons detected between X and Y milliseconds ago on camera Z.
+- `GET /cam/collect?from=X&to=Y&cam=0`: Returns the count of unique persons detected between X and Y milliseconds ago.
 
 Example requests:
 
@@ -175,6 +175,8 @@ Example requests:
 GET http://localhost:8000/detections?from=10
 GET http://localhost:8000/cam/collect?from={from}&to={to}&cam=0
 ```
+
+Note: The `cam=0` parameter is always used in the `/cam/collect` endpoint, regardless of the actual input source (camera, RTSP, or video file).
 
 Example response for `/detections?from=10`:
 

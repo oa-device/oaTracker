@@ -4,16 +4,16 @@
 
 - [x] Reorganize the project into a more modular structure
 - [x] Implement a configuration file (config.yaml) for easier management of default settings
-- [ ] Use tools like pip-compile or poetry for better dependency management
 - [x] Implement structured logging system
+- [ ] Use tools like pip-compile or poetry for better dependency management
 
 ## Documentation
 
 - [x] Enhance README with detailed setup and usage instructions
+- [x] Keep CHANGELOG.md up-to-date with recent changes
 - [ ] Create comprehensive API documentation using Swagger or ReDoc
 - [ ] Add inline comments to explain complex parts of the code
 - [ ] Create a CONTRIBUTING.md file with guidelines for contributors
-- [x] Keep CHANGELOG.md up-to-date with recent changes
 
 ## Features
 
@@ -22,12 +22,12 @@
 - [x] Create HTTP API for retrieving detection data
 - [x] Add support for RTSP streams and video files as input sources
 - [x] Implement more advanced filtering options for the API
+- [x] Add CORS support to the HTTP API
+- [x] Implement video looping for file inputs
 - [ ] Add support for multiple camera streams simultaneously
 - [ ] Explore and implement additional YOLO models for improved detection accuracy
 - [ ] Add option to save processed video with annotations
 - [ ] Implement alert system for specific detection scenarios
-- [x] Add CORS support to the HTTP API
-- [x] Implement video looping for file inputs
 
 ## Setup and Installation
 
