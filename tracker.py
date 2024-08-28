@@ -4,14 +4,11 @@ import argparse
 import threading
 import yaml
 import logging
-import json
 from src.utils.list_cameras import list_available_cameras, list_cameras
 from src.api.request_handler import start_server
 from src.vision.track import track
 from src.utils.shared_state import camera_info, set_input_source
-from src.utils.logger import get_logger, create_log_message
-
-logger = get_logger(__name__)
+from src.utils.logger import setup_logger, get_logger, create_log_message
 
 
 def load_config():
@@ -20,8 +17,6 @@ def load_config():
 
 
 def main():
-    logger.info(create_log_message(event="application_start", description="Starting tracker application"))
-    global camera_info
     config = load_config()
 
     parser = argparse.ArgumentParser(prog="tracker", description="Detect and track object from a camera or video source.")
@@ -45,11 +40,19 @@ def main():
     parser.add_argument("--trackAll", action="store_true", help="Track all classes instead of just 'person'")
     parser.add_argument("--noLoop", action="store_true", help="Do not loop video files")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument("--fileOnlyLog", action="store_true", help="Log only to file, not to console")
+    parser.add_argument("--logLevel", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Set the logging level")
 
     # Parse the arguments
     args = parser.parse_args()
+
+    # Setup logger
+    log_level = getattr(logging, args.logLevel)
+    logger = setup_logger(level=log_level, file_only=args.fileOnlyLog)
+    logger.info(create_log_message(event="application_start", description="Starting tracker application"))
     logger.info(create_log_message(event="parsed_arguments", arguments=vars(args)))
 
+    global camera_info
     # Get camera info for tracking and listing
     cameras = list_available_cameras()
     camera_info.update({str(cam["index"]): cam for cam in cameras})
@@ -84,6 +87,4 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)  # Ensure root logger is configured
     main()
-    logger.info(create_log_message(event="application_end", description="Tracker application finished"))

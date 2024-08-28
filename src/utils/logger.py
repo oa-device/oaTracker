@@ -35,7 +35,7 @@ class CloudCompatibleFormatter(logging.Formatter):
             return {"text": str(record.msg)}
 
 
-def setup_logger(log_dir="logs", level=logging.INFO):
+def setup_logger(log_dir="logs", level=logging.INFO, file_only=False):
     log_dir = Path(log_dir)
     log_dir.mkdir(exist_ok=True)
 
@@ -50,12 +50,15 @@ def setup_logger(log_dir="logs", level=logging.INFO):
 
     formatter = CloudCompatibleFormatter()
     file_handler.setFormatter(formatter)
+    file_handler.setLevel(level)
 
     logger.addHandler(file_handler)
 
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+    if not file_only:
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        console_handler.setLevel(level)
+        logger.addHandler(console_handler)
 
     return logger
 

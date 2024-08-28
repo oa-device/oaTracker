@@ -15,6 +15,7 @@ oaTracker is an internal application for MacOS and Ubuntu that utilizes Ultralyt
 - **Configurable Settings**: Easy configuration via `config.yaml` file.
 - **Structured Logging**: Comprehensive logging system for debugging and monitoring.
 - **Video Looping**: Option to loop video file inputs for continuous processing.
+- **Flexible Logging Options**: Control log output and log level via command-line arguments.
 
 ## Getting Started
 
@@ -104,6 +105,8 @@ Run the tracker using:
 - `--trackAll`: Track all classes (default: only 'person').
 - `--noLoop`: Do not loop video files (default: loop enabled).
 - `--verbose`: Enable verbose output.
+- `--fileOnlyLog`: Log only to file, not to console.
+- `--logLevel`: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
 
 ### Frequently Used Examples
 
@@ -160,6 +163,12 @@ Run the tracker using:
    ```sh
    ./tracker.py --verbose
    ```
+
+10. Run with DEBUG log level and file-only logging:
+
+    ```sh
+    ./tracker.py --logLevel DEBUG --fileOnlyLog
+    ```
 
 ## HTTP API
 
