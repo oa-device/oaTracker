@@ -1,3 +1,4 @@
 opencv-python
 ultralytics
+yaml
 lapx>=0.5.2
