@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2024-08-27
+
+### Added
+
+- New command-line option `--fileOnlyLog` to log only to file, not to console.
+- New command-line option `--logLevel` to set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+
+### Changed
+
+- Modified logging system to allow more flexible configuration.
+- Reduced default logging frequency from once per second to once per 10 seconds for performance optimization.
+
 ## [0.5.0] - 2024-08-22
 
 ### Added

@@ -159,7 +159,7 @@ def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_
         person_counter = PersonCounter.get_counter(str(input_source))
         frame_count, start_time, prev_time = 0, time.time(), 0
         last_log_time = start_time
-        log_interval = 1  # Log every 1 second
+        log_interval = 10  # Log every 10 seconds
 
         detected_objects = Counter()
 
@@ -174,7 +174,6 @@ def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_
                     break
 
             frame_count += 1
-            logger.debug(create_log_message(event="processing_frame", frame_count=frame_count, input_source=input_source))
             classes = [0] if not track_all else None
             results = process_frame(model, frame, classes)
 

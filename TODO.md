@@ -24,6 +24,7 @@
 - [x] Implement more advanced filtering options for the API
 - [x] Add CORS support to the HTTP API
 - [x] Implement video looping for file inputs
+- [x] Implement flexible logging options (file-only logging, log level selection)
 - [ ] Add support for multiple camera streams simultaneously
 - [ ] Explore and implement additional YOLO models for improved detection accuracy
 - [ ] Add option to save processed video with annotations
@@ -47,10 +48,12 @@
 
 - [x] Implement more robust error handling throughout the application
 - [x] Add a logging system to help with debugging and monitoring
-- [ ] Implement log rotation and archiving
+- [x] Implement log rotation and archiving
+- [ ] Add log analysis tools or scripts for easier troubleshooting
 
 ## Performance Optimization
 
+- [x] Optimize logging frequency for better performance
 - [ ] Profile the application to identify bottlenecks
 - [ ] Implement caching mechanisms where appropriate
 - [x] Optimize person counting algorithm for better performance over time periods
