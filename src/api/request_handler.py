@@ -4,6 +4,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 import time
 
+from src.config.get_config import getConfig
 from src.utils.shared_state import latest_detections, get_unique_object_counts, camera_info, get_input_source
 from src.utils.person_counter import PersonCounter
 from src.utils.logger import get_logger, create_log_message
@@ -11,8 +12,7 @@ from src.utils.logger import get_logger, create_log_message
 logger = get_logger(__name__)
 
 # Load configuration
-with open("config.yaml", "r") as config_file:
-    config = yaml.safe_load(config_file)
+config = getConfig()
 
 # CORS settings
 CORS_SETTINGS = config.get("cors", {})

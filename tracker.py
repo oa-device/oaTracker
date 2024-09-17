@@ -16,7 +16,7 @@ def load_config():
         return yaml.safe_load(config_file)
 
 
-def main():
+def main() -> None:
     config = load_config()
 
     parser = argparse.ArgumentParser(prog="tracker", description="Detect and track object from a camera or video source.")

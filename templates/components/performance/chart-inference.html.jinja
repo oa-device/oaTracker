@@ -1,0 +1,80 @@
+<div class="chart-container">
+    <canvas id="chartInference" class="chart-canvas"></canvas>
+    <script>
+        const dataInference = {
+            datasets: [
+                {
+                    label: "Device 0",
+                    data: [],
+                    fill: false,
+                    tension: 0.1,
+                },
+
+                {
+                    label: "Device 1",
+                    data: [],
+                    fill: false,
+                    tension: 0.1,
+                }
+            ],
+        };
+
+        const ctxInference = document.getElementById('chartInference');
+
+        const chartInference = new Chart(ctxInference, {
+            type: 'line',
+            data: dataInference,
+            options: {
+
+
+        events: [],
+                legend: {
+                    position: 'top',
+                    labels: {
+                        fontColor: 'white'
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'timeseries',
+                    },
+                    y: {
+                        ticks: {
+                            // Include a dollar sign in the ticks
+                            callback: function (value, index, ticks) {
+                                return value + 'ms';
+                            }
+                        }
+                    }
+                }
+                , plugins: {
+                    title: {
+                        display: true,
+                        text: 'Inference'
+                    }
+                }
+            }
+        });
+
+
+
+        const chartInferenceUpdate = () => {
+            chartInference.update("none");
+        }
+
+        window.sseSubscriptions["inference_perf_0"] = window.sseSubscriptions["inference_perf_0"] || []
+        window.sseSubscriptions["inference_perf_0"].push((m) => {
+            const limit = (Date.now()) - 10000;
+            chartInference.data.datasets[0].data.push([m.ts, m.value])
+            chartInference.data.datasets[0].data = chartInference.data.datasets[0].data.filter(x => x[0] > limit)
+            chartInferenceUpdate()
+        })
+        window.sseSubscriptions["inference_perf_1"] = window.sseSubscriptions["inference_perf_1"] || []
+        window.sseSubscriptions["inference_perf_1"].push((m) => {
+            const limit = (Date.now()) - 10000;
+            chartInference.data.datasets[1].data.push([m.ts, m.value])
+            chartInference.data.datasets[1].data = chartInference.data.datasets[1].data.filter(x => x[0] > limit)
+            chartInferenceUpdate()
+        })
+    </script>
+</div>

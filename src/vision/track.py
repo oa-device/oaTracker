@@ -1,22 +1,57 @@
+import multiprocessing
 import os
 import time
 import platform
 import sys
+import torch
 import yaml
-import json
 import cv2
-from ultralytics import YOLO
+from ultralytics import YOLO, settings
 from collections import Counter
 
+from src.config.get_config import getConfig
 from src.utils.shared_state import latest_detections, camera_info, add_detection
 from src.utils.person_counter import PersonCounter
 from src.utils.logger import get_logger, create_log_message
 
+from typing import  TypedDict, List, Literal
+
 logger = get_logger(__name__)
 
-# Load configuration
-with open("config.yaml", "r") as config_file:
-    config = yaml.safe_load(config_file)
+
+# required for multiprocessing using gpu, see https://pytorch.org/docs/stable/notes/multiprocessing.html#cuda-in-multiprocessing
+# must stay at the top
+if __name__ == "__main__":
+    multiprocessing.set_start_method("spawn")
+
+# Disabled Google Analytics tracking from Yolov8
+if settings.get("sync") == True:
+    settings["sync"] = False
+    settings.save()
+
+# dimension of the camera output
+IMG_WIDTH = 640
+IMG_HEIGHT = 400
+
+# torch device detection, enables cross-platform hardware acceleration
+TORCH_DEVICE = (
+    "cuda"
+    if hasattr(torch, "cuda") and torch.cuda.is_available()
+    else "mps"
+    if hasattr(torch, "has_mps") and torch.has_mps
+    else "cpu"
+)
+torch.tensor([0]).to(device=TORCH_DEVICE)
+
+YOLO_DEVICE = (
+    0
+    if TORCH_DEVICE == "cuda"
+    else "mps"
+    if  TORCH_DEVICE == "mps"
+    else "cpu"
+)
+
+config = getConfig()
 
 # Set environment variable to suppress OpenCV logging
 os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
@@ -24,14 +59,13 @@ os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
 # Check if running on MacOS
 MACOS = platform.system() == "Darwin"
 
-
-def sticky_print(message):
+def sticky_print(message) -> None:
     sys.stdout.write("\033[H\033[J")
     sys.stdout.write(message)
     sys.stdout.flush()
 
 
-def initialize_video_capture(camera_id):
+def initialize_video_capture(camera_id: int) -> cv2.VideoCapture:
     vid = cv2.VideoCapture(camera_id)
     if not vid.isOpened():
         logger.error(create_log_message(event="video_capture_error", error="Failed to open video source", camera_id=camera_id))
@@ -39,7 +73,7 @@ def initialize_video_capture(camera_id):
     return vid
 
 
-def load_model(model_name):
+def load_model(model_name) -> YOLO:
     if model_name.startswith("models/"):
         model_path = model_name
     elif os.path.isfile(model_name):
@@ -51,14 +85,14 @@ def load_model(model_name):
 
 
 def process_frame(model, frame, classes):
-    return model.track(frame, persist=True, classes=classes, verbose=False, device="mps", tracker="bytetrack.yaml")
-
+    return model.track(frame, persist=True, classes=classes, verbose=False, device=YOLO_DEVICE, tracker="bytetrack.yaml")
 
 def update_detections(results, model, input_source, fps):
     timestamp = int(time.time() * 1000)
     latest_detections.clear()
     if results and len(results[0].boxes) > 0:
         boxes = results[0].boxes
+        print(results[0].speed)
         detection = {
             "timestamp": timestamp,
             "input_source": input_source,
@@ -93,13 +127,11 @@ def update_detections(results, model, input_source, fps):
 
 
 def display_frame(frame, results, fps, fps_flag):
-    if MACOS:
-        annotated_frame = results[0].plot()
-        if fps_flag:
-            cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
-        cv2.imshow("YOLOv8 Tracking", annotated_frame)
-        return cv2.waitKey(1) & 0xFF == ord("q")
-    return False
+    annotated_frame = results[0].plot()
+    if fps_flag:
+        cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+    cv2.imshow("YOLOv8 Tracking", annotated_frame)
+    return cv2.waitKey(1) & 0xFF == ord("q")
 
 
 def format_tracking_info(input_source, width, height, fps, avg_fps, elapsed_time, total_objects, detected_objects, results):
@@ -131,7 +163,7 @@ def log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects,
     logger.info(log_message)
 
 
-def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_all=False, loop_video=True, verbose=False):
+def track(input_source, model_name=None, show_flag=True, fps_flag=True, track_all=False, loop_video=True, verbose=False):
     logger.info(
         create_log_message(
             event="tracking_start",
@@ -146,18 +178,19 @@ def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_
     )
 
     model_name = model_name or config["default_model"]
-
+    frame_count, start_time, prev_time = 0, time.time(), 0
+        
     try:
         model = load_model(model_name)
         vid = initialize_video_capture(input_source)
-
-        width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        vid.set(cv2.CAP_PROP_FRAME_WIDTH, IMG_WIDTH)
+        vid.set(cv2.CAP_PROP_FRAME_HEIGHT, IMG_HEIGHT)
+        width = IMG_WIDTH
+        height = IMG_HEIGHT
 
         logger.info(create_log_message(event="tracking_setup", input_source=input_source, model=model_name, resolution=f"{width}x{height}"))
 
         person_counter = PersonCounter.get_counter(str(input_source))
-        frame_count, start_time, prev_time = 0, time.time(), 0
         last_log_time = start_time
         log_interval = 10  # Log every 10 seconds
 
@@ -199,16 +232,17 @@ def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_
                     info = format_tracking_info(input_source, width, height, fps, avg_fps, elapsed_time, total_objects, detected_objects, results)
                     sticky_print(info)
 
-            if show_flag and display_frame(frame, results, fps, fps_flag):
+            if show_flag and display_frame(frame, results, fps, True):
                 logger.info(create_log_message(event="tracking_interrupted", reason="User interrupted", input_source=input_source))
                 break
 
     except Exception as e:
+        logger.exception(e)
         logger.error(create_log_message(event="tracking_error", error=str(e), input_source=input_source))
     finally:
         if "vid" in locals():
             vid.release()
-        if MACOS and "show_flag" in locals() and show_flag:
+        if "show_flag" in locals() and show_flag:
             cv2.destroyAllWindows()
 
         logger.info(

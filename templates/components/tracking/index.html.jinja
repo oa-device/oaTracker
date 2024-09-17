@@ -1,0 +1,174 @@
+<div class="row">
+	<div class="col">
+		<h4>Tracking</h4>
+	</div>
+</div>
+
+<div class="row">
+	<div class="col">
+		<div class="card" style="width: 100%;">
+			<img src="/cam/0.jpg" class="card-img-top" alt="Camera 0">
+			<div class="card-body">
+				<div class="card-title">
+					<div class="btn-group me-2" style="float:right">
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/0/pause')">⏸</button>
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/0/play')">▶</button>
+					</div>
+					<div class="btn-group me-2" style="float:right">
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/0/hide_overlay')">Hide overlay</button>
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/0/show_overlay')">Show overlay</button>
+					</div>
+					<h5>Caméra 0</h5>
+				</div>
+				<div class="accordion accordion-flush" id="accordionExampleOne" style="margin-top:20px">
+					<div class="accordion-item">
+						<h2 class="accordion-header">
+							<button class="accordion-button" type="button" data-bs-toggle="collapse"
+								data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+								Raw data
+							</button>
+						</h2>
+						<div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#accordionExampleOne">
+							<div class="accordion-body">
+								<table id="detection_data_table_1" class="table table-sm table-striped">
+									<thead>
+										<tr>
+											<th scope="col">ID</th>
+											<th scope="col">Confidence</th>
+											<th scope="col">Position</th>
+											<th scope="col">Active</th>
+											<th scope="col">Total frames
+											</th>
+											<th scope="col">Moving coef
+											</th>
+											<th scope="col">Counted</th>
+										</tr>
+									</thead>
+									<tbody>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="col">
+		<div class="card" style="width: 100%;">
+			<img src="/cam/1.jpg" class="card-img-top" alt="Camera 0">
+			<div class="card-body">
+				<div class="card-title">
+					<div class="btn-group me-2" style="float:right">
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/1/pause')">⏸</button>
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/1/play')">▶</button>
+					</div>
+					<div class="btn-group me-2" style="float:right">
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/1/hide_overlay')">Hide overlay</button>
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/1/show_overlay')">Show overlay</button>
+					</div>
+					<h5>Caméra 1</h5>
+				</div>
+				<div class="accordion accordion-flush" id="accordionExampleTwo" style="margin-top:20px">
+					<div class="accordion-item">
+						<h2 class="accordion-header">
+							<button class="accordion-button" type="button" data-bs-toggle="collapse"
+								data-bs-target="#collapseTwo" aria-expanded="true" aria-controls="collapseTwo">
+								Raw data
+							</button>
+						</h2>
+						<div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#accordionExampleTwo">
+							<div class="accordion-body">
+								<table id="detection_data_table_2" class="table table-sm table-striped">
+									<thead>
+										<tr>
+											<th scope="col">ID</th>
+											<th scope="col">
+												Confidence</th>
+											<th scope="col">Position
+											</th>
+											<th scope="col">Active
+											</th>
+											<th scope="col">Total
+												frames</th>
+											<th scope="col">Moving coef
+											</th>
+											<th scope="col">Counted
+											</th>
+										</tr>
+									</thead>
+									<tbody>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+	const tbody1 = document.querySelector("#detection_data_table_1 > tbody")
+	const tbody2 = document.querySelector("#detection_data_table_2 > tbody")
+
+
+	window.sseSubscriptions["tracks_0"] = window.sseSubscriptions["tracks_0"] || []
+	window.sseSubscriptions["tracks_0"].push((m) => {
+		tbody1.innerHTML = ""
+		m.results.sort((a, b) => b.confidence - a.confidence).map(x => tbody1.appendChild(trackToTr(x)))
+	})
+	window.sseSubscriptions["tracks_1"] = window.sseSubscriptions["tracks_1"] || []
+	window.sseSubscriptions["tracks_1"].push((m) => {
+		tbody2.innerHTML = ""
+		m.results.sort((a, b) => b.confidence - a.confidence).map(x => tbody2.appendChild(trackToTr(x)))
+	})
+
+	function trackToTr(t) {
+		/** @type {HTMLTableRowElement} */
+		const tr = document.createElement("TR");
+		/** @type {HTMLTableCellElement} */
+		const thId = document.createElement("TH");
+		/** @type {HTMLTableCellElement} */
+		const tdConf = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdPosition = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdActive = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdTotalFrames = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdMovingCoef = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdCounted = document.createElement("TD");
+		thId.setAttribute("scope", "row")
+		thId.innerText = t.id
+		tdConf.innerText = (t.confidence * 100).toFixed(1)
+		tdPosition.innerText = (t.box.x1 + ((t.box.x2 - t.box.x1) / 2)).toFixed(1) + ", " + (t.box.y1 + ((t.box.y2 - t.box.y1) / 2)).toFixed(1)
+		tdActive.innerText = t.is_activated;
+		tdActive.style.color = t.is_activated ? 'green' : 'orange'
+		tdTotalFrames.innerText = t.tracklet_len;
+		tdMovingCoef.innerText = t.moving_coef.toFixed(1);
+		tdCounted.innerText = t.tracklet_len > 10;
+		tdCounted.style.color = t.tracklet_len > 10 ? 'green' : 'red'
+		tr.appendChild(thId);
+		tr.appendChild(tdConf);
+		tr.appendChild(tdPosition);
+		tr.appendChild(tdActive);
+		tr.appendChild(tdTotalFrames);
+		tr.appendChild(tdMovingCoef);
+		tr.appendChild(tdCounted);
+		return tr
+	}
+</script>
+<br />

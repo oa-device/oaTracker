@@ -1,0 +1,93 @@
+<div style="min-width: 0;">
+    <canvas id="chartFullView" class="chart-canvas"></canvas>
+    <script>
+
+        const dataFullView = {
+            labels: ['Cam read', 'Inference', 'Visualization'],
+            datasets: [{
+                label: 'Device 0',
+                data: [0, 0, 0],
+            }, {
+                label: 'Device 1',
+                data: [0, 0, 0],
+            }
+            ]
+        };
+
+        const ctxFullView = document.getElementById('chartFullView');
+
+        const chartFullView = new Chart(ctxFullView, {
+            type: 'radar',
+            data: dataFullView,
+            options: {
+                aspectRatio:1.77777777778,
+
+                events: [],
+                scales: {
+                    r: {
+                        ticks: {
+                            showLabelBackdrop: false,
+                            // Include a dollar sign in the ticks
+                            callback: function (value, index, ticks) {
+                                return value + 'ms';
+                            }
+                        }
+                    }
+                },
+                elements: {
+                    line: {
+                        borderWidth: 3
+                    }
+                }
+                , plugins: {
+                    title: {
+                        display: true,
+                        text: 'Full view'
+                    },
+
+                legend: {
+                    position: 'right',
+                }
+                }
+            },
+        });
+
+        window.sseSubscriptions["cam_read_perf_0"] = window.sseSubscriptions["cam_read_perf_0"] || []
+        window.sseSubscriptions["cam_read_perf_0"].push((m) => {
+            chartFullView.data.datasets[0].data[0] = m.mean;
+            chartFullView.update("none")
+        })
+        window.sseSubscriptions["cam_read_perf_1"] = window.sseSubscriptions["cam_read_perf_1"] || []
+        window.sseSubscriptions["cam_read_perf_1"].push((m) => {
+            chartFullView.data.datasets[1].data[0] = m.mean;
+            chartFullView.update("none")
+        })
+
+
+        window.sseSubscriptions["inference_perf_0"] = window.sseSubscriptions["inference_perf_0"] || []
+        window.sseSubscriptions["inference_perf_0"].push((m) => {
+            chartFullView.data.datasets[0].data[1] = m.mean;
+            chartFullView.update("none")
+        })
+        window.sseSubscriptions["inference_perf_1"] = window.sseSubscriptions["inference_perf_1"] || []
+        window.sseSubscriptions["inference_perf_1"].push((m) => {
+            chartFullView.data.datasets[1].data[1] = m.mean;
+            chartFullView.update("none")
+        })
+
+
+
+        window.sseSubscriptions["visualization_perf_0"] = window.sseSubscriptions["visualization_perf_0"] || []
+        window.sseSubscriptions["visualization_perf_0"].push((m) => {
+            chartFullView.data.datasets[0].data[2] = m.mean;
+            chartFullView.update("none")
+        })
+        window.sseSubscriptions["visualization_perf_1"] = window.sseSubscriptions["visualization_perf_1"] || []
+        window.sseSubscriptions["visualization_perf_1"].push((m) => {
+            chartFullView.data.datasets[1].data[2] = m.mean;
+            chartFullView.update("none")
+        })
+
+
+    </script>
+</div>

@@ -1,0 +1,78 @@
+<div style="min-width: 0;">
+    <canvas id="chartVisualization" class="chart-canvas"></canvas>
+    <script>
+
+        const dataVisualization = {
+            datasets: [
+                {
+                    label: "Device 0",
+                    data: [],
+                    fill: false,
+                    tension: 0.1,
+                },
+
+                {
+                    label: "Device 1",
+                    data: [],
+                    fill: false,
+                    tension: 0.1,
+                }
+            ],
+        };
+
+        const ctxVisualization = document.getElementById('chartVisualization');
+
+        const chartVisualization = new Chart(ctxVisualization, {
+            type: 'line',
+            data: dataVisualization,
+            options: {
+
+        events: [],
+                legend: {
+                    position: 'top',
+                    labels: {
+                        fontColor: 'white'
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'timeseries',
+                    },
+                    y: {
+                        ticks: {
+                            // Include a dollar sign in the ticks
+                            callback: function (value, index, ticks) {
+                                return value + 'ms';
+                            }
+                        }
+                    }
+                }
+                , plugins: {
+                    title: {
+                        display: true,
+                        text: 'Visualization'
+                    }
+                }
+            }
+        });
+
+        const chartVisualizationUpdate = () => {
+            chartVisualization.update("none");
+        }
+
+        window.sseSubscriptions["visualization_perf_0"] = window.sseSubscriptions["visualization_perf_0"] || []
+        window.sseSubscriptions["visualization_perf_0"].push((m) => {
+            const limit = (Date.now()) - 10000;
+            chartVisualization.data.datasets[0].data.push([m.ts, m.value])
+            chartVisualization.data.datasets[0].data = chartVisualization.data.datasets[0].data.filter(x => x[0] > limit)
+            chartVisualizationUpdate()
+        })
+        window.sseSubscriptions["visualization_perf_1"] = window.sseSubscriptions["visualization_perf_1"] || []
+        window.sseSubscriptions["visualization_perf_1"].push((m) => {
+            const limit = (Date.now()) - 10000;
+            chartVisualization.data.datasets[1].data.push([m.ts, m.value])
+            chartVisualization.data.datasets[1].data = chartVisualization.data.datasets[1].data.filter(x => x[0] > limit)
+            chartVisualizationUpdate()
+        })
+    </script>
+</div>
