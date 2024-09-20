@@ -4,14 +4,6 @@
         const dataInference = {
             datasets: [
                 {
-                    label: "Device 0",
-                    data: [],
-                    fill: false,
-                    tension: 0.1,
-                },
-
-                {
-                    label: "Device 1",
                     data: [],
                     fill: false,
                     tension: 0.1,
@@ -28,12 +20,6 @@
 
 
         events: [],
-                legend: {
-                    position: 'top',
-                    labels: {
-                        fontColor: 'white'
-                    }
-                },
                 scales: {
                     x: {
                         type: 'timeseries',
@@ -51,6 +37,9 @@
                     title: {
                         display: true,
                         text: 'Inference'
+                    },
+                    legend: {
+                        display: false
                     }
                 }
             }
@@ -62,18 +51,11 @@
             chartInference.update("none");
         }
 
-        window.sseSubscriptions["inference_perf_0"] = window.sseSubscriptions["inference_perf_0"] || []
-        window.sseSubscriptions["inference_perf_0"].push((m) => {
+        window.sseSubscriptions["inference_perf"] = window.sseSubscriptions["inference_perf"] || []
+        window.sseSubscriptions["inference_perf"].push((m) => {
             const limit = (Date.now()) - 10000;
             chartInference.data.datasets[0].data.push([m.ts, m.value])
             chartInference.data.datasets[0].data = chartInference.data.datasets[0].data.filter(x => x[0] > limit)
-            chartInferenceUpdate()
-        })
-        window.sseSubscriptions["inference_perf_1"] = window.sseSubscriptions["inference_perf_1"] || []
-        window.sseSubscriptions["inference_perf_1"].push((m) => {
-            const limit = (Date.now()) - 10000;
-            chartInference.data.datasets[1].data.push([m.ts, m.value])
-            chartInference.data.datasets[1].data = chartInference.data.datasets[1].data.filter(x => x[0] > limit)
             chartInferenceUpdate()
         })
     </script>

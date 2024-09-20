@@ -1,20 +1,20 @@
+from json import dump, dumps
 import multiprocessing
 import os
 import time
 import platform
 import sys
-import torch
-import yaml
-import cv2
-from ultralytics import YOLO, settings
+import torch # type: ignore
+import cv2 # type: ignore
+from ultralytics import YOLO, settings # type: ignore
 from collections import Counter
 
-from src.config.get_config import getConfig
-from src.utils.shared_state import latest_detections, camera_info, add_detection
-from src.utils.person_counter import PersonCounter
-from src.utils.logger import get_logger, create_log_message
+from app.config import get_config
+from app.utils.shared_state import Detection, latest_detections, add_detection
+from app.utils.person_counter import PersonCounter
+from app.utils.logger import get_logger, create_log_message
 
-from typing import  TypedDict, List, Literal
+from typing import  Any, List, TypedDict
 
 logger = get_logger(__name__)
 
@@ -51,7 +51,7 @@ YOLO_DEVICE = (
     else "cpu"
 )
 
-config = getConfig()
+config = get_config()
 
 # Set environment variable to suppress OpenCV logging
 os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
@@ -87,17 +87,18 @@ def load_model(model_name) -> YOLO:
 def process_frame(model, frame, classes):
     return model.track(frame, persist=True, classes=classes, verbose=False, device=YOLO_DEVICE, tracker="bytetrack.yaml")
 
-def update_detections(results, model, input_source, fps):
+
+def update_detections(results, model, input_source, fps) -> Any | None:
     timestamp = int(time.time() * 1000)
     latest_detections.clear()
     if results and len(results[0].boxes) > 0:
         boxes = results[0].boxes
         print(results[0].speed)
-        detection = {
+        detection = Detection({
             "timestamp": timestamp,
             "input_source": input_source,
             "fps": fps,
-            "tracked_objects": [
+            "tracked_objects": [ # type: ignore
                 {
                     "id": int(id) if id is not None else None,
                     "label": model.names[int(cls)],
@@ -116,7 +117,8 @@ def update_detections(results, model, input_source, fps):
                 "inference": results[0].speed["inference"],
                 "postprocess": results[0].speed["postprocess"],
             },
-        }
+        })
+        
         latest_detections.append(detection)
         add_detection(detection)
 
@@ -126,7 +128,7 @@ def update_detections(results, model, input_source, fps):
     return None
 
 
-def display_frame(frame, results, fps, fps_flag):
+def display_frame(frame, results, fps, fps_flag) -> Any:
     annotated_frame = results[0].plot()
     if fps_flag:
         cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
@@ -134,7 +136,7 @@ def display_frame(frame, results, fps, fps_flag):
     return cv2.waitKey(1) & 0xFF == ord("q")
 
 
-def format_tracking_info(input_source, width, height, fps, avg_fps, elapsed_time, total_objects, detected_objects, results):
+def format_tracking_info(input_source, width, height, fps, avg_fps, elapsed_time, total_objects, detected_objects, results) -> str:
     info = "\033[1;36m--- Tracking Info ---\033[0m\n"
     info += f"Input Source: {input_source} | Resolution: {width}x{height}\n"
     info += f"FPS: {fps:.2f} | Avg FPS: {avg_fps:.2f} | Elapsed Time: {elapsed_time:.2f}s\n"
@@ -149,7 +151,7 @@ def format_tracking_info(input_source, width, height, fps, avg_fps, elapsed_time
     return info
 
 
-def log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects, results, input_source):
+def log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects, results, input_source) -> None:
     log_message = create_log_message(
         event="tracking_info",
         frame=frame_count,
@@ -163,7 +165,7 @@ def log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects,
     logger.info(log_message)
 
 
-def track(input_source, model_name=None, show_flag=True, fps_flag=True, track_all=False, loop_video=True, verbose=False):
+def track(input_source, model_name=None, show_flag=True, fps_flag=True, track_all=False, loop_video=True, verbose=False) -> None:
     logger.info(
         create_log_message(
             event="tracking_start",
@@ -178,7 +180,9 @@ def track(input_source, model_name=None, show_flag=True, fps_flag=True, track_al
     )
 
     model_name = model_name or config["default_model"]
-    frame_count, start_time, prev_time = 0, time.time(), 0
+    frame_count: float = 0
+    start_time = time.time()
+    prev_time: float = 0
         
     try:
         model = load_model(model_name)
@@ -194,7 +198,7 @@ def track(input_source, model_name=None, show_flag=True, fps_flag=True, track_al
         last_log_time = start_time
         log_interval = 10  # Log every 10 seconds
 
-        detected_objects = Counter()
+        detected_objects: Counter[Any] = Counter()
 
         while True:
             success, frame = vid.read()

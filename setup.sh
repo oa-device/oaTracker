@@ -33,8 +33,8 @@ Note:
   - It will install Homebrew on macOS if not already installed.
   - The script creates a Python virtual environment named 'venv'.
   - After running the script, activate the virtual environment with:
-    source venv/bin/activate         (for bash/zsh)
-    source venv/bin/activate.fish    (for fish shell)
+    source .venv/bin/activate         (for bash/zsh)
+    source .venv/bin/activate.fish    (for fish shell)
 
 EOF
 }
@@ -172,13 +172,13 @@ install_python() {
 setup_venv() {
     if [ ! -d "venv" ]; then
         echo "Creating Python virtual environment..."
-        python -m venv venv
+        python -m venv .venv
     else
         echo "Virtual environment already exists. Updating..."
     fi
 
     # Activate virtual environment based on shell
-    source venv/bin/activate
+    source .venv/bin/activate
 
     echo "Upgrading pip..."
     pip install --upgrade pip
@@ -195,7 +195,7 @@ setup_venv() {
 # Function to clean up previous installations
 cleanup() {
     echo "Cleaning up previous installations..."
-    rm -rf venv || true
+    rm -rf .venv || true
     rm -rf $PYENV_ROOT || true
     echo "Cleanup complete."
 }
@@ -268,8 +268,8 @@ deactivate
 
 echo -e "\n\n#############################################################"
 echo -e "Setup complete. To activate the virtual environment, run:"
-echo -e "source venv/bin/activate"
+echo -e "source .venv/bin/activate"
 if [ "$DETECTED_SHELL" = "fish" ]; then
-    echo -e "For fish shell, use: source venv/bin/activate.fish"
+    echo -e "For fish shell, use: source .venv/bin/activate.fish"
 fi
 echo -e "#############################################################\n\n"

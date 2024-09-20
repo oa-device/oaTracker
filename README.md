@@ -61,9 +61,9 @@ oaTracker is an internal application for MacOS and Ubuntu that utilizes Ultralyt
 3. Activate the virtual environment:
 
    ```sh
-   source venv/bin/activate
+   source .venv/bin/activate
    # For fish shell:
-   # source venv/bin/activate.fish
+   # source .venv/bin/activate.fish
    ```
 
 ### Configuration
@@ -176,13 +176,13 @@ The application provides a simple HTTP API for retrieving detection data. By def
 
 - `GET /detections`: Returns current frame detections (boxes, labels, confidence).
 - `GET /detections?from=X`: Returns unique object counts for the last X seconds (1 <= X <= 30).
-- `GET /cam/collect?from=X&to=Y&cam=0`: Returns the count of unique persons detected between X and Y milliseconds ago.
+- `GET /cam/collect?from=X&to=Y`: Returns the count of unique persons detected between X and Y milliseconds ago.
 
 Example requests:
 
 ```http
 GET http://localhost:8000/detections?from=10
-GET http://localhost:8000/cam/collect?from={from}&to={to}&cam=0
+GET http://localhost:8000/cam/collect?from={from}&to={to}
 ```
 
 Note: The `cam=0` parameter is always used in the `/cam/collect` endpoint, regardless of the actual input source (camera, RTSP, or video file).

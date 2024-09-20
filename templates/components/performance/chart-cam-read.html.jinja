@@ -5,14 +5,6 @@
         const dataCamRead = {
             datasets: [
                 {
-                    label: "Device 0",
-                    data: [],
-                    fill: false,
-                    tension: 0.1,
-                },
-
-                {
-                    label: "Device 1",
                     data: [],
                     fill: false,
                     tension: 0.1,
@@ -27,12 +19,6 @@
             data: dataCamRead,
             options: {
             events: [],
-                legend: {
-                    position: 'top',
-                    labels: {
-                        fontColor: 'white'
-                    }
-                },
                 scales: {
                     x: {
                         type: 'timeseries',
@@ -45,11 +31,13 @@
                             }
                         }
                     }
-                }
-                , plugins: {
+                }, plugins: {
                     title: {
                         display: true,
                         text: 'Cam read'
+                    },
+                    legend: {
+                        display: false
                     }
                 }
             }
@@ -59,18 +47,11 @@
             chartCamRead.update("none");
         }
 
-        window.sseSubscriptions["cam_read_perf_0"] = window.sseSubscriptions["cam_read_perf_0"] || []
-        window.sseSubscriptions["cam_read_perf_0"].push((m) => {
+        window.sseSubscriptions["cam_read_perf"] = window.sseSubscriptions["cam_read_perf"] || []
+        window.sseSubscriptions["cam_read_perf"].push((m) => {
             const limit = (Date.now()) - 10000;
             chartCamRead.data.datasets[0].data.push([m.ts, m.value])
             chartCamRead.data.datasets[0].data = chartCamRead.data.datasets[0].data.filter(x => x[0] > limit)
-            chartCamReadUpdate()
-        })
-        window.sseSubscriptions["cam_read_perf_1"] = window.sseSubscriptions["cam_read_perf_1"] || []
-        window.sseSubscriptions["cam_read_perf_1"].push((m) => {
-            const limit = (Date.now()) - 10000;
-            chartCamRead.data.datasets[1].data.push([m.ts, m.value])
-            chartCamRead.data.datasets[1].data = chartCamRead.data.datasets[1].data.filter(x => x[0] > limit)
             chartCamReadUpdate()
         })
 

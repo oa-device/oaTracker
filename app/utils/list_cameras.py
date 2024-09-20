@@ -23,7 +23,6 @@ if MACOS:
         for index, device in enumerate(devices):
             available_cameras.append({"index": index, "id": device.uniqueID(), "name": device.localizedName()})
         return available_cameras
-
 else:
     # Lists available camera indices up to a maximum number for other systems
     def list_available_cameras():

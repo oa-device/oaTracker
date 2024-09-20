@@ -12,7 +12,7 @@ then
     exit
 fi
 
-virtualenv venv
+virtualenv .venv
 
 . ./venv/bin/activate
 

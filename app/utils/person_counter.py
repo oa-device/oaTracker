@@ -1,21 +1,21 @@
 import time
-from src.utils.logger import get_logger, create_log_message
+from typing_extensions import Self
+from app.utils.logger import get_logger, create_log_message
 
 logger = get_logger(__name__)
 
-
 class PersonCounter:
-    counters = {}
+    __counters: dict[int, Self] = {}
 
     @classmethod
-    def get_counter(cls, device_id=None):
+    def get_counter(cls, device_id=None) -> Self:
         if device_id is None:
             # If no specific device_id is provided, return the first (and possibly only) counter
-            return next(iter(cls.counters.values())) if cls.counters else None
-        if device_id not in cls.counters:
-            cls.counters[device_id] = PersonCounter(device_id)
+            return next(iter(cls.__counters.values())) if cls.__counters else None
+        if device_id not in cls.__counters:
+            cls.__counters[device_id] = PersonCounter(device_id)
             logger.info(create_log_message(event="person_counter_created", device_id=device_id))
-        return cls.counters[device_id]
+        return cls.__counters[device_id]
 
     def __init__(self, device_id):
         self.device_id = device_id

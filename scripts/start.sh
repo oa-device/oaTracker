@@ -10,7 +10,7 @@ cd $SCRIPTS_DIR/..
 
 while true
 do
-    python $SCRIPTS_DIR/../app
+    python -m app
     killall -9 python &> /dev/null
     killall -9 Python &> /dev/null
 done

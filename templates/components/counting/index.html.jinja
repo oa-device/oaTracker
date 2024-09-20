@@ -21,10 +21,10 @@
 </div>
 <br />
 <div class="row">
-    <div class="col-4 col-md-5  count_result_col">
-        <span id="value_counter_0" class="count_result badge bg-success">0</span>
+    <div class="col-6 count_result_col">
+        <span id="value_counter" class="count_result badge bg-success">0</span>
     </div>
-    <div class="col-4 col-md-2 count_result_col" style="
+    <div class="col-6 count_result_col" style="
     display: flex;
     align-items: center;
 ">
@@ -40,22 +40,12 @@
           </div>
         </div>
     </div>
-    <div class="col-4 col-md-5   count_result_col">
-        <span id="value_counter_1" class="count_result badge bg-success">0</span>
-    </div>
 </div>
 <br />
 <div class="row">
-    <div class="col-4 col-md-5 h5 count_result_col">
-        <p>Last count received: <span id="last_value_counter_0">0</span></p>
-        <p>Count since boot: <span id="value_counter_0_since_boot">0</span></p>
-    </div>
-    <div class="col-4 col-md-2 count_result_col">
-    <br />
-    </div>
-    <div class="col-4 col-md-5 h5 count_result_col">
-        <p>Last count received: <span id="last_value_counter_1">0</span></p>
-        <p>Count since boot: <span id="value_counter_1_since_boot">0</span></p>
+    <div class="col h5 count_result_col">
+        <p>Last count received: <span id="last_value_counter">0</span></p>
+        <p>Count since boot: <span id="value_counter_since_boot">0</span></p>
     </div>
 </div>
 <script>
@@ -75,7 +65,6 @@
         lastReset = Date.now();
         nextReset  = getNextReset()
         setTimeoutReset();
-        
     }
 
     function getNextReset() {
@@ -87,8 +76,7 @@
     setTimeoutReset()
     var right =  document.querySelector('.progress-right .progress-bar');
     var left =  document.querySelector('.progress-left .progress-bar');
-    var last_value_0 =  document.querySelector('#last_value_counter_0');
-    var last_value_1 =  document.querySelector('#last_value_counter_1');
+    var last_value =  document.querySelector('#last_value_counter');
 
     let lastFrom = Date.now()
 
@@ -98,11 +86,9 @@
             lastReset = nextReset+0;
             nextReset  = getNextReset()
             setTimeoutReset()
-            document.getElementById("value_counter_0").innerText = '0'
-            document.getElementById("value_counter_1").innerText = '0'
+            document.getElementById("value_counter").innerText = '0'
             const now = Date.now();
-            fetch(`/cam/collect?cam=0&from=${lastFrom}&to=${now}`).then(x => x.json()).then((x) => {last_value_0.innerText = x.count})
-            fetch(`/cam/collect?cam=1&from=${lastFrom}&to=${now}`).then(x => x.json()).then((x) => {last_value_1.innerText = x.count})
+            fetch(`/cam/collect?from=${lastFrom}&to=${now}`).then(x => x.json()).then((x) => {last_value.innerText = x.count})
             lastFrom = now
         }, nextReset - Date.now())
     }
@@ -129,18 +115,10 @@
     },100)
 
 
-    window.sseSubscriptions["count_for_dashboard_0"] = window.sseSubscriptions["count_for_dashboard_0"] || []
-    window.sseSubscriptions["count_for_dashboard_0"].push((m) => {
-        document.getElementById("value_counter_0").innerText = m.count
-        document.getElementById("value_counter_0_since_boot").innerText = m.count_since_boot
+    window.sseSubscriptions["count_for_dashboard"] = window.sseSubscriptions["count_for_dashboard"] || []
+    window.sseSubscriptions["count_for_dashboard"].push((m) => {
+        document.getElementById("value_counter").innerText = m.count
+        document.getElementById("value_counter_since_boot").innerText = m.count_since_boot
     })
-    window.sseSubscriptions["count_for_dashboard_1"] = window.sseSubscriptions["count_for_dashboard_1"] || []
-    window.sseSubscriptions["count_for_dashboard_1"].push((m) => {
-        document.getElementById("value_counter_1").innerText = m.count
-        document.getElementById("value_counter_1_since_boot").innerText = m.count_since_boot
-    })
-
-
-
 </script>
 <br />
