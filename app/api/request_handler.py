@@ -136,7 +136,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 def start_server(port_number=None):
     if port_number is None:
         port_number = config["default_server_port"]
-    server_address = ("", port_number)
+    server_address = ("0.0.0.0", port_number)
     httpd = HTTPServer(server_address, RequestHandler)
     logger.info(create_log_message(event="server_start", port=port_number))
     httpd.serve_forever()

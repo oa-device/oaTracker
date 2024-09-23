@@ -264,8 +264,9 @@ class CounterProcess(multiprocessing.Process):
                 else:
                     self.maybe_crash()
                     raise Exception(f"No data from device")
-                await asyncio.sleep(0.001)
 
+                self.log_inference_perf(before_inference)
+                
                 # handle results
                 if result[0].boxes is not None:
                     self.counter.update(result[0].boxes)
@@ -274,7 +275,6 @@ class CounterProcess(multiprocessing.Process):
                     self.counter.update([])
                     self.log_result([], now_ts)
 
-                self.log_inference_perf(before_inference)
                 self.log_visualization(result[0], now_ts)
             except Exception as error:
                 logger.error(error)

@@ -15,7 +15,7 @@ IMG_HEIGHT = 480
 
 # torch device detection, enables cross-platform hardware acceleration
 TORCH_DEVICE = (
-    "cuda"
+    0
     if hasattr(torch.backends, "cuda") and torch.backends.cuda.is_built()
     else "mps"
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_built()

@@ -270,5 +270,5 @@ def start_api_process(
     args = _args
 
     uvicorn.run(
-        "app.processes.api.api_process:app", host="127.0.0.1", port=8000, log_level="info"
+        "app.processes.api.api_process:app", host="0.0.0.0", port=8000, log_level="info"
     )
