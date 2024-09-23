@@ -2,15 +2,17 @@ import asyncio
 import multiprocessing
 import os
 import time
-from typing import Any
+import traceback
+from typing import Any, NamedTuple
 
 from app.config import TORCH_DEVICE, get_config,IMG_HEIGHT, IMG_WIDTH
 from app.parse_args import Args
+from app.processes.counter.counters.counters import Counters
 from app.utils.logger import get_logger
 from cv2 import imencode
 import cv2
 import numpy as np
-from app.processes.counter.person_counter import PersonCounter
+from app.processes.counter.counters.person_counter import PersonCounter
 from app.processes.counter.plot_results import plot
 
 from ultralytics import YOLO
@@ -23,6 +25,18 @@ logger = get_logger(__name__)
 
 """
 
+
+counters = Counters([
+    PersonCounter()
+])
+
+
+class Tracked(NamedTuple):
+    xyxy: tuple[float,float,float,float]
+    id: int
+    conf: float
+    label: str
+    
 
 class CounterProcess(multiprocessing.Process):
     def __init__(
@@ -49,10 +63,8 @@ class CounterProcess(multiprocessing.Process):
         self.visualization_perf_data: list[float] = []
         self.visualization_perf_mean = 0.0
 
-        self.counter = PersonCounter()
+        self.counters = counters
         self.tick = 0
-        
-        print(f"{os.path.dirname(__file__)}/../../../models/yolov8n.pt")
 
         self.model = YOLO(f"{os.path.dirname(__file__)}/../../models/{self.args.model}", "track")
         
@@ -159,9 +171,6 @@ class CounterProcess(multiprocessing.Process):
                     else plot(
                         img=result.orig_img,
                         boxes=result.boxes,
-                        _from=self.last_to,
-                        to=time.time() * 1000,
-                        is_counted=self.counter.is_counted,
                         cam_ts=cam_ts,
                         labels=self.model.names
                     ))
@@ -197,7 +206,6 @@ class CounterProcess(multiprocessing.Process):
                 self.handle_event(event)
 
     def handle_event(self, event):
-        # print('counter got event', event)
         if event["event"] == "get_count":
             count = self.counter.get_count(event["from"], event["to"])
             self.last_to = event["to"]
@@ -256,7 +264,7 @@ class CounterProcess(multiprocessing.Process):
                         persist=True,
                         imgsz=IMG_WIDTH,
                         conf=0.02,
-                        classes=self.classes,
+                        #classes=self.classes,
                         iou=0.6,
                         verbose=False,
                         device=TORCH_DEVICE
@@ -267,16 +275,20 @@ class CounterProcess(multiprocessing.Process):
 
                 self.log_inference_perf(before_inference)
                 
+                boxes = result[0].boxes
+                
                 # handle results
-                if result[0].boxes is not None:
-                    self.counter.update(result[0].boxes)
-                    self.log_result(list(map(self.format_tracks, result[0].boxes)), now_ts)
+                if boxes is not None:
+                    self.counters.update(boxes)
+                    
+                    self.log_result(list(map(self.format_tracked, boxes)), now_ts)
                 else:
-                    self.counter.update([])
+                    self.counters.update([])
                     self.log_result([], now_ts)
 
                 self.log_visualization(result[0], now_ts)
             except Exception as error:
+                print(traceback.format_exc())
                 logger.error(error)
                 pass
 
@@ -284,21 +296,11 @@ class CounterProcess(multiprocessing.Process):
             self.log_to_console()
             await asyncio.sleep(wait_time)
 
-    def format_tracks(self, t):
+    def format_tracked(self, t):
         val = t.xyxy
 
-        return {
-            "box": {
-                "x1": float(val[0][0]),
-                "y1": float(val[0][1]),
-                "x2": float(val[0][0] + val[0][2]),
-                "y2": float(val[0][1] + val[0][3]),
-            },
-            "id": int(t.id[0]),
-            "confidence": float(t.conf[0]),
-            "is_activated": bool(t.is_track),
-            "label":self.model.names[int(t.cls)]
-        }
+        return Tracked((float(val[0][0]), float(val[0][1]), float(val[0][0] + val[0][2]), float(val[0][1] + val[0][3])), int(t.id), float(t.conf), self.model.names[int(t.cls)])
+
 
 
     def maybe_crash(self):

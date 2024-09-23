@@ -27,7 +27,7 @@ class PersonCounter:
         logger.info(create_log_message(event="person_counter_init", device_id=device_id))
 
     def update(self, tracked_objects):
-        now = int(time.time() * 1000)
+        now = time.time()
         updated_count = 0
         for obj in tracked_objects:
             if obj["id"] is not None and obj["label"] == "person":

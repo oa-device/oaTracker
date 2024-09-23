@@ -8,9 +8,6 @@ from ultralytics.utils.plotting import Annotator
 def plot(
     img: Any,
     boxes,
-    _from: float,
-    to: float,
-    is_counted: Callable,
     cam_ts: float,
     labels: list[str],
     conf=True,
@@ -66,19 +63,11 @@ def plot(
     # Plot Track results
     if boxes is not None:
         for t in boxes:
-            _is_counted = is_counted(t.id[0], _from, to)
-            if not _is_counted:
-                d = t
-                conf, id = d.conf[0], d.id[0]
-                name = "" if id is None else f"id:{int(id)} {labels[int(d.cls)]}"
-                label = f"{name} {int(conf* 100)}%" if conf else name
-                annotator.box_label(d.xyxy[0], label, color=(51, 142, 255))
-            else:
-                d = t
-                conf, id = d.conf[0], d.id[0]
-                name = "" if id is None else f"id:{int(id)} {labels[int(d.cls)]}"
-                label = f"{name} {int(conf* 100)}%" if conf else name
-                annotator.box_label(d.xyxy[0], label, color=(0, 225, 27))
+            d = t
+            conf, id = d.conf[0], d.id[0]
+            name = "" if id is None else f"id:{int(id)} {labels[int(d.cls)]}"
+            label = f"{name} {int(conf* 100)}%" if conf else name
+            annotator.box_label(d.xyxy[0], label, color=(0, 225, 27))
 
     annotator.text_label((544,460,640,480), datetime.datetime.fromtimestamp(cam_ts/1000).strftime('%H:%M:%S'), color=(0,0,0))
 
