@@ -4,7 +4,7 @@ import os
 import time
 from typing import Any
 
-from app.config import get_config,IMG_HEIGHT, IMG_WIDTH
+from app.config import TORCH_DEVICE, get_config,IMG_HEIGHT, IMG_WIDTH
 from app.parse_args import Args
 from app.utils.logger import get_logger
 from cv2 import imencode
@@ -259,7 +259,7 @@ class CounterProcess(multiprocessing.Process):
                         classes=self.classes,
                         iou=0.6,
                         verbose=False,
-                        device=0
+                        device=TORCH_DEVICE
                     )
                 else:
                     self.maybe_crash()
