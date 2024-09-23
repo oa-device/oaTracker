@@ -54,7 +54,7 @@ class CounterProcess(multiprocessing.Process):
         
         print(f"{os.path.dirname(__file__)}/../../../models/yolov8n.pt")
 
-        self.model = YOLO(f"{os.path.dirname(__file__)}/../../models/yolov8n.pt", "track")
+        self.model = YOLO(f"{os.path.dirname(__file__)}/../../models/{self.args.model}", "track")
         
         config = get_config()
     

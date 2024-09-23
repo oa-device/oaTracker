@@ -4,7 +4,7 @@
 
 SCRIPTS_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-. $SCRIPTS_DIR/../venv/bin/activate
+. $SCRIPTS_DIR/../.venv/bin/activate
 
 cd $SCRIPTS_DIR/..
 
