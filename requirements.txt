@@ -10,3 +10,4 @@ sse_starlette
 imutils
 numpy
 pygments
+lapx>=0.5.2

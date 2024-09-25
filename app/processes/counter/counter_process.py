@@ -5,6 +5,8 @@ import time
 import traceback
 from typing import Any, NamedTuple
 
+import ultralytics.engine.results
+
 from app.config import TORCH_DEVICE, get_config,IMG_HEIGHT, IMG_WIDTH
 from app.parse_args import Args
 from app.processes.counter.counters.counters import Counters
@@ -49,11 +51,13 @@ class CounterProcess(multiprocessing.Process):
         
         self.args = args
         
+        self.fps = 0.0
+        
         self.queue_all_events_output_counter = queue_all_events_output_counter
         self.queue_all_events_input_counter = queue_all_events_input_counter
 
         self.must_broadcast = False
-
+        
         self.cam_read_perf_data: list[float] = []
         self.cam_read_perf_mean = 0.0
 
@@ -62,6 +66,10 @@ class CounterProcess(multiprocessing.Process):
 
         self.visualization_perf_data: list[float] = []
         self.visualization_perf_mean = 0.0
+        
+        self.full_perf_data: list[float] = []
+        self.full_perf_mean = 0.0
+        self.full_perf_last_update = time.monotonic()
 
         self.counters = counters
         self.tick = 0
@@ -86,7 +94,7 @@ class CounterProcess(multiprocessing.Process):
             self.queue_all_events_output_counter.put(x)
 
     def log_cam_read_perf(self, before_cam_read: float) -> None:
-        if self.tick < 3:
+        if self.tick < 2 or not self.must_broadcast:
             return
 
         after_cam_read = time.monotonic()
@@ -104,22 +112,34 @@ class CounterProcess(multiprocessing.Process):
             }
         )
 
-    def log_result(self, results: Any, cam_ts: float) -> None:
-        if self.tick < 3:
+    def log_result(self, boxes: Any, cam_ts: float) -> None:
+        if self.tick < 2 or not self.must_broadcast:
             return
 
+        now = time.monotonic()
+        diff = now - self.full_perf_last_update
+        self.full_perf_data.append(diff)
+        self.full_perf_last_update = now
+        self.full_perf_data = self.full_perf_data[-10:]
+        mean = np.mean(self.full_perf_data)
+        self.full_perf_mean = "{:.2f}".format(round(mean, 2)) # type: ignore 
+
+        self.fps = 1.0 / mean
         self.broadcast_dashboard(
             {
                 "event": f"tracks",
-                "results": results,
+                "boxes": boxes,
                 "ts": time.time() * 1000,
                 "frame_id": self.tick,
-                "cam_ts": cam_ts
+                "cam_ts": cam_ts,
+                "fps": self.fps,
+                "counters_meta": self.counters.meta,
+                "counters_data": self.counters.data
             }
         )
 
     def log_inference_perf(self, before_inference: float) -> None:
-        if self.tick < 3:
+        if self.tick < 2: # keep inference perf logging even without web client
             return
 
         after_inference = time.monotonic()
@@ -138,7 +158,7 @@ class CounterProcess(multiprocessing.Process):
         )
 
     def log_visualization_perf(self, before_visualization: float) -> None:
-        if self.tick < 3:
+        if self.tick < 2 or not self.must_broadcast:
             return
 
         after_visualization = time.monotonic()
@@ -165,6 +185,8 @@ class CounterProcess(multiprocessing.Process):
         self.last_console_log = time.time()
 
     def log_visualization(self, result: Any, cam_ts: float) -> None:
+        if self.tick < 2 or not self.must_broadcast:
+            return
         before_visualization = time.monotonic()
         frame = (result.orig_img
                     if self.hide_overlay
@@ -197,7 +219,7 @@ class CounterProcess(multiprocessing.Process):
         event = None
         while event or once:
             once = False
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.0001)
             try:
                 event = self.queue_all_events_input_counter.get_nowait()
             except:
@@ -207,15 +229,16 @@ class CounterProcess(multiprocessing.Process):
 
     def handle_event(self, event):
         if event["event"] == "get_count":
-            count = self.counter.get_count(event["from"], event["to"])
-            self.last_to = event["to"]
-            self.queue_all_events_output_counter.put(
-                {
-                    "event": f"count",
-                    "count": count,
-                    "id": event["id"],
-                }
-            )
+            pass
+            # count = self.counter.get_count(event["from"], event["to"])
+            # self.last_to = event["to"]
+            # self.queue_all_events_output_counter.put(
+            #     {
+            #         "event": f"count",
+            #         "count": count,
+            #         "id": event["id"],
+            #     }
+            # )
         elif event["event"] == "set_dashboard":
             self.must_broadcast = event["value"]
         elif event["event"] == "set_paused":
@@ -223,25 +246,33 @@ class CounterProcess(multiprocessing.Process):
         elif event["event"] == "set_hide_overlay":
             self.hide_overlay = event["value"]
         elif event["event"] == "get_count_for_dashboard":
-            count = self.counter.get_count(event["from"], event["to"])
-            count_since_boot = self.counter.get_count_since_boot()
-            self.broadcast_dashboard(
-                {
-                    "event": f"count_for_dashboard",
-                    "count": count,
-                    "count_since_boot": count_since_boot,
-                }
-            )
+            pass
+            # count = self.counter.get_count(event["from"], event["to"])
+            # count_since_boot = self.counter.get_count_since_boot()
+            # self.broadcast_dashboard(
+            #     {
+            #         "event": f"count_for_dashboard",
+            #         "count": count,
+            #         "count_since_boot": count_since_boot,
+            #     }
+            # )
 
     async def tracking_loop(self) -> Any:
-        cam = VideoCaptureThreading(
-            width=IMG_WIDTH,
-            height=IMG_HEIGHT,
-        )
-        cam.start()
+
+        while True:
+            try:
+                cam = VideoCaptureThreading(
+                    width=IMG_WIDTH,
+                    height=IMG_HEIGHT,
+                )
+                cam.start()
+                break
+            except Exception as error:
+                print(traceback.format_exc())
+                logger.error(error)
+                pass
         
         while True:
-            now = time.monotonic()
             now_ts = time.time() * 1000
             handle_events_coroutine = self.handle_events()
             try:
@@ -264,7 +295,7 @@ class CounterProcess(multiprocessing.Process):
                         persist=True,
                         imgsz=IMG_WIDTH,
                         conf=0.02,
-                        #classes=self.classes,
+                        classes=self.classes,
                         iou=0.6,
                         verbose=False,
                         device=TORCH_DEVICE
@@ -272,35 +303,28 @@ class CounterProcess(multiprocessing.Process):
                 else:
                     self.maybe_crash()
                     raise Exception(f"No data from device")
-
+                
                 self.log_inference_perf(before_inference)
                 
-                boxes = result[0].boxes
+                boxes: ultralytics.engine.results.Boxes =  [d for d in (result[0].boxes if result[0].boxes is not None else []) if d.is_track] # type: ignore 
+                
+                self.counters.update(boxes)
                 
                 # handle results
-                if boxes is not None:
-                    self.counters.update(boxes)
-                    
-                    self.log_result(list(map(self.format_tracked, boxes)), now_ts)
-                else:
-                    self.counters.update([])
-                    self.log_result([], now_ts)
-
+                self.log_result(list(map(self.format_tracked, boxes)), now_ts)
                 self.log_visualization(result[0], now_ts)
+                
             except Exception as error:
                 print(traceback.format_exc())
                 logger.error(error)
                 pass
 
-            wait_time = max(0.01, 0.1 - (time.monotonic() - now) / 1000)
             self.log_to_console()
-            await asyncio.sleep(wait_time)
 
     def format_tracked(self, t):
         val = t.xyxy
 
         return Tracked((float(val[0][0]), float(val[0][1]), float(val[0][0] + val[0][2]), float(val[0][1] + val[0][3])), int(t.id), float(t.conf), self.model.names[int(t.cls)])
-
 
 
     def maybe_crash(self):

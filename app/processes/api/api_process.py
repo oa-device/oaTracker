@@ -90,7 +90,7 @@ async def message_stream(request: Request):
             event = None
             while event or once:
                 once = False
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.0001)
                 try:
                     event = queue_sse_event.get_nowait()
                 except:
@@ -163,7 +163,7 @@ def collect_counter_data(to: float, _from=Query(alias="from")):
                 break
         except:
             pass
-        time.sleep(0.01)
+        time.sleep(0.0001)
 
     event.pop("id")
     event.pop("event")
@@ -192,13 +192,10 @@ def video_hide_overlay():
     )
 
 
-
 async def request_counts():
     global detection_input_queues
     while True:
         i = 0
-        await asyncio.sleep(0.2)
-
         try:
             detection_input_queue.put({
                 "event": "get_count_for_dashboard",
@@ -222,8 +219,6 @@ async def handle_counter_events():
     global no_client
     global no_client_last_sent
     while True:
-        once = True
-        event = None
         if time.time() - no_client_last_sent > 1:
             no_client_last_sent = time.time()
             detection_input_queue.put(
@@ -233,13 +228,13 @@ async def handle_counter_events():
             no_client = True
         else:
             no_client = False
-        while event or once:
-            once = False
-            await asyncio.sleep(0.01)
+        while True:
+            event = None
+            await asyncio.sleep(0.0001)
             try:
                 event = detection_output_queue.get_nowait()
             except:
-                break
+                continue
             if event:
                 if event["event"] == f"crash":
                     os._exit(1)
@@ -250,6 +245,8 @@ async def handle_counter_events():
                     fs.send_detection(event["value"])
                 else:
                     queue_sse_event.put(event)
+            else:
+                return
 
 
 detection_output_queue: multiprocessing.Queue = None # type: ignore

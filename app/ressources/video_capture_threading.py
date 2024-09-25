@@ -1,7 +1,7 @@
-import collections
 import threading
-from typing import Literal, Tuple, Union
-from app.config import IMG_HEIGHT, IMG_WIDTH
+import time
+from typing import Literal,  Tuple, Union
+
 from app.utils.logger import get_logger
 import cv2
 
@@ -9,6 +9,9 @@ import numpy.typing as Numpy
 import numpy as np
 
 logger = get_logger(__name__)
+
+
+from collections import deque
 
 class VideoCaptureThreading:
     """
@@ -58,14 +61,18 @@ class VideoCaptureThreading:
         self.__cap: cv2.VideoCapture = None # type: ignore 
         self.__set_cap()
         self.__started = False
-        self.__queue: collections.deque[Numpy.NDArray[np.uint8]] = collections.deque(maxlen=2)
+        self.__queue: deque[Numpy.NDArray[np.uint8]] = deque(maxlen=2)
 
         grabbed = False
         frame = None
         
+        start=time.monotonic()
         # get first frame
+        logger.info('Waiting for camera, timeout is 3 seconds')
         while grabbed == False and self.__cap:
             grabbed, frame = self.__cap.read()
+            if time.monotonic() - start > 3:
+                raise Exception('Camera timed out')
 
         self.__queue.append(frame) # type: ignore
 
@@ -75,12 +82,12 @@ class VideoCaptureThreading:
             print("[!] Threaded video capturing has already been started.")
             return None
         self.__started = True
-        self.__thread = threading.Thread(
+        self.__cam_thread = threading.Thread(
             name=f"Cam",
-            target=self.__update,
+            target=self.__update_cam,
             args=(),
         )
-        self.__thread.start()
+        self.__cam_thread.start()
         logger.info(
             f"Video capture thread started"
         )
@@ -88,20 +95,16 @@ class VideoCaptureThreading:
     def stop(self) -> None:
         """Stops the thread"""
         self.__started = False
-        self.__thread.join()
+        self.__cam_thread.join()
 
     def read(self) -> Union[Tuple[Literal[True], Numpy.NDArray[np.uint8]], Tuple[Literal[False], None]]:
         """Returns an image from the queue, same return type as cv2.VideoCapture.read()"""
-        try:
-            frame = self.__queue.pop()
-
-            if frame is None:
-                print("Warning: empty frame queue")
-                return (False, None)
-
-            return (True, frame)
-        except Exception as err:
-            return (False, None)
+        while True:
+            try:
+                frame = self.__queue.popleft()
+                return (True, frame)
+            except Exception as err:
+                pass
 
     def __set_cap(self) -> None:
         """Initializes OpenCV's video capture"""
@@ -115,14 +118,17 @@ class VideoCaptureThreading:
         except:
             raise ValueError("Error setting capture")
 
-    def __update(self) -> None:
-        """This function is the main loop for the thread, picks a frame and adds it the the queue"""
+    def __update_cam(self) -> None:
+        """This function is the main loop for the cam thread, picks a frame and adds it the the raw queue"""
+        i = 0
         while self.__started:
+            i+=1
             try:
                 grabbed, frame = self.__cap.read()
                 if grabbed:
-                    self.__queue.append(cv2.resize(frame, dsize=(IMG_WIDTH,IMG_HEIGHT))) # type: ignore
-                else:
-                    self.__set_cap()
+                    self.__queue.append(cv2.resize(frame, (640, 480), interpolation=cv2.INTER_NEAREST)) # type: ignore
             except Exception as err:
+                if i > 20:
+                    self.__set_cap()
                 pass
+    

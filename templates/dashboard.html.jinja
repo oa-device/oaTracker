@@ -28,87 +28,87 @@
 	}
 
 	thead {
-    	font-size: 0.7rem;
+		font-size: 0.7rem;
 	}
 
-	.count_result_col{
-text-align: center;
-	}
-	.count_result{
-
-    font-size: 5rem;
-    margin: 2rem 0;
+	.count_result_col {
+		text-align: center;
 	}
 
-.progress {
-  width: 120px;
-  height: 120px;
-  background: none;
-  position: relative;
-}
+	.count_result {
 
-.progress::after {
-  content: "";
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  border: 6px solid #eee;
-  position: absolute;
-  top: 0;
-  left: 0;
-}
+		font-size: 5rem;
+		margin: 2rem 0;
+	}
 
-.progress>span {
-  width: 50%;
-  height: 100%;
-  overflow: hidden;
-  position: absolute;
-  top: 0;
-  z-index: 1;
-}
+	.progress {
+		width: 120px;
+		height: 120px;
+		background: none;
+		position: relative;
+	}
 
-.progress .progress-left {
-  left: 0;
-}
+	.progress::after {
+		content: "";
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+		border: 6px solid #eee;
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
 
-.progress .progress-bar {
-  width: 100%;
-  height: 100%;
-  background: none;
-  border-width: 6px;
-  border-style: solid;
-  position: absolute;
-  top: 0;
-}
+	.progress>span {
+		width: 50%;
+		height: 100%;
+		overflow: hidden;
+		position: absolute;
+		top: 0;
+		z-index: 1;
+	}
 
-.progress .progress-left .progress-bar {
-  left: 100%;
-  border-top-right-radius: 80px;
-  border-bottom-right-radius: 80px;
-  border-left: 0;
-  -webkit-transform-origin: center left;
-  transform-origin: center left;
-}
+	.progress .progress-left {
+		left: 0;
+	}
 
-.progress .progress-right {
-  right: 0;
-}
+	.progress .progress-bar {
+		width: 100%;
+		height: 100%;
+		background: none;
+		border-width: 6px;
+		border-style: solid;
+		position: absolute;
+		top: 0;
+	}
 
-.progress .progress-right .progress-bar {
-  left: -100%;
-  border-top-left-radius: 80px;
-  border-bottom-left-radius: 80px;
-  border-right: 0;
-  -webkit-transform-origin: center right;
-  transform-origin: center right;
-}
+	.progress .progress-left .progress-bar {
+		left: 100%;
+		border-top-right-radius: 80px;
+		border-bottom-right-radius: 80px;
+		border-left: 0;
+		-webkit-transform-origin: center left;
+		transform-origin: center left;
+	}
 
-.progress .progress-value {
-  position: absolute;
-  top: 0;
-  left: 0;
-}
+	.progress .progress-right {
+		right: 0;
+	}
 
+	.progress .progress-right .progress-bar {
+		left: -100%;
+		border-top-left-radius: 80px;
+		border-bottom-left-radius: 80px;
+		border-right: 0;
+		-webkit-transform-origin: center right;
+		transform-origin: center right;
+	}
+
+	.progress .progress-value {
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
 </style>
 <script>
 	Chart.defaults.font.color = 'white'
@@ -173,38 +173,71 @@ text-align: center;
 </script>
 </head>
 
-<body data-bs-theme="dark">
-	<header class="navbar sticky-top bg-dark flex-md-nowrap p-0 shadow" data-bs-theme="dark">
-		<a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6 text-white" href="#"><img style="height: 1.5rem;"
-				src="/static/logo.webp"> People Counter
-			Dashboard</a>
-
-		<ul class="navbar-nav flex-row d-md-none">
-		</ul>
-
-		<div id="navbarSearch" class="navbar-search w-100 collapse">
-			<input class="form-control w-100 rounded-0 border-0" type="text" placeholder="Search" aria-label="Search">
-		</div>
-	</header>
-	<div class="container-fluid">
-		<br />
-
-		<div class="alert alert-warning" id="waiting-for-data" role="alert">
-			Waiting for data
-			<div class="spinner-border spinner-border-sm text-warning" role="status">
-				<span class="visually-hidden">Loading...</span>
+<body data-bs-theme="dark" style="overflow-x: hidden;">
+	<div class="row">
+		<div class="col">
+			<div id="cam" style="
+    position: fixed;
+    left: 25%;
+    top:50%;
+    -webkit-transform: translate(-50%, -50%);
+    -moz-transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%);"
+>
+				<img src="/cam.jpg" alt="Camera 0" style="margin: 0 auto;">
+				<div style="
+    padding-top: 0.2rem;
+    width: 640px;
+    margin: 0 auto;
+">
+					<div class="card-title"></div>
+					<div>Full latency (from camera shot to now): <span id="latency_results_value"></span> <span
+							style="float:right;" id="clock"></span></div>
+					<div> Network latency (from counter update to now): <span id="network_latency_results_value"></span>
+					</div>
+					<div class="btn-group me-2" style="float:right">
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/pause')">⏸</button>
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/play')">▶</button>
+					</div>
+					<div class="btn-group me-2" style="float:right">
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/hide_overlay')">Hide overlay</button>
+						<button type="button" class="btn btn-sm btn-outline-secondary"
+							onclick="fetch('/cam/show_overlay')">Show overlay</button>
+					</div>
+				</div>
 			</div>
 		</div>
-		{% include 'components/tracking/index.html.jinja' %}
-		<div class="row">
 		<div class="col">
-		{% include 'components/counting/index.html.jinja' %}
+			<header class="navbar sticky-top bg-dark flex-md-nowrap p-0 shadow" data-bs-theme="dark"></header>
+			<a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6 text-white" href="#"><img style="height: 1.5rem;"
+					src="/static/logo.webp"> People Counter
+				Dashboard</a>
+
+			<ul class="navbar-nav flex-row d-md-none">
+			</ul>
+
+			<div id="navbarSearch" class="navbar-search w-100 collapse">
+				<input class="form-control w-100 rounded-0 border-0" type="text" placeholder="Search"
+					aria-label="Search">
+			</div>
+			</header>
+
+				<div class="alert alert-warning" id="waiting-for-data" role="alert">
+					Waiting for data
+					<div class="spinner-border spinner-border-sm text-warning" role="status">
+						<span class="visually-hidden">Loading...</span>
+					</div>
+				</div>
+				{% include 'components/realtime-counters/index.html.jinja' %}
+				{% include 'components/counting/index.html.jinja' %}
+				{% include 'components/performance/index.html.jinja' %}
+			</div>
 		</div>
-		<div class="col">
-		{% include 'components/performance/index.html.jinja' %}
-		</div>
-		</div>
-	</div>
+
+
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"
 		integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm"
 		crossorigin="anonymous"></script>

@@ -1,11 +1,12 @@
 
 
+from typing import Counter
 import ultralytics.engine.results
 
 
-class LineCrossingCounter():
+class LineCrossingCounter(Counter):
     def __init__(self) -> None:
-        pass
+        super().__init__("Line Crossing Counter")
     
     def update(self, boxes: ultralytics.engine.results.Boxes) -> None:
         pass

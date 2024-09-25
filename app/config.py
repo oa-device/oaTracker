@@ -23,9 +23,9 @@ TORCH_DEVICE = (
 )
 
 # Disabled Google Analytics tracking from Yolov8
-if settings.get("sync") == True:
-    settings["sync"] = False
-    settings.save()
+settings.update({
+    "sync": False
+})
 
 class Cors(TypedDict):
     allowed_origins: List[str]

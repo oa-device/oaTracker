@@ -33,7 +33,7 @@ def main():
         args
     )
 
-    logger.info("Start API process")
+    logger.info("Spawning API process")
     start_api_process(
         queue_all_events_counter_output,
         queue_all_events_counter_input,
