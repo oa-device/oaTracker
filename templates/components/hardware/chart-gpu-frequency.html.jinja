@@ -1,0 +1,64 @@
+<div class="chart-container">
+    <canvas id="chartGpuFrequency" class="chart-canvas"></canvas>
+    <script>
+
+        const dataGpuFrequency = {
+            datasets: [
+                {
+                    label: "GPU frequency",
+                    data: [],
+                    fill: false,
+                    tension: 0.1,
+                },
+            ],
+        };
+
+        const ctxGpuFrequency = document.getElementById('chartGpuFrequency');
+
+        const chartGpuFrequency = new Chart(ctxGpuFrequency, {
+            type: 'line',
+            data: dataGpuFrequency,
+            options: {
+            events: [],
+                legend: {
+                    position: 'top',
+                    labels: {
+                        fontColor: 'white'
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'timeseries',
+                    },
+                    y: {
+                        ticks: {
+                            // Include a dollar sign in the ticks
+                            callback: function (value, index, ticks) {
+                                return value + 'mhz';
+                            }
+                        }
+                    }
+                }
+                , plugins: {
+                    title: {
+                        display: true,
+                        text: 'GPU Frequency'
+                    }
+                }
+            }
+        });
+
+        const chartGpuFrequencyUpdate = () => {
+            chartGpuFrequency.update("none");
+        }
+
+        window.sseSubscriptions["gpu_powermetrics"] = window.sseSubscriptions["gpu_powermetrics"] || []
+        window.sseSubscriptions["gpu_powermetrics"].push((m) => {
+            const limit = (Date.now()) - 120000;
+            chartGpuFrequency.data.datasets[0].data.push([m.ts, m.gpu_powermetrics.freq_MHz])
+            chartGpuFrequency.data.datasets[0].data = chartGpuFrequency.data.datasets[0].data.filter(x => x[0] > limit)
+            chartGpuFrequencyUpdate()
+        })
+
+    </script>
+</div>

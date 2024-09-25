@@ -1,4 +1,12 @@
 opencv-python
 ultralytics
 pyyaml
-lapx>=0.5.2
+mypy
+torch
+torchvision
+torchaudio
+fastapi
+sse_starlette
+imutils
+numpy
+pygments

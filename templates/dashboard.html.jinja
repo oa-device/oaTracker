@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<script src="/static/chartjs-date-adapter.js"></script>
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet"
+		integrity="sha384-4bw+/aepP/YC94hEpVNVgiZdgIC5+VKNBQNGCHeKRQN+PtmoHDEXuppvnDJzQIu9" crossorigin="anonymous">
+</head>
+<style>
+	.accordion-button:not(.collapsed) {
+		background-color: transparent;
+	}
+
+
+	.chart-canvas {
+		width: 100% !important;
+		height: 100% !important;
+		display: block;
+	}
+
+	.card-img-top {
+		aspect-ratio: 1.77777777778;
+	}
+
+	.chart-container {
+		padding: 1px;
+	}
+
+	thead {
+    	font-size: 0.7rem;
+	}
+
+	.count_result_col{
+text-align: center;
+	}
+	.count_result{
+
+    font-size: 5rem;
+    margin: 2rem 0;
+	}
+
+.progress {
+  width: 120px;
+  height: 120px;
+  background: none;
+  position: relative;
+}
+
+.progress::after {
+  content: "";
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 6px solid #eee;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.progress>span {
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
+  position: absolute;
+  top: 0;
+  z-index: 1;
+}
+
+.progress .progress-left {
+  left: 0;
+}
+
+.progress .progress-bar {
+  width: 100%;
+  height: 100%;
+  background: none;
+  border-width: 6px;
+  border-style: solid;
+  position: absolute;
+  top: 0;
+}
+
+.progress .progress-left .progress-bar {
+  left: 100%;
+  border-top-right-radius: 80px;
+  border-bottom-right-radius: 80px;
+  border-left: 0;
+  -webkit-transform-origin: center left;
+  transform-origin: center left;
+}
+
+.progress .progress-right {
+  right: 0;
+}
+
+.progress .progress-right .progress-bar {
+  left: -100%;
+  border-top-left-radius: 80px;
+  border-bottom-left-radius: 80px;
+  border-right: 0;
+  -webkit-transform-origin: center right;
+  transform-origin: center right;
+}
+
+.progress .progress-value {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+</style>
+<script>
+	Chart.defaults.font.color = 'white'
+	Chart.defaults.borderColor = 'rgb(135, 138, 140)';
+	Chart.defaults.color = 'rgb(222, 226, 230)';
+	let reload = !document.hidden;
+	document.addEventListener("visibilitychange", () => {
+		if (document.hidden) {
+			reload = false
+		} else {
+			reload = true
+		}
+	});
+
+	function throttle(cb, delay = 250) {
+		let shouldWait = false
+
+		return (...args) => {
+			if (shouldWait) return
+
+			cb(...args)
+			shouldWait = true
+			setTimeout(() => {
+				shouldWait = false
+			}, delay)
+		}
+	}
+
+	const onlineUrl = window.location.href.replace('dashboard', 'online');
+	const sse = new EventSource(`//${window.location.hostname}:8000/dashboard/sse`);
+
+	const throttledError = throttle((e) => {
+		console.error(e)
+	}, 1000)
+
+	window.sseSubscriptions = {}
+
+
+	let gotFirstMessage = false;
+	sse.onmessage = (event) => {
+		if (!gotFirstMessage) {
+			try {
+				const alert = window.bootstrap.Alert.getOrCreateInstance('#waiting-for-data')
+				alert.close()
+				gotFirstMessage = true
+			} catch { }
+		}
+		resetReloadTimeout();
+		const message = JSON.parse(event.data)
+		sseSubscriptions[message.event]?.forEach(s => s(message));
+	};
+
+
+	let interval1
+	function resetReloadTimeout() {
+		clearInterval(interval1)
+		interval1 = setInterval(() => fetch(onlineUrl).catch(() => {
+			clearInterval(interval1)
+			setInterval(() => fetch(onlineUrl).then(() => { window.location.reload() }), 500)
+		}), 1500)
+	}
+</script>
+</head>
+
+<body data-bs-theme="dark">
+	<header class="navbar sticky-top bg-dark flex-md-nowrap p-0 shadow" data-bs-theme="dark">
+		<a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6 text-white" href="#"><img style="height: 1.5rem;"
+				src="/static/logo.webp"> People Counter
+			Dashboard</a>
+
+		<ul class="navbar-nav flex-row d-md-none">
+		</ul>
+
+		<div id="navbarSearch" class="navbar-search w-100 collapse">
+			<input class="form-control w-100 rounded-0 border-0" type="text" placeholder="Search" aria-label="Search">
+		</div>
+	</header>
+	<div class="container-fluid">
+		<br />
+
+		<div class="alert alert-warning" id="waiting-for-data" role="alert">
+			Waiting for data
+			<div class="spinner-border spinner-border-sm text-warning" role="status">
+				<span class="visually-hidden">Loading...</span>
+			</div>
+		</div>
+		{% include 'components/tracking/index.html.jinja' %}
+		<div class="row">
+		<div class="col">
+		{% include 'components/counting/index.html.jinja' %}
+		</div>
+		<div class="col">
+		{% include 'components/performance/index.html.jinja' %}
+		</div>
+		</div>
+	</div>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"
+		integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm"
+		crossorigin="anonymous"></script>
+</body>
+
+</html>

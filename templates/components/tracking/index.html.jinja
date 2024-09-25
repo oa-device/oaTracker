@@ -1,0 +1,120 @@
+<div class="row">
+	<div class="col">
+		<h4>Tracking</h4>
+	</div>
+</div>
+
+<div class="row">
+	<div class="col">
+		<div class="card" style="width: 100%;">
+			<img src="/cam.jpg" alt="Camera 0" style="margin: 0 auto; aspect-ratio:1.33333333">
+			<div class="card-body" style="
+    padding-top: 0.2rem;
+    width: 640px;
+    margin: 0 auto;
+">
+				<div class="card-title"></div>
+				<div>Full latency (from camera shot to now): <span id="latency_results_value"></span> <span style="float:right;" id="clock"></span></div>
+				<div> Network latency (from counter update to now): <span id="network_latency_results_value"></span></div>
+				<div class="btn-group me-2" style="float:right">
+					<button type="button" class="btn btn-sm btn-outline-secondary"
+						onclick="fetch('/cam/pause')">⏸</button>
+					<button type="button" class="btn btn-sm btn-outline-secondary"
+						onclick="fetch('/cam/play')">▶</button>
+				</div>
+				<div class="btn-group me-2" style="float:right">
+					<button type="button" class="btn btn-sm btn-outline-secondary"
+						onclick="fetch('/cam/hide_overlay')">Hide overlay</button>
+					<button type="button" class="btn btn-sm btn-outline-secondary"
+						onclick="fetch('/cam/show_overlay')">Show overlay</button>
+				</div>
+			</div>
+
+		</div>
+	</div>
+	<div class="col">
+
+		<div class="card" style="width: 100%;">
+			<div class="card-body">
+				<table id="detection_data_table" class="table table-sm table-striped">
+					<thead>
+						<tr>
+							<th scope="col">ID</th>
+							<th scope="col">Confidence</th>
+							<th scope="col">Position</th>
+							<th scope="col">Active</th>
+							<th scope="col">Total frames
+							</th>
+							<th scope="col">Counted</th>
+						</tr>
+					</thead>
+					<tbody>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+</div>
+</div>
+</div>
+<script>
+	const tbody = document.querySelector("#detection_data_table > tbody")
+
+	const network_latency_data =[];
+
+	setInterval(() => {
+		clock.innerText = new Date().toTimeString().split(' ')[0]
+	}, 100)
+
+	window.sseSubscriptions["tracks"] = window.sseSubscriptions["tracks"] || []
+	window.sseSubscriptions["tracks"].push((m) => {
+		tbody.innerHTML = ""
+		m.results.sort((a, b) => b.confidence - a.confidence).map(x => tbody.appendChild(trackToTr(x)))
+
+		latency_results_value.innerText = (Date.now() - m.cam_ts).toFixed(1) + " ms"
+
+		network_latency_data.push(Date.now() - m.ts)
+		if (network_latency_data.length === 101) {
+			network_latency_data.shift()	
+		}
+		network_latency_results_value.innerText = ((network_latency_data.reduce((a, b) => a+b, 0)) / network_latency_data.length).toFixed(1) + " ms"
+	})
+
+	function trackToTr(t) {
+		/** @type {HTMLTableRowElement} */
+		const tr = document.createElement("TR");
+		/** @type {HTMLTableCellElement} */
+		const thId = document.createElement("TH");
+		/** @type {HTMLTableCellElement} */
+		const tdConf = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdPosition = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdActive = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdTotalFrames = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		//const tdMovingCoef = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdCounted = document.createElement("TD");
+		thId.setAttribute("scope", "row")
+		thId.innerText = t.id
+		tdConf.innerText = (t.confidence * 100).toFixed(1)
+		tdPosition.innerText = (t.box.x1 + ((t.box.x2 - t.box.x1) / 2)).toFixed(1) + ", " + (t.box.y1 + ((t.box.y2 - t.box.y1) / 2)).toFixed(1)
+		tdActive.innerText = t.is_activated;
+		tdActive.style.color = t.is_activated ? 'green' : 'orange'
+		tdTotalFrames.innerText = t.tracklet_len;
+		//tdMovingCoef.innerText = t.moving_coef.toFixed(1);
+		tdCounted.innerText = t.tracklet_len > 10;
+		tdCounted.style.color = t.tracklet_len > 10 ? 'green' : 'red'
+		tr.appendChild(thId);
+		tr.appendChild(tdConf);
+		tr.appendChild(tdPosition);
+		tr.appendChild(tdActive);
+		tr.appendChild(tdTotalFrames);
+		//tr.appendChild(tdMovingCoef);
+		tr.appendChild(tdCounted);
+		return tr
+	}
+</script>
+<br />

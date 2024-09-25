@@ -1,0 +1,124 @@
+<div class="row">
+    <div class="col">
+        <h4>Counting</h4>
+    </div>
+</div>
+<div class="row">
+    <div class="h5" style="text-align:center" >
+        <label for="counting_period">Counting period: </label>
+        <input type="range" id="counting_period" min="5" max="100" name="counting_period" list="markers" />
+        <span id="counting_period_value"></span>
+
+        <datalist id="markers">
+            <option value="5" label="5"></option>
+            <option value="15" label="15"></option>
+            <option value="30" label="30"></option>
+            <option value="60" label="60"></option>
+            <option value="100" label="∞"></option>
+        </datalist>
+
+    </div>
+</div>
+<br />
+<div class="row">
+    <div class="col-6 count_result_col">
+        <span id="value_counter" class="count_result badge bg-success">0</span>
+    </div>
+    <div class="col-6 count_result_col" style="
+    display: flex;
+    align-items: center;
+">
+            <div class="progress mx-auto" data-value='80'>
+          <span class="progress-left">
+                        <span class="progress-bar border-primary"></span>
+          </span>
+          <span class="progress-right">
+                        <span class="progress-bar border-primary"></span>
+          </span>
+          <div class="progress-value w-100 h-100 rounded-circle d-flex align-items-center justify-content-center">
+            <div id="next_reset_circle" class="h2 font-weight-bold"></div>
+          </div>
+        </div>
+    </div>
+</div>
+<br />
+<div class="row">
+    <div class="col h5 count_result_col">
+        <p>Last count received: <span id="last_value_counter">0</span></p>
+        <p>Count since boot: <span id="value_counter_since_boot">0</span></p>
+    </div>
+</div>
+<script>
+    let countingPeriodLocalStorage = localStorage.getItem("jpr_countingPeriod")
+    let countingPeriod = countingPeriodLocalStorage ? parseInt(countingPeriodLocalStorage) : 15
+    document.getElementById('counting_period').value = countingPeriod
+    counting_period_value.innerText = countingPeriod === "100" ? "Infinite" : countingPeriod + " seconds"
+    let lastReset = Date.now()
+    let nextReset = getNextReset()
+    const nextResetCircleEl = document.getElementById('next_reset_circle');
+
+    document.getElementById('counting_period').onchange = (e) => {
+        const val = e.target.value
+        counting_period_value.innerText = val === "100" ? "Infinite" : val + " seconds"
+        countingPeriod = val === "100" ? 999999 : parseInt(val)
+        localStorage.setItem("jpr_countingPeriod", countingPeriod);
+        lastReset = Date.now();
+        nextReset  = getNextReset()
+        setTimeoutReset();
+    }
+
+    function getNextReset() {
+        return lastReset + countingPeriod*1000
+    }
+
+    let timeoutReset;
+
+    setTimeoutReset()
+    var right =  document.querySelector('.progress-right .progress-bar');
+    var left =  document.querySelector('.progress-left .progress-bar');
+    var last_value =  document.querySelector('#last_value_counter');
+
+    let lastFrom = Date.now()
+
+    function setTimeoutReset() {
+        clearTimeout(timeoutReset)
+        timeoutReset= setTimeout(() => {
+            lastReset = nextReset+0;
+            nextReset  = getNextReset()
+            setTimeoutReset()
+            document.getElementById("value_counter").innerText = '0'
+            const now = Date.now();
+            fetch(`/cam/collect?from=${lastFrom}&to=${now}`).then(x => x.json()).then((x) => {last_value.innerText = x.count})
+            lastFrom = now
+        }, nextReset - Date.now())
+    }
+
+    setInterval(() => {
+        const next = ((nextReset - Date.now())/1000);
+        const percent = Math.max(0.001, 100 - next / countingPeriod * 100)
+        
+        function percentageToDegrees(percentage) {
+            return percentage / 100 * 360
+        }
+
+          if (percent > 0) {
+            if (percent <= 50) {
+                right.style.transform = 'rotate(' + percentageToDegrees(percent) + 'deg)'
+                left.style.transform =  'rotate(0deg)'
+            } else {
+                right.style.transform =  'rotate(180deg)'
+                left.style.transform =  'rotate(' + percentageToDegrees(percent - 50) + 'deg)'
+            }
+        }
+
+        nextResetCircleEl.innerText = (next < 0? 0 : next).toFixed(1) + 's';
+    },100)
+
+
+    window.sseSubscriptions["count_for_dashboard"] = window.sseSubscriptions["count_for_dashboard"] || []
+    window.sseSubscriptions["count_for_dashboard"].push((m) => {
+        document.getElementById("value_counter").innerText = m.count
+        document.getElementById("value_counter_since_boot").innerText = m.count_since_boot
+    })
+</script>
+<br />

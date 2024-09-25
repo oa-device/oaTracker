@@ -33,8 +33,8 @@ Note:
   - It will install Homebrew on macOS if not already installed.
   - The script creates a Python virtual environment named 'venv'.
   - After running the script, activate the virtual environment with:
-    source venv/bin/activate         (for bash/zsh)
-    source venv/bin/activate.fish    (for fish shell)
+    source .venv/bin/activate         (for bash/zsh)
+    source .venv/bin/activate.fish    (for fish shell)
 
 EOF
 }
@@ -46,12 +46,14 @@ command_exists() {
 
 # Function to detect the current shell
 detect_shell() {
-    if [ -n "$BASH_VERSION" ]; then
-        echo "bash"
-    elif [ -n "$ZSH_VERSION" ]; then
-        echo "zsh"
-    elif [ -n "$FISH_VERSION" ]; then
+    THE_SHELL=$(basename $SHELL)
+
+    if [ "$THE_SHELL" == "fish" ]; then
         echo "fish"
+    elif [ "$THE_SHELL" == "zsh" ]; then
+        echo "zsh"
+    elif [ "$THE_SHELL" == "bash" ]; then
+        echo "bash"
     else
         echo "unknown"
     fi
@@ -94,7 +96,7 @@ install_pyenv() {
         echo "pyenv is not installed. Installing pyenv..."
         curl https://pyenv.run | bash
         configure_pyenv
-    elif [ "$PYENV_INSTALL" = "force" ]; then
+    elif [ "$PYENV_INSTALL" = "force" ] || ! which pyenv; then
         echo "Forcing pyenv reinstallation..."
         rm -rf "$PYENV_ROOT"
         curl https://pyenv.run | bash
@@ -117,6 +119,16 @@ install_pyenv() {
 
 # Function to configure pyenv in shell
 configure_pyenv() {
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+    echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+    echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+
+    if [ -f ~/.profile ]; then 
+        echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.profile
+        echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.profile
+        echo 'eval "$(pyenv init -)"' >> ~/.profile
+    fi
+
     # Set up shell environment for pyenv
     case $DETECTED_SHELL in
     fish)
@@ -124,34 +136,27 @@ configure_pyenv() {
         echo "set -U fish_user_paths $PYENV_ROOT/bin $fish_user_paths" >>~/.config/fish/config.fish
         echo "status is-interactive; and pyenv init --path | source" >>~/.config/fish/config.fish
         ;;
-    *)
-        echo "export PYENV_ROOT=\"$PYENV_ROOT\"" >>~/.bashrc
-        echo "command -v pyenv >/dev/null || export PATH=\"$PYENV_ROOT/bin:$PATH\"" >>~/.bashrc
-        echo "eval \"$(pyenv init -)\"" >>~/.bashrc
-        if [ "$DETECTED_SHELL" = "zsh" ]; then
-            echo "export PYENV_ROOT=\"$PYENV_ROOT\"" >>~/.zshrc
-            echo "command -v pyenv >/dev/null || export PATH=\"$PYENV_ROOT/bin:$PATH\"" >>~/.zshrc
-            echo "eval \"$(pyenv init -)\"" >>~/.zshrc
+    zsh)
+        echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
+        echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
+        echo 'eval "$(pyenv init -)"' >> ~/.zshrc
+        if [ -f ~/.zprofile ]; then 
+            echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zprofile
+            echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zprofile
+            echo 'eval "$(pyenv init -)"' >> ~/.zprofile
         fi
         ;;
     esac
 
-    # Reload shell configuration
-    case $DETECTED_SHELL in
-    fish)
-        source ~/.config/fish/config.fish
-        ;;
-    *)
-        source ~/.bashrc
-        ;;
-    esac
+    # Reload shell configuration current local script
+    source ~/.bashrc
 }
 
 # Function to install Python using pyenv
 install_python() {
     if ! pyenv versions | grep -q $PYTHON_VERSION; then
         echo "Installing Python $PYTHON_VERSION using pyenv..."
-        pyenv install $PYTHON_VERSION
+        pyenv install --verbose $PYTHON_VERSION
     else
         echo "Python $PYTHON_VERSION is already installed."
     fi
@@ -167,20 +172,13 @@ install_python() {
 setup_venv() {
     if [ ! -d "venv" ]; then
         echo "Creating Python virtual environment..."
-        python -m venv venv
+        python -m venv .venv
     else
         echo "Virtual environment already exists. Updating..."
     fi
 
     # Activate virtual environment based on shell
-    case $DETECTED_SHELL in
-    fish)
-        source venv/bin/activate.fish
-        ;;
-    *)
-        source venv/bin/activate
-        ;;
-    esac
+    source .venv/bin/activate
 
     echo "Upgrading pip..."
     pip install --upgrade pip
@@ -197,10 +195,8 @@ setup_venv() {
 # Function to clean up previous installations
 cleanup() {
     echo "Cleaning up previous installations..."
-    rm -rf venv
-    if command_exists pyenv; then
-        pyenv uninstall -f $PYTHON_VERSION
-    fi
+    rm -rf .venv || true
+    rm -rf $PYENV_ROOT || true
     echo "Cleanup complete."
 }
 
@@ -268,19 +264,12 @@ install_python
 setup_venv
 
 # Deactivate the virtual environment
-case $DETECTED_SHELL in
-fish)
-    echo "deactivate" | source
-    ;;
-*)
-    deactivate
-    ;;
-esac
+deactivate
 
 echo -e "\n\n#############################################################"
 echo -e "Setup complete. To activate the virtual environment, run:"
-echo -e "source venv/bin/activate"
+echo -e "source .venv/bin/activate"
 if [ "$DETECTED_SHELL" = "fish" ]; then
-    echo -e "For fish shell, use: source venv/bin/activate.fish"
+    echo -e "For fish shell, use: source .venv/bin/activate.fish"
 fi
 echo -e "#############################################################\n\n"
