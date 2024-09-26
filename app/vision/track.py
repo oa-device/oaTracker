@@ -8,9 +8,9 @@ import cv2
 from ultralytics import YOLO
 from collections import Counter
 
-from src.utils.shared_state import latest_detections, camera_info, add_detection
-from src.utils.person_counter import PersonCounter
-from src.utils.logger import get_logger, create_log_message
+from app.utils.shared_state import latest_detections, camera_info, add_detection
+from app.utils.person_counter import PersonCounter
+from app.utils.logger import get_logger, create_log_message
 
 logger = get_logger(__name__)
 
