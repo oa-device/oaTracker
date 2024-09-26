@@ -24,7 +24,6 @@ class GenericCounter(Counter):
 
     def update(self, boxes: ultralytics.engine.results.Boxes) -> None:
         now = time.time()
-
         for t in boxes:
             try:
                 if t.is_track and int(t.cls) == self.cls and float(t.conf) > 0.8:

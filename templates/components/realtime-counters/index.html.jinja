@@ -10,22 +10,20 @@
 			<thead>
 				<tr>
 					<th scope="col">ID</th>
-					<th scope="col">Confidence</th>
-					<th scope="col">Position</th>
-					<th scope="col">Active</th>
+					<th scope="col">First seen</th>
+					<th scope="col">Last seen</th>
 					<th scope="col">Total frames
 					</th>
-					<th scope="col">Counted</th>
 				</tr>
 			</thead>
-			<tbody>
+			<tbody id="tbody_person_counter">
 			</tbody>
 		</table>
 	</div>
 </div>
 <script>
 	const network_latency_data =[];
-	let fps = "?";
+	let fps = 0;
 	setInterval(() => {
 		clock.innerText = (fps).toFixed(1) + "fps " +new Date().toTimeString().split(' ')[0]
 	}, 100)
@@ -33,14 +31,12 @@
 	window.sseSubscriptions["tracks"] = window.sseSubscriptions["tracks"] || []
 	window.sseSubscriptions["tracks"].push((m) => {
 
-		for (meta in m.counter_metas) {
-			console.log(meta)
-		}
-
 		fps = m.fps
 
+			console.log(m.counters_data.person_counter)
 		// [[x,y,x,y], id, conf, class]
-		//m.boxes.sort((a, b) => b.confidence - a.confidence).map(x => tbody.appendChild(trackToTr(x)))
+		tbody_person_counter.replaceChildren()
+		m.counters_data.person_counter.map(x => tbody_person_counter.appendChild(personCounterDataToTr(x)))
 
 		latency_results_value.innerText = (Date.now() - m.cam_ts).toFixed(1) + " ms"
 
@@ -51,40 +47,26 @@
 		network_latency_results_value.innerText = ((network_latency_data.reduce((a, b) => a+b, 0)) / network_latency_data.length).toFixed(1) + " ms"
 	})
 
-	function trackToTr(t) {
+	function personCounterDataToTr(t) {
 		/** @type {HTMLTableRowElement} */
 		const tr = document.createElement("TR");
 		/** @type {HTMLTableCellElement} */
 		const thId = document.createElement("TH");
 		/** @type {HTMLTableCellElement} */
-		const tdConf = document.createElement("TD");
+		const tdFirstSeen = document.createElement("TD");
 		/** @type {HTMLTableCellElement} */
-		const tdPosition = document.createElement("TD");
-		/** @type {HTMLTableCellElement} */
-		const tdActive = document.createElement("TD");
+		const tdLastSeen = document.createElement("TD");
 		/** @type {HTMLTableCellElement} */
 		const tdTotalFrames = document.createElement("TD");
-		/** @type {HTMLTableCellElement} */
-		//const tdMovingCoef = document.createElement("TD");
-		/** @type {HTMLTableCellElement} */
-		const tdCounted = document.createElement("TD");
 		thId.setAttribute("scope", "row")
-		thId.innerText = t.id
-		tdConf.innerText = (t.confidence * 100).toFixed(1)
-		tdPosition.innerText = (t.box.x1 + ((t.box.x2 - t.box.x1) / 2)).toFixed(1) + ", " + (t.box.y1 + ((t.box.y2 - t.box.y1) / 2)).toFixed(1)
-		tdActive.innerText = true;
-		tdActive.style.color = true ? 'green' : 'orange'
-		tdTotalFrames.innerText = t.tracklet_len;
-		//tdMovingCoef.innerText = t.moving_coef.toFixed(1);
-		tdCounted.innerText = t.tracklet_len > 10;
-		tdCounted.style.color = t.tracklet_len > 10 ? 'green' : 'red'
+		thId.innerText = t[2]
+		tdTotalFrames.innerText = t[3];
+		tdFirstSeen.innerText = t[0];
+		tdLastSeen.innerText = t[1];
 		tr.appendChild(thId);
-		tr.appendChild(tdConf);
-		tr.appendChild(tdPosition);
-		tr.appendChild(tdActive);
+		tr.appendChild(tdFirstSeen);
+		tr.appendChild(tdLastSeen);
 		tr.appendChild(tdTotalFrames);
-		//tr.appendChild(tdMovingCoef);
-		tr.appendChild(tdCounted);
 		return tr
 	}
 </script>

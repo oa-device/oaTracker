@@ -219,22 +219,24 @@ async def handle_counter_events():
     global no_client
     global no_client_last_sent
     while True:
-        if time.time() - no_client_last_sent > 1:
-            no_client_last_sent = time.time()
-            detection_input_queue.put(
-                {"event": "set_dashboard", "value": not no_client}
-            )
-        if time.time() - client_last_presence > 3:
+        now=time.time()
+        no_client_before = not not no_client
+        if now - client_last_presence > 0.5:
             no_client = True
         else:
             no_client = False
+        if no_client_before is not no_client or now - no_client_last_sent > 1:
+            no_client_last_sent = now
+            detection_input_queue.put(
+                {"event": "set_dashboard", "value": not no_client}
+            )
         while True:
             event = None
-            await asyncio.sleep(0.0001)
+            await asyncio.sleep(0.001)
             try:
                 event = detection_output_queue.get_nowait()
             except:
-                continue
+                break
             if event:
                 if event["event"] == f"crash":
                     os._exit(1)
@@ -246,7 +248,7 @@ async def handle_counter_events():
                 else:
                     queue_sse_event.put(event)
             else:
-                return
+                break
 
 
 detection_output_queue: multiprocessing.Queue = None # type: ignore

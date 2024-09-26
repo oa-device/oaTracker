@@ -210,10 +210,6 @@ class CounterProcess(multiprocessing.Process):
 
         self.log_visualization_perf(before_visualization)
 
-    """
-    
-    """
-
     async def handle_events(self) -> None:
         once = True
         event = None
@@ -258,7 +254,6 @@ class CounterProcess(multiprocessing.Process):
             # )
 
     async def tracking_loop(self) -> Any:
-
         while True:
             try:
                 cam = VideoCaptureThreading(
