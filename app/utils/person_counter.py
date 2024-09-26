@@ -1,5 +1,5 @@
 import time
-from src.utils.logger import get_logger, create_log_message
+from app.utils.logger import get_logger, create_log_message
 
 logger = get_logger(__name__)
 

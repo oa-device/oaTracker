@@ -4,11 +4,11 @@ import argparse
 import threading
 import yaml
 import logging
-from src.utils.list_cameras import list_available_cameras, list_cameras
-from src.api.request_handler import start_server
-from src.vision.track import track
-from src.utils.shared_state import camera_info, set_input_source
-from src.utils.logger import setup_logger, get_logger, create_log_message
+from app.utils.list_cameras import list_available_cameras, list_cameras
+from app.api.request_handler import start_server
+from app.vision.track import track
+from app.utils.shared_state import camera_info, set_input_source
+from app.utils.logger import setup_logger, get_logger, create_log_message
 
 
 def load_config():
