@@ -26,10 +26,12 @@
 - [x] Add CORS support to the HTTP API
 - [x] Implement video looping for file inputs
 - [x] Implement flexible logging options (file-only logging, log level selection)
+- [x] Enhance health endpoint with detailed system status information
 - [ ] Add support for multiple camera streams simultaneously
 - [ ] Explore and implement additional YOLO models for improved detection accuracy
 - [ ] Add option to save processed video with annotations
 - [ ] Implement alert system for specific detection scenarios
+- [ ] Implement periodic health checks and automatic recovery for degraded states
 
 ## Setup and Installation
 
@@ -48,7 +50,7 @@
 - [x] Implement unit tests for critical components
 - [x] Add integration tests for the HTTP API
 - [x] Implement comprehensive tests for the `/cam/collect` endpoint
-- [ ] Add tests for other API endpoints (e.g., `/detections`)
+- [ ] Add tests for other API endpoints (e.g., `/detections`, `/health`)
 - [ ] Set up continuous integration (CI) using GitHub Actions or GitLab CI
 - [ ] Add tests for setup script to ensure cross-platform compatibility
 - [ ] Implement test coverage reporting
@@ -91,6 +93,7 @@
 
 ## Monitoring and Analytics
 
+- [x] Implement basic system monitoring through enhanced health endpoint
 - [ ] Implement monitoring tools (e.g., Prometheus, Grafana) for tracking application performance and usage
 - [ ] Add telemetry to setup script to track usage and identify common issues
 

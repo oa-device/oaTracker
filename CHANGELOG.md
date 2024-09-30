@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.5] - 2024-09-30
+
+### Added
+
+- Enhanced health endpoint in the API with more detailed system status information.
+- New fields in health check response: input_source, tracking_status, detected_objects, current_fps, and person_counter_availability.
+
+### Changed
+
+- Improved health status reporting to differentiate between "healthy" and "degraded" states based on tracking activity.
+- Updated RequestHandler class to provide more comprehensive health information.
+
+### Improved
+
+- Enhanced system monitoring capabilities through the improved health endpoint.
+
 ## [0.7.4] - 2024-09-30
 
 ### Added

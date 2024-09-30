@@ -40,6 +40,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.handle_detections()
         elif parsed_path.path == "/cam/collect":
             self.handle_cam_collect()
+        elif parsed_path.path == "/health":
+            self.handle_health()
         else:
             self.send_error(404)
             logger.warning(create_log_message(event="http_not_found", path=self.path, instance=self.instance_config['name']))
@@ -112,6 +114,29 @@ class RequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.error(create_log_message(event="cam_collect_error", error=str(e), from_ms=from_ms, to_ms=to_ms, instance=self.instance_config['name']))
             self.send_error(500, f"Internal server error: {str(e)}")
+
+    def handle_health(self):
+        instance_name = self.instance_config['name']
+        input_source = get_input_source(instance_name)
+        person_counter = PersonCounter.get_counter(instance_name)
+        latest_detection = latest_detections.get(instance_name, {})
+        
+        is_tracking = person_counter is not None and latest_detection
+        detected_objects = latest_detection.get('detected_objects', {})
+        current_fps = latest_detection.get('fps', 0)
+
+        health_status = {
+            "status": "healthy" if is_tracking else "degraded",
+            "instance": instance_name,
+            "timestamp": int(time.time()),
+            "input_source": input_source,
+            "tracking_status": "active" if is_tracking else "inactive",
+            "detected_objects": detected_objects,
+            "current_fps": current_fps,
+            "person_counter_available": person_counter is not None
+        }
+
+        self.send_json_response(health_status)
 
     def send_cors_headers(self):
         origin = self.headers.get("Origin")

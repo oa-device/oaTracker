@@ -16,6 +16,7 @@ default_model: "yolov10n.pt"
 cors:
   allowed_origins:
     - "http://localhost:5173"
+    - "http://localhost:3000"  # Added orchestrator URL
     # Add more origins as needed
   allowed_methods:
     - "GET"
