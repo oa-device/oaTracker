@@ -1,7 +1,16 @@
 # config.yaml
-default_camera: 0
+instances:
+  - name: instance1
+    camera: "~/Downloads/video.mp4"
+    api_port: 8000
+  # - name: instance1
+  #   camera: 0
+  #   api_port: 8000
+  - name: instance2
+    camera: "~/Downloads/video2.mp4"
+    api_port: 8001
+
 default_model: "yolov10n.pt"
-default_server_port: 8000
 
 # CORS settings
 cors:

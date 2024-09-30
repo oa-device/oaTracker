@@ -11,6 +11,7 @@
 
 - [x] Enhance README with detailed setup and usage instructions
 - [x] Keep CHANGELOG.md up-to-date with recent changes
+- [x] Add visualization of setup process in README.md
 - [ ] Create comprehensive API documentation using Swagger or ReDoc
 - [ ] Add inline comments to explain complex parts of the code
 - [ ] Create a CONTRIBUTING.md file with guidelines for contributors
@@ -34,15 +35,23 @@
 
 - [x] Create comprehensive setup script with usage guide
 - [x] Improve cross-platform compatibility (MacOS and Ubuntu)
+- [x] Implement robust backup and restore functionality in setup script
+- [x] Add dry-run option to setup script
+- [x] Enhance shell compatibility (bash, zsh, fish) in setup script
 - [ ] Add option to specify Python version in setup script
 - [ ] Implement automatic dependency updates in setup script
 - [ ] Add system requirement checks in setup script (e.g., available disk space, RAM)
+- [ ] Implement a rollback feature for failed installations
 
 ## Testing
 
-- [ ] Implement unit tests for critical components
-- [ ] Add integration tests for the HTTP API
+- [x] Implement unit tests for critical components
+- [x] Add integration tests for the HTTP API
+- [x] Implement comprehensive tests for the `/cam/collect` endpoint
+- [ ] Add tests for other API endpoints (e.g., `/detections`)
 - [ ] Set up continuous integration (CI) using GitHub Actions or GitLab CI
+- [ ] Add tests for setup script to ensure cross-platform compatibility
+- [ ] Implement test coverage reporting
 
 ## Error Handling and Logging
 
@@ -50,6 +59,7 @@
 - [x] Add a logging system to help with debugging and monitoring
 - [x] Implement log rotation and archiving
 - [ ] Add log analysis tools or scripts for easier troubleshooting
+- [ ] Implement more detailed error reporting in setup script
 
 ## Performance Optimization
 
@@ -61,6 +71,7 @@
 ## Containerization
 
 - [ ] Create a Dockerfile to containerize the application
+- [ ] Ensure setup script works correctly within a containerized environment
 
 ## Code Quality
 
@@ -76,13 +87,16 @@
 
 - [ ] Implement authentication and authorization for the API
 - [ ] Set up a process for regularly updating dependencies to patch security vulnerabilities
+- [ ] Implement secure handling of sensitive information in setup script (e.g., API keys, passwords)
 
 ## Monitoring and Analytics
 
 - [ ] Implement monitoring tools (e.g., Prometheus, Grafana) for tracking application performance and usage
+- [ ] Add telemetry to setup script to track usage and identify common issues
 
 ## User Interface
 
 - [ ] Create a web-based dashboard for easier interaction with the tracker
+- [ ] Develop a graphical interface for the setup process
 
 Remember to update this TODO list as you complete tasks or identify new areas for improvement. This list will help guide the project's development and make it easier for contributors to understand the project's direction and outstanding tasks.

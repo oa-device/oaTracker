@@ -54,9 +54,11 @@ def process_frame(model, frame, classes):
     return model.track(frame, persist=True, classes=classes, verbose=False, device="mps", tracker="bytetrack.yaml")
 
 
-def update_detections(results, model, input_source, fps):
+def update_detections(results, model, input_source, fps, instance_name):
     timestamp = int(time.time() * 1000)
-    latest_detections.clear()
+    if instance_name not in latest_detections:
+        latest_detections[instance_name] = []
+    latest_detections[instance_name].clear()
     if results and len(results[0].boxes) > 0:
         boxes = results[0].boxes
         detection = {
@@ -83,10 +85,10 @@ def update_detections(results, model, input_source, fps):
                 "postprocess": results[0].speed["postprocess"],
             },
         }
-        latest_detections.append(detection)
-        add_detection(detection)
+        latest_detections[instance_name].append(detection)
+        add_detection(detection, instance_name)
 
-        logger.debug(create_log_message(event="update_detections", input_source=input_source, objects_count=len(detection["tracked_objects"])))
+        logger.debug(create_log_message(event="update_detections", input_source=input_source, objects_count=len(detection["tracked_objects"]), instance=instance_name))
 
         return detection
     return None
@@ -102,8 +104,8 @@ def display_frame(frame, results, fps, fps_flag):
     return False
 
 
-def format_tracking_info(input_source, width, height, fps, avg_fps, elapsed_time, total_objects, detected_objects, results):
-    info = "\033[1;36m--- Tracking Info ---\033[0m\n"
+def format_tracking_info(input_source, width, height, fps, avg_fps, elapsed_time, total_objects, detected_objects, results, instance_name):
+    info = f"\033[1;36m--- Tracking Info ({instance_name}) ---\033[0m\n"
     info += f"Input Source: {input_source} | Resolution: {width}x{height}\n"
     info += f"FPS: {fps:.2f} | Avg FPS: {avg_fps:.2f} | Elapsed Time: {elapsed_time:.2f}s\n"
     info += f"Total Detected Objects: {total_objects}\n"
@@ -117,7 +119,7 @@ def format_tracking_info(input_source, width, height, fps, avg_fps, elapsed_time
     return info
 
 
-def log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects, results, input_source):
+def log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects, results, input_source, instance_name):
     log_message = create_log_message(
         event="tracking_info",
         frame=frame_count,
@@ -127,11 +129,12 @@ def log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects,
         detected_objects=dict(detected_objects),
         processing_times={k: round(v, 2) for k, v in results[0].speed.items()} if results else {},
         input_source=input_source,
+        instance=instance_name,
     )
     logger.info(log_message)
 
 
-def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_all=False, loop_video=True, verbose=False):
+def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_all=False, loop_video=True, verbose=False, instance_name=None):
     logger.info(
         create_log_message(
             event="tracking_start",
@@ -142,6 +145,7 @@ def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_
             track_all=track_all,
             loop_video=loop_video,
             verbose=verbose,
+            instance=instance_name,
         )
     )
 
@@ -154,9 +158,9 @@ def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_
         width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        logger.info(create_log_message(event="tracking_setup", input_source=input_source, model=model_name, resolution=f"{width}x{height}"))
+        logger.info(create_log_message(event="tracking_setup", input_source=input_source, model=model_name, resolution=f"{width}x{height}", instance=instance_name))
 
-        person_counter = PersonCounter.get_counter(str(input_source))
+        person_counter = PersonCounter.get_counter(instance_name)
         frame_count, start_time, prev_time = 0, time.time(), 0
         last_log_time = start_time
         log_interval = 10  # Log every 10 seconds
@@ -170,7 +174,7 @@ def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_
                     vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
                     success, frame = vid.read()
                 if not success:
-                    logger.info(create_log_message(event="video_end", reason="End of video stream", input_source=input_source))
+                    logger.info(create_log_message(event="video_end", reason="End of video stream", input_source=input_source, instance=instance_name))
                     break
 
             frame_count += 1
@@ -181,7 +185,7 @@ def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_
             fps = 1 / (current_time - prev_time) if prev_time != 0 else 0
             prev_time = current_time
 
-            detection = update_detections(results, model, input_source, fps)
+            detection = update_detections(results, model, input_source, fps, instance_name)
             if detection:
                 person_counter.update(detection["tracked_objects"])
 
@@ -192,27 +196,28 @@ def track(input_source, model_name=None, show_flag=False, fps_flag=False, track_
                 avg_fps = frame_count / elapsed_time if elapsed_time > 0 else 0
 
                 if current_time - last_log_time >= log_interval:
-                    log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects, results, input_source)
+                    log_tracking_info(frame_count, fps, avg_fps, elapsed_time, detected_objects, results, input_source, instance_name)
                     last_log_time = current_time
 
                 if verbose:
-                    info = format_tracking_info(input_source, width, height, fps, avg_fps, elapsed_time, total_objects, detected_objects, results)
+                    info = format_tracking_info(input_source, width, height, fps, avg_fps, elapsed_time, total_objects, detected_objects, results, instance_name)
                     sticky_print(info)
 
             if show_flag and display_frame(frame, results, fps, fps_flag):
-                logger.info(create_log_message(event="tracking_interrupted", reason="User interrupted", input_source=input_source))
+                logger.info(create_log_message(event="tracking_interrupted", reason="User interrupted", input_source=input_source, instance=instance_name))
                 break
 
     except Exception as e:
-        logger.error(create_log_message(event="tracking_error", error=str(e), input_source=input_source))
+        logger.error(create_log_message(event="tracking_error", error=str(e), input_source=input_source, instance=instance_name))
+        frame_count = 0  # Set frame_count to 0 if an error occurs before it's initialized
     finally:
-        if "vid" in locals():
+        if 'vid' in locals():
             vid.release()
-        if MACOS and "show_flag" in locals() and show_flag:
+        if MACOS and 'show_flag' in locals() and show_flag:
             cv2.destroyAllWindows()
 
         logger.info(
-            create_log_message(event="tracking_stop", total_frames=frame_count, total_time=time.time() - start_time, input_source=input_source)
+            create_log_message(event="tracking_stop", total_frames=frame_count, total_time=time.time() - start_time, input_source=input_source, instance=instance_name)
         )
 
 

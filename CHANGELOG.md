@@ -5,6 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.4] - 2024-09-30
+
+### Added
+
+- Implemented real-time data processing in tests, replacing mock current time.
+- Added support for using actual video files (video.mp4 and video2.mp4) in tests.
+- Updated README.md with instructions for running tests using video files.
+
+### Changed
+
+- Modified test suite to use both video.mp4 and video2.mp4 for comprehensive testing.
+- Updated test_api.py to incorporate real-time data and video file processing.
+- Improved test coverage by testing all available API endpoints with actual video streams.
+
+### Improved
+
+- Enhanced overall test reliability by using real-world inputs instead of mock data.
+- Increased test coverage for time-based functionalities using actual video streams.
+
+## [0.7.3] - 2024-09-29
+
+### Added
+
+- Implemented comprehensive test suite for the API endpoints, particularly for `/cam/collect`.
+- Added pytest and pytest-mock to the project dependencies.
+- Included instructions for running tests in the README.md file.
+- Created custom TestRequestHandler class for more effective testing of the RequestHandler.
+
+### Changed
+
+- Updated project structure in README.md to reflect the addition of the `tests/` directory.
+- Improved the robustness of the `/cam/collect` endpoint testing, covering various scenarios.
+- Refactored test_api.py to use pytest fixtures and parametrized tests for better organization and coverage.
+
+### Fixed
+
+- Resolved issues with test collection and import errors in the test suite.
+
+## [0.7.1] - 2024-09-27
+
+### Changed
+
+- Improved setup script with more robust backup and restore functionality:
+  - Backup is now created outside the project directory to avoid conflicts.
+  - Only files and folders modified by the script are backed up.
+  - Restore function now only restores modified files.
+- Enhanced `configure_pyenv` function to avoid duplicate entries in shell configuration files.
+- Added more safeguards throughout the script to prevent unintended system modifications.
+- Improved error handling and logging throughout the setup process.
+
+### Fixed
+
+- Fixed issues with backup and restore logic in the setup script.
+- Resolved potential conflicts with Git-tracked files during the setup process.
+
+## [0.7.0] - 2024-09-27
+
+### Added
+
+- Backup functionality in setup script: Creates a restore point before making changes.
+- Dry-run option (`--dry-run`) in setup script for testing without making changes.
+- No-backup option (`--no-backup`) in setup script to skip creating a backup.
+- Detailed logging system in setup script with creation of log files for each run.
+
+### Changed
+
+- Improved error handling and rollback mechanisms in setup script.
+- Enhanced shell detection and configuration for bash, zsh, and fish in setup script.
+- Improved safeguards for critical system directories in setup script.
+- Enhanced cleanup process in setup script to be more thorough and safe.
+- Improved user feedback and verbose output in setup script.
+
+### Fixed
+
+- Issues with setup script compatibility across different operating systems and shells.
+- Potential system configuration risks during setup process.
+
 ## [0.6.0] - 2024-08-27
 
 ### Added

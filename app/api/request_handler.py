@@ -22,6 +22,10 @@ ALLOWED_HEADERS = CORS_SETTINGS.get("allowed_headers", [])
 
 
 class RequestHandler(BaseHTTPRequestHandler):
+    def __init__(self, instance_config, *args, **kwargs):
+        self.instance_config = instance_config
+        super().__init__(*args, **kwargs)
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_cors_headers()
@@ -30,7 +34,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed_path = urlparse(self.path)
 
-        logger.info(create_log_message(event="http_request", method="GET", path=self.path, client_address=self.client_address[0]))
+        logger.info(create_log_message(event="http_request", method="GET", path=self.path, client_address=self.client_address[0], instance=self.instance_config['name']))
 
         if parsed_path.path == "/detections":
             self.handle_detections()
@@ -38,7 +42,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.handle_cam_collect()
         else:
             self.send_error(404)
-            logger.warning(create_log_message(event="http_not_found", path=self.path))
+            logger.warning(create_log_message(event="http_not_found", path=self.path, instance=self.instance_config['name']))
 
     def handle_detections(self):
         query_params = parse_qs(urlparse(self.path).query)
@@ -48,25 +52,24 @@ class RequestHandler(BaseHTTPRequestHandler):
             try:
                 from_seconds = int(from_seconds)
                 if 1 <= from_seconds <= 30:
-                    object_counts = get_unique_object_counts(from_seconds)
+                    object_counts = get_unique_object_counts(from_seconds, self.instance_config['name'])
                     self.send_json_response(object_counts)
                 else:
                     self.send_error(400, "Invalid 'from' parameter. Must be between 1 and 30.")
             except ValueError:
                 self.send_error(400, "Invalid 'from' parameter. Must be an integer.")
         else:
-            self.send_json_response(latest_detections)
+            self.send_json_response(latest_detections.get(self.instance_config['name'], {}))
 
     def handle_cam_collect(self):
         query_params = parse_qs(urlparse(self.path).query)
-        cam = query_params.get("cam", [None])[0]
         to_ms = query_params.get("to", [None])[0]
         from_ms = query_params.get("from", [None])[0]
 
-        logger.info(create_log_message(event="cam_collect_request", cam=cam, from_ms=from_ms, to_ms=to_ms))
+        logger.info(create_log_message(event="cam_collect_request", from_ms=from_ms, to_ms=to_ms, instance=self.instance_config['name']))
 
         if None in (to_ms, from_ms):
-            logger.warning(create_log_message(event="cam_collect_invalid_params", cam=cam, from_ms=from_ms, to_ms=to_ms))
+            logger.warning(create_log_message(event="cam_collect_invalid_params", from_ms=from_ms, to_ms=to_ms, instance=self.instance_config['name']))
             self.send_error(400, "Missing required parameters: 'from' and 'to'")
             return
 
@@ -75,24 +78,23 @@ class RequestHandler(BaseHTTPRequestHandler):
             from_seconds = float(from_ms) / 1000
             now = time.time()
 
-            logger.debug(create_log_message(event="cam_collect_time_conversion", from_seconds=from_seconds, to_seconds=to_seconds, now=now))
+            logger.debug(create_log_message(event="cam_collect_time_conversion", from_seconds=from_seconds, to_seconds=to_seconds, now=now, instance=self.instance_config['name']))
 
             if from_seconds >= to_seconds:
-                logger.warning(create_log_message(event="cam_collect_invalid_time_range", from_seconds=from_seconds, to_seconds=to_seconds))
+                logger.warning(create_log_message(event="cam_collect_invalid_time_range", from_seconds=from_seconds, to_seconds=to_seconds, instance=self.instance_config['name']))
                 self.send_error(400, "Invalid time range")
                 return
 
             if to_seconds > now:
-                logger.warning(create_log_message(event="cam_collect_future_time", to_seconds=to_seconds, now=now))
+                logger.warning(create_log_message(event="cam_collect_future_time", to_seconds=to_seconds, now=now, instance=self.instance_config['name']))
                 self.send_error(400, "End time must be in the past")
                 return
 
-            # Get the actual input source, regardless of the 'cam' parameter
-            input_source, is_camera = get_input_source()
-            person_counter = PersonCounter.get_counter(str(input_source))
+            input_source = self.instance_config['camera']
+            person_counter = PersonCounter.get_counter(self.instance_config['name'])
 
             if person_counter is None:
-                logger.warning(create_log_message(event="cam_collect_no_counter", input_source=input_source))
+                logger.warning(create_log_message(event="cam_collect_no_counter", input_source=input_source, instance=self.instance_config['name']))
                 self.send_error(404, "No data available for the specified camera")
                 return
 
@@ -100,15 +102,15 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             logger.info(
                 create_log_message(
-                    event="cam_collect_success", input_source=input_source, from_seconds=from_seconds, to_seconds=to_seconds, count=count
+                    event="cam_collect_success", input_source=input_source, from_seconds=from_seconds, to_seconds=to_seconds, count=count, instance=self.instance_config['name']
                 )
             )
             self.send_json_response({"count": count})
         except ValueError as e:
-            logger.error(create_log_message(event="cam_collect_value_error", cam=cam, from_ms=from_ms, to_ms=to_ms, error=str(e)))
+            logger.error(create_log_message(event="cam_collect_value_error", from_ms=from_ms, to_ms=to_ms, error=str(e), instance=self.instance_config['name']))
             self.send_error(400, "Invalid parameters")
         except Exception as e:
-            logger.error(create_log_message(event="cam_collect_error", error=str(e), cam=cam, from_ms=from_ms, to_ms=to_ms))
+            logger.error(create_log_message(event="cam_collect_error", error=str(e), from_ms=from_ms, to_ms=to_ms, instance=self.instance_config['name']))
             self.send_error(500, f"Internal server error: {str(e)}")
 
     def send_cors_headers(self):
@@ -134,10 +136,14 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": message}).encode())
 
 
-def start_server(port_number=None):
-    if port_number is None:
-        port_number = config["default_server_port"]
+def start_server(instance_config):
+    port_number = instance_config['api_port']
     server_address = ("", port_number)
-    httpd = HTTPServer(server_address, RequestHandler)
-    logger.info(create_log_message(event="server_start", port=port_number))
+    
+    class InstanceRequestHandler(RequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(instance_config, *args, **kwargs)
+
+    httpd = HTTPServer(server_address, InstanceRequestHandler)
+    logger.info(create_log_message(event="server_start", port=port_number, instance=instance_config['name']))
     httpd.serve_forever()
