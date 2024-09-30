@@ -7,8 +7,10 @@ PYTHON_VERSION="3.10.11"
 
 # Global variables
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BACKUP_DIR="${HOME}/.oatracker_setup_backup_$(date +%Y%m%d_%H%M%S)"
-LOG_FILE="${SCRIPT_DIR}/setup_log_$(date +%Y%m%d_%H%M%S).log"
+BACKUPS_DIR="${HOME}/.oatracker_backups"
+LOGS_DIR="${SCRIPT_DIR}/logs"
+BACKUP_DIR="${BACKUPS_DIR}/backup_$(date +%Y%m%d_%H%M%S)"
+LOG_FILE="${LOGS_DIR}/setup_log_$(date +%Y%m%d_%H%M%S).log"
 MODIFIED_FILES=()
 
 # Function to display usage information
@@ -136,6 +138,27 @@ restore_from_backup() {
     done
 
     log_message "Restoration completed."
+}
+
+# Function to clean up old backups and logs
+cleanup_old_files() {
+    log_message "Cleaning up old backups and logs..."
+
+    # Keep only the 5 most recent backups
+    if [ -d "$BACKUPS_DIR" ]; then
+        cd "$BACKUPS_DIR"
+        ls -t | tail -n +6 | xargs -I {} rm -rf {}
+        cd "$SCRIPT_DIR"
+    fi
+
+    # Keep only the 10 most recent log files
+    if [ -d "$LOGS_DIR" ]; then
+        cd "$LOGS_DIR"
+        ls -t | tail -n +11 | xargs -I {} rm -f {}
+        cd "$SCRIPT_DIR"
+    fi
+
+    log_message "Cleanup of old backups and logs completed."
 }
 
 # Function to install packages on Ubuntu
@@ -368,6 +391,7 @@ cleanup() {
     fi
     log_message "Cleanup complete."
 }
+
 # Parse command-line arguments
 CLEAN=false
 PYENV_INSTALL="skip"
@@ -419,6 +443,9 @@ OS_TYPE=$(uname)
 # Detect the shell
 DETECTED_SHELL=$(detect_shell)
 
+# Create necessary directories
+mkdir -p "$BACKUPS_DIR" "$LOGS_DIR"
+
 log_message "Detected OS: $OS_TYPE"
 log_message "Detected shell: $DETECTED_SHELL"
 
@@ -433,6 +460,9 @@ fi
 
 # Create backup
 create_backup
+
+# Clean up old backups and logs
+cleanup_old_files
 
 # Perform cleanup if requested
 if $CLEAN; then

@@ -56,5 +56,6 @@ coverage.xml
 
 # Ignore all files in the logs directory
 logs/*
-# But keep the directory itself
-!logs/.gitkeep
+
+# Ignore all files in the .oatracker_backups directory
+.oatracker_backups/*
