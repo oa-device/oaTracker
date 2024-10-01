@@ -14,19 +14,19 @@ log_message() {
     local color=""
 
     case $level in
-        "INFO")
-            color=$GREEN
-            ;;
-        "WARNING")
-            color=$YELLOW
-            ;;
-        "ERROR")
-            color=$RED
-            ;;
+    "INFO")
+        color=$GREEN
+        ;;
+    "WARNING")
+        color=$YELLOW
+        ;;
+    "ERROR")
+        color=$RED
+        ;;
     esac
 
     # Log to file without color
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $message" >> "$log_file"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $message" >>"$log_file"
 
     # Print to terminal with color
     if [ -t 1 ]; then
@@ -43,30 +43,95 @@ command_exists() {
 
 # Function to detect the current shell
 detect_shell() {
-    # Check if we're running in a subshell (e.g., bash script run from another shell)
-    if [ -n "$BASH_VERSION" ]; then
-        echo "bash"
-    elif [ -n "$ZSH_VERSION" ]; then
-        echo "zsh"
-    elif [ -n "$FISH_VERSION" ]; then
-        echo "fish"
+    local current_shell=$(basename "$SHELL")
+    local running_shell=$(basename "$0")
+
+    if [ "$running_shell" = "bash" ] || [ "$running_shell" = "zsh" ] || [ "$running_shell" = "fish" ]; then
+        echo "$running_shell"
+    elif [ "$current_shell" = "bash" ] || [ "$current_shell" = "zsh" ] || [ "$current_shell" = "fish" ]; then
+        echo "$current_shell"
     else
-        # If we can't determine from the environment, check the parent process
-        parent_shell=$(ps -p $PPID -o comm=)
-        case "$parent_shell" in
-            *bash*)
-                echo "bash"
-                ;;
-            *zsh*)
-                echo "zsh"
-                ;;
-            *fish*)
-                echo "fish"
-                ;;
-            *)
-                echo "unknown"
-                ;;
-        esac
+        echo "unknown"
+    fi
+}
+
+# Function to source the appropriate shell configuration file
+source_shell_config() {
+    local detected_shell=$(detect_shell)
+    case $detected_shell in
+    bash)
+        source ~/.bashrc
+        ;;
+    zsh)
+        source ~/.zshrc
+        ;;
+    fish)
+        # We can't source fish config from Bash, so we'll just log a message
+        log_message "INFO" "Please restart your Fish shell or run 'source ~/.config/fish/config.fish' to apply changes" "$TRACKER_LOG_FILE"
+        ;;
+    *)
+        log_message "WARNING" "Unknown shell. Unable to source configuration." "$TRACKER_LOG_FILE"
+        ;;
+    esac
+}
+
+# Function to set up pyenv in shell configuration
+setup_pyenv_in_shell() {
+    local detected_shell=$(detect_shell)
+    local pyenv_root="$HOME/.pyenv"
+    local config_file=""
+
+    case $detected_shell in
+    bash)
+        config_file="$HOME/.bashrc"
+        ;;
+    zsh)
+        config_file="$HOME/.zshrc"
+        ;;
+    fish)
+        config_file="$HOME/.config/fish/config.fish"
+        ;;
+    *)
+        log_message "ERROR" "Unsupported shell: $detected_shell" "$TRACKER_LOG_FILE"
+        return 1
+        ;;
+    esac
+
+    # Add pyenv configuration to shell config file
+    if [ ! -f "$config_file" ]; then
+        log_message "INFO" "Creating $config_file" "$TRACKER_LOG_FILE"
+        touch "$config_file"
+    fi
+
+    if [ "$detected_shell" = "fish" ]; then
+        # Use fish to check and add the configuration
+        fish -c "
+            set -Ux PYENV_ROOT $HOME/.pyenv
+            if not contains \$PYENV_ROOT/bin \$PATH
+                set -Ua fish_user_paths \$PYENV_ROOT/bin
+            end
+            if not grep -q 'pyenv init' $config_file
+                echo 'pyenv init - | source' >> $config_file
+            end
+        "
+        log_message "INFO" "pyenv has been set up in your fish configuration" "$TRACKER_LOG_FILE"
+        log_message "INFO" "Please restart your Fish shell or run 'source $config_file' to apply changes" "$TRACKER_LOG_FILE"
+    else
+        if ! grep -q "pyenv init" "$config_file"; then
+            log_message "INFO" "Adding pyenv configuration to $config_file" "$TRACKER_LOG_FILE"
+            cat <<'EOF' >>"$config_file"
+
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init --path)"
+eval "$(pyenv init -)"
+
+EOF
+            source_shell_config
+            log_message "INFO" "pyenv has been set up in your $detected_shell configuration" "$TRACKER_LOG_FILE"
+        else
+            log_message "INFO" "pyenv configuration already exists in $config_file" "$TRACKER_LOG_FILE"
+        fi
     fi
 }
 
@@ -153,14 +218,14 @@ cleanup_old_files() {
     if [ -d "$backups_dir" ]; then
         cd "$backups_dir"
         ls -t | tail -n +6 | xargs -I {} rm -rf {}
-        cd - > /dev/null
+        cd - >/dev/null
     fi
 
     # Keep only the 10 most recent log files
     if [ -d "$logs_dir" ]; then
         cd "$logs_dir"
         ls -t | tail -n +11 | xargs -I {} rm -f {}
-        cd - > /dev/null
+        cd - >/dev/null
     fi
 
     log_message "INFO" "Cleanup of old backups and logs completed." "$log_file"
@@ -223,6 +288,8 @@ install_macos_dependencies() {
 export -f log_message
 export -f command_exists
 export -f detect_shell
+export -f source_shell_config
+export -f setup_pyenv_in_shell
 export -f create_backup
 export -f restore_from_backup
 export -f cleanup_old_files

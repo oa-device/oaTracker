@@ -61,22 +61,23 @@ install_pyenv() {
     local pyenv_install=$1
     local dry_run=$2
 
-    if [ ! -d "$pyenv_root" ]; then
-        log_message "INFO" "pyenv is not installed. Installing pyenv..." "$TRACKER_LOG_FILE"
+    if [ ! -d "$pyenv_root" ] || [ "$pyenv_install" = "force" ]; then
+        if [ "$pyenv_install" = "force" ]; then
+            log_message "INFO" "Forcing pyenv reinstallation..." "$TRACKER_LOG_FILE"
+            if [ "$dry_run" = false ]; then
+                rm -rf "$pyenv_root"
+            else
+                log_message "INFO" "[DRY RUN] Would remove existing pyenv installation." "$TRACKER_LOG_FILE"
+            fi
+        else
+            log_message "INFO" "pyenv is not installed. Installing pyenv..." "$TRACKER_LOG_FILE"
+        fi
+
         if [ "$dry_run" = false ]; then
             curl https://pyenv.run | bash
-            configure_pyenv
+            setup_pyenv_in_shell
         else
             log_message "INFO" "[DRY RUN] Would install pyenv and configure shell." "$TRACKER_LOG_FILE"
-        fi
-    elif [ "$pyenv_install" = "force" ]; then
-        log_message "INFO" "Forcing pyenv reinstallation..." "$TRACKER_LOG_FILE"
-        if [ "$dry_run" = false ]; then
-            rm -rf "$pyenv_root"
-            curl https://pyenv.run | bash
-            configure_pyenv
-        else
-            log_message "INFO" "[DRY RUN] Would force reinstall pyenv and configure shell." "$TRACKER_LOG_FILE"
         fi
     elif [ "$pyenv_install" = "update" ]; then
         log_message "INFO" "Updating existing pyenv installation..." "$TRACKER_LOG_FILE"
@@ -86,78 +87,52 @@ install_pyenv() {
                     cd "$pyenv_root"
                     git pull
                 )
+                setup_pyenv_in_shell
             else
-                log_message "INFO" "[DRY RUN] Would update pyenv." "$TRACKER_LOG_FILE"
+                log_message "INFO" "[DRY RUN] Would update pyenv and configure shell." "$TRACKER_LOG_FILE"
             fi
         else
             log_message "WARNING" "Existing pyenv installation is not a git repository. Skipping update." "$TRACKER_LOG_FILE"
         fi
     else
-        log_message "INFO" "Existing pyenv installation found. Skipping installation." "$TRACKER_LOG_FILE"
-        log_message "INFO" "To update or reinstall pyenv, use the -p update or -p force option." "$TRACKER_LOG_FILE"
+        log_message "INFO" "Existing pyenv installation found." "$TRACKER_LOG_FILE"
     fi
-}
 
-# Function to configure pyenv in shell
-configure_pyenv() {
-    local detected_shell=$(detect_shell)
-    local pyenv_root="$HOME/.pyenv"
-
-    case $detected_shell in
-    fish)
-        config_file="$HOME/.config/fish/config.fish"
-        if ! grep -q "PYENV_ROOT" "$config_file"; then
-            if [ "$DRY_RUN" = false ]; then
-                echo "set -Ux PYENV_ROOT $pyenv_root" >>"$config_file"
-                echo "set -U fish_user_paths $pyenv_root/bin $fish_user_paths" >>"$config_file"
-                echo "status is-interactive; and pyenv init --path | source" >>"$config_file"
-            else
-                log_message "INFO" "[DRY RUN] Would configure pyenv for fish shell." "$TRACKER_LOG_FILE"
-            fi
-        else
-            log_message "INFO" "pyenv configuration already exists in fish config. Skipping." "$TRACKER_LOG_FILE"
-        fi
-        ;;
-    *)
-        for config_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
-            if [ -f "$config_file" ] && ! grep -q "PYENV_ROOT" "$config_file"; then
-                if [ "$DRY_RUN" = false ]; then
-                    echo "export PYENV_ROOT=\"$pyenv_root\"" >>"$config_file"
-                    echo "command -v pyenv >/dev/null || export PATH=\"$pyenv_root/bin:$PATH\"" >>"$config_file"
-                    echo "eval \"$(pyenv init -)\"" >>"$config_file"
-                else
-                    log_message "INFO" "[DRY RUN] Would configure pyenv for bash/zsh shell in $config_file." "$TRACKER_LOG_FILE"
-                fi
-            else
-                log_message "INFO" "pyenv configuration already exists in $config_file. Skipping." "$TRACKER_LOG_FILE"
-            fi
-        done
-        ;;
-    esac
-
-    # Reload shell configuration
-    if [ "$DRY_RUN" = false ]; then
-        case $detected_shell in
-        fish)
-            source "$HOME/.config/fish/config.fish"
-            ;;
-        *)
-            source "$HOME/.bashrc"
-            ;;
-        esac
+    # Ensure pyenv is properly set up in the current shell
+    if [ "$dry_run" = false ]; then
+        setup_pyenv_in_shell
+        # Source the updated shell configuration
+        source_shell_config
     else
-        log_message "INFO" "[DRY RUN] Would reload shell configuration." "$TRACKER_LOG_FILE"
+        log_message "INFO" "[DRY RUN] Would ensure pyenv is properly set up in the current shell." "$TRACKER_LOG_FILE"
+    fi
+
+    # Verify pyenv installation
+    if [ "$dry_run" = false ]; then
+        if [ -f "$pyenv_root/bin/pyenv" ]; then
+            log_message "INFO" "pyenv is successfully installed." "$TRACKER_LOG_FILE"
+        else
+            log_message "ERROR" "pyenv installation failed. Please check the installation process and try again." "$TRACKER_LOG_FILE"
+            exit 1
+        fi
     fi
 }
 
 # Function to install Python using pyenv
 install_python() {
     local dry_run=$1
+    local pyenv_root="$HOME/.pyenv"
+    local pyenv_bin="$pyenv_root/bin/pyenv"
 
-    if ! pyenv versions | grep -q $TRACKER_PYTHON_VERSION; then
+    if [ ! -f "$pyenv_bin" ]; then
+        log_message "ERROR" "pyenv is not installed. Please install pyenv and run the script again." "$TRACKER_LOG_FILE"
+        exit 1
+    fi
+
+    if ! $pyenv_bin versions | grep -q $TRACKER_PYTHON_VERSION; then
         log_message "INFO" "Installing Python $TRACKER_PYTHON_VERSION using pyenv..." "$TRACKER_LOG_FILE"
         if [ "$dry_run" = false ]; then
-            pyenv install $TRACKER_PYTHON_VERSION
+            $pyenv_bin install $TRACKER_PYTHON_VERSION
         else
             log_message "INFO" "[DRY RUN] Would install Python $TRACKER_PYTHON_VERSION using pyenv." "$TRACKER_LOG_FILE"
         fi
@@ -165,14 +140,14 @@ install_python() {
         log_message "INFO" "Python $TRACKER_PYTHON_VERSION is already installed." "$TRACKER_LOG_FILE"
     fi
     if [ "$dry_run" = false ]; then
-        pyenv global $TRACKER_PYTHON_VERSION
+        $pyenv_bin global $TRACKER_PYTHON_VERSION
     else
         log_message "INFO" "[DRY RUN] Would set Python $TRACKER_PYTHON_VERSION as global." "$TRACKER_LOG_FILE"
     fi
 
     # Verify Python installation
     if [ "$dry_run" = false ]; then
-        python_path=$(pyenv which python)
+        local python_path="$pyenv_root/versions/$TRACKER_PYTHON_VERSION/bin/python"
         log_message "INFO" "Python $TRACKER_PYTHON_VERSION installed at: $python_path" "$TRACKER_LOG_FILE"
         $python_path --version
     else
@@ -184,13 +159,18 @@ install_python() {
 setup_venv() {
     local dry_run=$1
     local detected_shell=$(detect_shell)
+    local pyenv_root="$HOME/.pyenv"
+    local python_path="$pyenv_root/versions/$TRACKER_PYTHON_VERSION/bin/python"
+
+    # Change to the project root directory
+    cd "$TRACKER_ROOT_DIR"
 
     if [ ! -d ".venv" ]; then
         log_message "INFO" "Creating Python virtual environment..." "$TRACKER_LOG_FILE"
         if [ "$dry_run" = false ]; then
-            python -m venv .venv
+            $python_path -m venv .venv
         else
-            log_message "INFO" "[DRY RUN] Would create Python virtual environment." "$TRACKER_LOG_FILE"
+            log_message "INFO" "[DRY RUN] Would create Python virtual environment using $python_path." "$TRACKER_LOG_FILE"
         fi
     else
         log_message "INFO" "Virtual environment already exists. Updating..." "$TRACKER_LOG_FILE"
@@ -200,7 +180,10 @@ setup_venv() {
     if [ "$dry_run" = false ]; then
         case $detected_shell in
         fish)
-            source .venv/bin/activate.fish
+            # For fish shell, we'll create a temporary script to source the activation file
+            echo "source .venv/bin/activate.fish" >temp_activate.fish
+            fish temp_activate.fish
+            rm temp_activate.fish
             ;;
         *)
             source .venv/bin/activate
@@ -212,14 +195,18 @@ setup_venv() {
 
     log_message "INFO" "Upgrading pip..." "$TRACKER_LOG_FILE"
     if [ "$dry_run" = false ]; then
-        pip install --upgrade pip
+        .venv/bin/pip install --upgrade pip
     else
         log_message "INFO" "[DRY RUN] Would upgrade pip." "$TRACKER_LOG_FILE"
     fi
 
     log_message "INFO" "Installing required packages..." "$TRACKER_LOG_FILE"
     if [ "$dry_run" = false ]; then
-        pip install -r requirements.txt
+        if [ -f "requirements.txt" ]; then
+            .venv/bin/pip install -r requirements.txt
+        else
+            log_message "WARNING" "requirements.txt not found in $TRACKER_ROOT_DIR. Skipping package installation." "$TRACKER_LOG_FILE"
+        fi
     else
         log_message "INFO" "[DRY RUN] Would install required packages from requirements.txt." "$TRACKER_LOG_FILE"
     fi
@@ -227,7 +214,7 @@ setup_venv() {
     if [ "$(uname)" = "Darwin" ]; then
         log_message "INFO" "Installing macOS-specific dependencies..." "$TRACKER_LOG_FILE"
         if [ "$dry_run" = false ]; then
-            pip install pyobjc
+            .venv/bin/pip install pyobjc
         else
             log_message "INFO" "[DRY RUN] Would install pyobjc for macOS." "$TRACKER_LOG_FILE"
         fi
@@ -335,7 +322,7 @@ main() {
     if [ "$dry_run" = false ]; then
         case $(detect_shell) in
         fish)
-            echo "deactivate" | source
+            echo "functions -e deactivate" | fish
             ;;
         *)
             deactivate
@@ -359,6 +346,8 @@ main() {
     log_message "INFO" "Backup created at: $TRACKER_BACKUP_DIR" "$TRACKER_LOG_FILE"
     log_message "INFO" "To restore from this backup, run:" "$TRACKER_LOG_FILE"
     log_message "INFO" "./setup.sh --restore $TRACKER_BACKUP_DIR" "$TRACKER_LOG_FILE"
+
+    log_message "INFO" "Please restart your shell or run 'source ~/.bashrc' (or equivalent for your shell) to apply the pyenv changes." "$TRACKER_LOG_FILE"
 }
 
 # Run the main function
