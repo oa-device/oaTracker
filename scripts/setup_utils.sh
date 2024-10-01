@@ -55,30 +55,9 @@ detect_shell() {
     fi
 }
 
-# Function to source the appropriate shell configuration file
-source_shell_config() {
-    local detected_shell=$(detect_shell)
-    case $detected_shell in
-    bash)
-        source ~/.bashrc
-        ;;
-    zsh)
-        source ~/.zshrc
-        ;;
-    fish)
-        # We can't source fish config from Bash, so we'll just log a message
-        log_message "INFO" "Please restart your Fish shell or run 'source ~/.config/fish/config.fish' to apply changes" "$TRACKER_LOG_FILE"
-        ;;
-    *)
-        log_message "WARNING" "Unknown shell. Unable to source configuration." "$TRACKER_LOG_FILE"
-        ;;
-    esac
-}
-
 # Function to set up pyenv in shell configuration
 setup_pyenv_in_shell() {
     local detected_shell=$(detect_shell)
-    local pyenv_root="$HOME/.pyenv"
     local config_file=""
 
     case $detected_shell in
@@ -106,12 +85,11 @@ setup_pyenv_in_shell() {
     if [ "$detected_shell" = "fish" ]; then
         # Use fish to check and add the configuration
         fish -c "
-            set -Ux PYENV_ROOT $HOME/.pyenv
-            if not contains \$PYENV_ROOT/bin \$PATH
-                set -Ua fish_user_paths \$PYENV_ROOT/bin
+            if not contains $TRACKER_PYENV_ROOT/bin \$PATH
+                set -Ua fish_user_paths $TRACKER_PYENV_ROOT/bin
             end
             if not grep -q 'pyenv init' $config_file
-                echo 'pyenv init - | source' >> $config_file
+                echo '$TRACKER_PYENV_BIN init - | source' >> $config_file
             end
         "
         log_message "INFO" "pyenv has been set up in your fish configuration" "$TRACKER_LOG_FILE"
@@ -119,15 +97,14 @@ setup_pyenv_in_shell() {
     else
         if ! grep -q "pyenv init" "$config_file"; then
             log_message "INFO" "Adding pyenv configuration to $config_file" "$TRACKER_LOG_FILE"
-            cat <<'EOF' >>"$config_file"
+            cat <<EOF >>"$config_file"
 
-export PYENV_ROOT="$HOME/.pyenv"
-export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init --path)"
-eval "$(pyenv init -)"
+# pyenv configuration
+export PATH="$TRACKER_PYENV_ROOT/bin:\$PATH"
+eval "\$($TRACKER_PYENV_BIN init --path)"
+eval "\$($TRACKER_PYENV_BIN init -)"
 
 EOF
-            source_shell_config
             log_message "INFO" "pyenv has been set up in your $detected_shell configuration" "$TRACKER_LOG_FILE"
         else
             log_message "INFO" "pyenv configuration already exists in $config_file" "$TRACKER_LOG_FILE"
@@ -157,8 +134,8 @@ create_backup() {
     done
 
     # Backup pyenv if it exists
-    if [ -d "$HOME/.pyenv" ]; then
-        cp -R "$HOME/.pyenv" "$backup_dir/pyenv_backup"
+    if [ -d "$TRACKER_PYENV_ROOT" ]; then
+        cp -R "$TRACKER_PYENV_ROOT" "$backup_dir/pyenv_backup"
     fi
 
     # Backup virtual environment if it exists
@@ -191,9 +168,9 @@ restore_from_backup() {
 
     # Restore pyenv if backup exists
     if [ -d "$restore_dir/pyenv_backup" ]; then
-        rm -rf "$HOME/.pyenv"
-        cp -R "$restore_dir/pyenv_backup" "$HOME/.pyenv"
-        log_message "INFO" "Restored: $HOME/.pyenv" "$log_file"
+        rm -rf "$TRACKER_PYENV_ROOT"
+        cp -R "$restore_dir/pyenv_backup" "$TRACKER_PYENV_ROOT"
+        log_message "INFO" "Restored: $TRACKER_PYENV_ROOT" "$log_file"
     fi
 
     # Restore virtual environment if backup exists
@@ -253,7 +230,7 @@ install_macos_dependencies() {
     local log_file=$1
     local dry_run=$2
 
-    if ! command_exists brew; then
+    if ! command_exists "$TRACKER_BREW_PATH"; then
         log_message "INFO" "Homebrew is not installed. Installing Homebrew..." "$log_file"
         if [ "$dry_run" = false ]; then
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -263,7 +240,7 @@ install_macos_dependencies() {
     else
         log_message "INFO" "Updating Homebrew..." "$log_file"
         if [ "$dry_run" = false ]; then
-            brew update
+            "$TRACKER_BREW_PATH" update
         else
             log_message "INFO" "[DRY RUN] Would update Homebrew." "$log_file"
         fi
@@ -271,12 +248,12 @@ install_macos_dependencies() {
 
     log_message "INFO" "Checking and installing build dependencies..." "$log_file"
     for pkg in openssl@3 readline sqlite xz zlib; do
-        if brew list --versions $pkg >/dev/null; then
+        if "$TRACKER_BREW_PATH" list --versions "$pkg" >/dev/null; then
             log_message "INFO" "$pkg is already installed" "$log_file"
         else
             log_message "INFO" "Installing $pkg" "$log_file"
             if [ "$dry_run" = false ]; then
-                brew install $pkg
+                "$TRACKER_BREW_PATH" install "$pkg"
             else
                 log_message "INFO" "[DRY RUN] Would install $pkg." "$log_file"
             fi
@@ -288,7 +265,6 @@ install_macos_dependencies() {
 export -f log_message
 export -f command_exists
 export -f detect_shell
-export -f source_shell_config
 export -f setup_pyenv_in_shell
 export -f create_backup
 export -f restore_from_backup
