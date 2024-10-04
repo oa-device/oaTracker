@@ -1,6 +1,10 @@
 import asyncio
+import json
+import mmap
 import multiprocessing
+from multiprocessing import synchronize
 import os
+import threading
 import time
 import traceback
 from typing import Any, NamedTuple
@@ -20,13 +24,14 @@ from app.processes.counter.plot_results import plot
 from ultralytics import YOLO
 
 from app.ressources.video_capture_threading import VideoCaptureThreading
+from app.utils.mmap import mmap_context, mmap_write, pathname_state, pathname_img
+from app.utils.zmipc import ZMClient
 
 logger = get_logger(__name__)
 
 """
 
 """
-
 
 counters = Counters([
     PersonCounter()
@@ -39,12 +44,14 @@ class Tracked(NamedTuple):
     conf: float
     label: str
     
+def byte_size(s):
+    return len(s.encode('utf-8'))
 
 class CounterProcess(multiprocessing.Process):
     def __init__(
         self,
-        queue_all_events_output_counter: multiprocessing.Queue,
         queue_all_events_input_counter: multiprocessing.Queue,
+        cam_read_condition: synchronize.Condition,
         args: Args
     ):
         multiprocessing.Process.__init__(self, name=f"Counter")
@@ -53,7 +60,7 @@ class CounterProcess(multiprocessing.Process):
         
         self.fps = 0.0
         
-        self.queue_all_events_output_counter = queue_all_events_output_counter
+        self.cam_read_condition = cam_read_condition
         self.queue_all_events_input_counter = queue_all_events_input_counter
 
         self.must_broadcast = False
@@ -85,18 +92,19 @@ class CounterProcess(multiprocessing.Process):
         self.last_to = 0
         self.last_console_log = time.time() + 5
         self.errors = 0
+        
+        self.log: dict[str, Any]={}
+
 
     def run(self) -> None:
         asyncio.run(self.tracking_loop())
 
     def broadcast_dashboard(self, x: Any) -> None:
-        if self.must_broadcast:
-            self.queue_all_events_output_counter.put(x)
+        event_name=x["event"]
+        x.pop("event", None)
+        self.log[event_name] = x
 
     def log_cam_read_perf(self, before_cam_read: float) -> None:
-        if self.tick < 2 or not self.must_broadcast:
-            return
-
         after_cam_read = time.monotonic()
         cam_read_elapsed = (after_cam_read - before_cam_read) * 1000.0
         self.cam_read_perf_data.append(cam_read_elapsed)
@@ -113,9 +121,6 @@ class CounterProcess(multiprocessing.Process):
         )
 
     def log_result(self, boxes: Any, cam_ts: float) -> None:
-        if self.tick < 2 or not self.must_broadcast:
-            return
-
         now = time.monotonic()
         diff = now - self.full_perf_last_update
         self.full_perf_data.append(diff)
@@ -139,9 +144,6 @@ class CounterProcess(multiprocessing.Process):
         )
 
     def log_inference_perf(self, before_inference: float) -> None:
-        if self.tick < 2: # keep inference perf logging even without web client
-            return
-
         after_inference = time.monotonic()
         inference_elapsed = (after_inference - before_inference) * 1000.0
         self.inference_perf_data.append(inference_elapsed)
@@ -158,9 +160,6 @@ class CounterProcess(multiprocessing.Process):
         )
 
     def log_visualization_perf(self, before_visualization: float) -> None:
-        if self.tick < 2 or not self.must_broadcast:
-            return
-
         after_visualization = time.monotonic()
         visualization_elapsed = (after_visualization - before_visualization) * 1000.0
         self.visualization_perf_data.append(visualization_elapsed)
@@ -184,9 +183,7 @@ class CounterProcess(multiprocessing.Process):
         )
         self.last_console_log = time.time()
 
-    def log_visualization(self, result: Any, cam_ts: float) -> None:
-        if self.tick < 2 or not self.must_broadcast:
-            return
+    def log_visualization(self, result: Any, cam_ts: float, shared_memory_img: mmap.mmap) -> None:
         before_visualization = time.monotonic()
         frame = (result.orig_img
                     if self.hide_overlay
@@ -196,17 +193,9 @@ class CounterProcess(multiprocessing.Process):
                         cam_ts=cam_ts,
                         labels=self.model.names
                     ))
-        output_frame = frame.copy()
-        _, img = imencode(".jpg", output_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+        _, img = imencode(".jpeg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 15])
         if _:
-            self.broadcast_dashboard(
-                {
-                    "event": f"visualization",
-                    "value": bytearray(img),
-                    "ts": time.time() * 1000,
-                    "cam_ts": cam_ts
-                }
-            )
+            mmap_write(shared_memory_img, 64000, img.tobytes())
 
         self.log_visualization_perf(before_visualization)
 
@@ -253,68 +242,81 @@ class CounterProcess(multiprocessing.Process):
             #     }
             # )
 
+
+    
+    def logs_to_mmap(self, shared_memory_state:mmap.mmap):
+        data=json.dumps(self.log).encode('utf-8')
+        mmap_write(shared_memory_state, 64000, data)
+
     async def tracking_loop(self) -> Any:
-        while True:
-            try:
-                cam = VideoCaptureThreading(
-                    width=IMG_WIDTH,
-                    height=IMG_HEIGHT,
-                )
-                cam.start()
-                break
-            except Exception as error:
-                print(traceback.format_exc())
-                logger.error(error)
-                pass
-        
-        while True:
-            now_ts = time.time() * 1000
-            handle_events_coroutine = self.handle_events()
-            try:
-                await handle_events_coroutine
-
-                if self.paused:
-                    continue
-
-                self.tick = self.tick + 1
-                before_cam_read = time.monotonic()
-                grabbed, frame = cam.read()
-                self.log_cam_read_perf(before_cam_read)
-
-                if grabbed:
-                    before_inference = time.monotonic()
-
-                    result = self.model.track(
-                        tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
-                        source=frame,
-                        persist=True,
-                        imgsz=IMG_WIDTH,
-                        conf=0.02,
-                        classes=self.classes,
-                        iou=0.6,
-                        verbose=False,
-                        device=TORCH_DEVICE
+        with (mmap_context(pathname_img, 64000) as shared_memory_img,
+                mmap_context(pathname_state, 64000) as shared_memory_state):
+            
+            while True:
+                try:
+                    cam = VideoCaptureThreading(
+                        width=IMG_WIDTH,
+                        height=IMG_HEIGHT,
                     )
-                else:
-                    self.maybe_crash()
-                    raise Exception(f"No data from device")
+                    cam.start()
+                    break
+                except Exception as error:
+                    print(traceback.format_exc())
+                    logger.error(error)
+                    pass
+            
+            while True:
                 
-                self.log_inference_perf(before_inference)
-                
-                boxes: ultralytics.engine.results.Boxes =  [d for d in (result[0].boxes if result[0].boxes is not None else []) if d.is_track] # type: ignore 
-                
-                self.counters.update(boxes)
-                
-                # handle results
-                self.log_result(list(map(self.format_tracked, boxes)), now_ts)
-                self.log_visualization(result[0], now_ts)
-                
-            except Exception as error:
-                print(traceback.format_exc())
-                logger.error(error)
-                pass
+                now_ts = time.time() * 1000
+                handle_events_coroutine = self.handle_events()
+                try:
+                    await handle_events_coroutine
 
-            self.log_to_console()
+                    if self.paused:
+                        print('paused')
+                        continue
+
+
+                    self.tick = self.tick + 1
+                    before_cam_read = time.monotonic()
+                    grabbed, frame = cam.read()
+                    self.log_cam_read_perf(before_cam_read)
+
+                    if grabbed:
+                        before_inference = time.monotonic()
+
+                        result = self.model.track(
+                            tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
+                            source=frame,
+                            persist=True,
+                            imgsz=IMG_WIDTH,
+                            conf=0.02,
+                            classes=self.classes,
+                            iou=0.6,
+                            verbose=False,
+                            device=TORCH_DEVICE
+                        )
+                    else:
+                        self.maybe_crash()
+                        raise Exception(f"No data from device")
+                    
+                    self.log_inference_perf(before_inference)
+                    
+                    boxes: ultralytics.engine.results.Boxes =  [d for d in (result[0].boxes if result[0].boxes is not None else []) if d.is_track] # type: ignore 
+                    
+                    self.counters.update(boxes)
+                    
+                    # handle results
+                    self.log_visualization(result[0], now_ts, shared_memory_img)
+                    self.log_result(list(map(self.format_tracked, boxes)), now_ts)
+                    self.logs_to_mmap(shared_memory_state)
+                    
+                except Exception as error:
+                    print(traceback.format_exc())
+                    logger.error(error)
+                    pass
+
+                self.log_to_console()
 
     def format_tracked(self, t):
         val = t.xyxy
@@ -324,18 +326,18 @@ class CounterProcess(multiprocessing.Process):
 
     def maybe_crash(self):
         self.errors = self.errors + 1
-        if self.errors > 10:
-            self.queue_all_events_output_counter.put({"event": "crash"})
+
+
 
 
 def start_counter_process(
-    queue_all_events_output_counter: multiprocessing.Queue,
     queue_all_events_input_counter: multiprocessing.Queue,
+    cam_read_condition: synchronize.Condition,
     args: Args
 ):
     CounterProcess(
-        queue_all_events_output_counter,
         queue_all_events_input_counter,
+        cam_read_condition,
         args
     ).start()
 

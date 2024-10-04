@@ -1,7 +1,9 @@
 import asyncio
 from contextlib import asynccontextmanager
 import json
+import mmap
 import multiprocessing
+from multiprocessing import synchronize
 import os
 import queue
 import time
@@ -19,6 +21,7 @@ from app.processes.api.frame_streamer import FrameStreamer
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.utils.logger import get_logger
+from app.utils.mmap import mmap_context, mmap_read, pathname_state, pathname_img
 
 
 # Allow these origins to access the API
@@ -71,51 +74,35 @@ def online():
 async def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html.jinja", {"request": request, "dashboard_data": {}})  # type: ignore
 
-
 # server side event route streaming data from the detector
-queue_sse_event: queue.Queue[dict[str, Any]] = queue.Queue()
-
 client_last_presence = 0 
 @app.get("/dashboard/sse")
 async def message_stream(request: Request):
     async def event_generator():
         global client_last_presence
-        while True:
-            client_last_presence = time.time()
-            # If client closes connection, stop sending events
-            if await request.is_disconnected():
-                break
-
-            once = True
-            event = None
-            while event or once:
-                once = False
-                await asyncio.sleep(0.0001)
+        with mmap_context('/dev/shm/state.shm', 64000) as shared_memory_state:
+            while True:
                 try:
-                    event = queue_sse_event.get_nowait()
-                except:
-                    break
-                now_time = time.time() * 1000
-                if event:
-                    try:
-                        yield {
-                            "id": now_time,
-                            "retry": 15000,
-                            "data": json.dumps(event),
-                        }
-                    except Exception as err:
-                        logger.error(event)
-                        logger.error(err)
+                    client_last_presence = time.time()
+                    body = await mmap_read(shared_memory_state)
+                    yield {
+                        "id": time.time(),
+                        "retry": 15000,
+                        "data": body.decode('utf-8'),
+                    }
+                except Exception as e:
+                    print(e)
+                await asyncio.sleep(0.0333)
 
     return EventSourceResponse(event_generator())
 
 
+cam_read_condition: synchronize.Condition = None # type:ignore 
 # camera feed jpg is a streaming response route lazily loading the last image we have from the detector
-fs = FrameStreamer()
-camera_loop_duration = 33.33333 # 30 fps
+fs: FrameStreamer # type: ignore 
 @app.get("/cam.jpg")
 def video_feed():
-    return fs.get_stream(freq=int(1 / camera_loop_duration))  # type: ignore
+    return fs.get_stream()  # type: ignore
 
 
 @app.get("/cam/play")
@@ -209,64 +196,43 @@ async def request_counts():
         i = i + 1
 
 
-
-no_client = True
-no_client_last_sent = 0
 async def handle_counter_events():
-    global detection_output_queue
     global detection_input_queue
     global client_last_presence
-    global no_client
-    global no_client_last_sent
-    while True:
-        now=time.time()
-        no_client_before = not not no_client
-        if now - client_last_presence > 0.5:
-            no_client = True
-        else:
-            no_client = False
-        if no_client_before is not no_client or now - no_client_last_sent > 1:
-            no_client_last_sent = now
-            detection_input_queue.put(
-                {"event": "set_dashboard", "value": not no_client}
-            )
-        while True:
-            event = None
-            await asyncio.sleep(0.001)
-            try:
-                event = detection_output_queue.get_nowait()
-            except:
-                break
-            if event:
-                if event["event"] == f"crash":
-                    os._exit(1)
-                if event["event"] == f"count":
-                    queue_counter.put(event)
-                    continue
-                if event["event"] == f"visualization":
-                    fs.send_detection(event["value"])
-                else:
-                    queue_sse_event.put(event)
-            else:
-                break
+    no_client = True
+    no_client_last_sent = 0
+    now=time.time()
+    no_client_before = not not no_client
+    if now - client_last_presence > 0.5:
+        no_client = True
+    else:
+        no_client = False
+    if (no_client_before is not no_client) or now - no_client_last_sent > 1:
+        no_client_last_sent = now
+        detection_input_queue.put(
+            {"event": "set_dashboard", "value": not no_client}
+        )
+        print({"event": "set_dashboard", "value": not no_client})
 
 
-detection_output_queue: multiprocessing.Queue = None # type: ignore
 detection_input_queue: multiprocessing.Queue = None # type: ignore
 args: Args = None # type:ignore 
 
 def start_api_process(
-    _detection_output_queue: multiprocessing.Queue,
     _detection_input_queue: multiprocessing.Queue,
+    _cam_read_condition: synchronize.Condition,
     _args: Args
 ):
-    global detection_output_queue
     global detection_input_queue
+    global cam_read_condition
     global args
+    global fs
     
-    detection_output_queue = _detection_output_queue
     detection_input_queue = _detection_input_queue
+    cam_read_condition=_cam_read_condition
     args = _args
+    
+    fs = FrameStreamer(cam_read_condition)
 
     uvicorn.run(
         "app.processes.api.api_process:app", host="0.0.0.0", port=8000, log_level="info"

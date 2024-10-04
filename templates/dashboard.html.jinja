@@ -158,7 +158,9 @@
 		}
 		resetReloadTimeout();
 		const message = JSON.parse(event.data)
-		sseSubscriptions[message.event]?.forEach(s => s(message));
+		Object.entries(message).map(([event, m]) => {
+			sseSubscriptions[event]?.forEach(s => s(m));
+		})
 	};
 
 

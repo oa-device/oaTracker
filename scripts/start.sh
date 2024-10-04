@@ -11,6 +11,6 @@ cd $SCRIPTS_DIR/..
 while true
 do
     python -m app
-    killall -9 python &> /dev/null
-    killall -9 Python &> /dev/null
+    echo 1
+    pkill -KILL -f './scripts/start.sh'; pkill -KILL -f 'python -m app'; pkill -KILL -f '.venv/bin/python'
 done

@@ -1,6 +1,7 @@
 import multiprocessing
 from app.config import TORCH_DEVICE
 from app.parse_args import parse_args
+from app.processes.proxy_db.proxy_db_process import start_db_proxy_process
 from app.utils.logger import get_logger
 
 
@@ -22,23 +23,30 @@ def main():
     args = parse_args()
     logger = get_logger(__name__)
     logger.info("Starting communication queues")
-    queue_all_events_counter_output: multiprocessing.Queue = multiprocessing.Queue()
     queue_all_events_counter_input: multiprocessing.Queue = multiprocessing.Queue()
 
 
-    logger.info("Spawning counter process")
-    start_counter_process(
-        queue_all_events_counter_output,
-        queue_all_events_counter_input,
+    cam_read_condition=multiprocessing.Condition()
+
+
+    logger.info("Spawning DB Proxy process")
+    start_db_proxy_process(
         args
     )
 
-    logger.info("Spawning API process")
-    start_api_process(
-        queue_all_events_counter_output,
-        queue_all_events_counter_input,
-        args
-    )
+    # logger.info("Spawning counter process")
+    # start_counter_process(
+    #     queue_all_events_counter_input,
+    #     cam_read_condition,
+    #     args
+    # )
+
+    # logger.info("Spawning API process")
+    # start_api_process(
+    #     queue_all_events_counter_input,
+    #     cam_read_condition,
+    #     args
+    # )
 
 
 def motd():

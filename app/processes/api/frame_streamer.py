@@ -3,6 +3,8 @@
 """
 
 import asyncio
+import mmap
+from multiprocessing import synchronize
 from typing import Any, Mapping, Union
 from fastapi import BackgroundTasks
 from fastapi.responses import StreamingResponse
@@ -15,51 +17,57 @@ __maintainer__ = "Tiago Prata"
 __email__ = "prataaa@hotmail.com"
 __status__ = "Beta version"
 
+from app.utils.async_lock import async_lock
+from app.utils.mmap import mmap_context, mmap_read
+from app.utils.zmipc import ZMClient
+
+import numpy as np  
+gfg = np.array((0, 0, 0, 0, 1, 5, 7, 0, 6, 2, 9, 0, 10, 0, 0)) 
+  
+# without trim parameter 
+# returns an array without any trailing  zeros  
+  
+res = np.trim_zeros(gfg, 'b') 
+
+class Value:
+    def __init__(self, value):
+        self.value = value
 class FrameStreamer:
     """The FrameStreamer class allows you to send frames and visualize them as a stream"""
 
-    def __init__(self):
-        self.frame: bytearray = None # type: ignore 
-        self.event = asyncio.Event()
+    def __init__(self, condition: synchronize.Condition):
+        self.condition = condition
 
-    def send_detection(self, img: bytearray):
-        self.frame = bytearray(img)
-        self.event.set()
-
-    async def _start_stream(self, freq: int = 30):
-        """Continuous loop to stream the frame from SQLite to html image/jpeg format
-
-        Args:
-            img_id (str): ID (primary key) of the image in the DB
-            freq (int, optional): Loop frequency. Defaults to 30.
-
-        Yields:
-            bytes: HTML containing the bytes to plot the stream
-        """
-        try:
+    async def _start_stream(self):
+        # receiver = ZMClient()
+        # receiver.add_subscription(topic='img')
+        # receiver.execute()
+        
+        directory = "/dev/shm"
+        pathname_img = f"{directory}/cam.shm"
+        with mmap_context(pathname_img, 64000) as shared_memory_img:
+            """Continuous loop to stream the frame from SQLite to html image/jpeg format
+            Yields:
+                bytes: HTML containing the bytes to plot the stream
+            """
             while True:
-                img = None
-                if self.event:
-                    await self.event.wait()
-                    self.event.clear()
-                else:
-                    await asyncio.sleep(1 / freq)
                 try:
-                    img = self.frame
-                except:
-                    pass
+                    img = await mmap_read(shared_memory_img)
+                    if not img:
+                        await asyncio.sleep(0.0001)
+                        continue
+                    yield (
+                        b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + img + b"\r\n"
+                    )
+                except Exception as a:
+                    await asyncio.sleep(0.0001)
+                
+                await asyncio.sleep(0.0001)
+                
 
-                if not img:
-                    continue
-                yield (
-                    b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + img + b"\r\n"
-                )
-        except asyncio.CancelledError:
-            return
 
     def get_stream(
         self,
-        freq: int = 30,
         status_code: int = 206,
         headers: Union[Mapping[str, str], None] = None,
         background: Union[BackgroundTasks, None] = None,
@@ -78,7 +86,7 @@ class FrameStreamer:
         """
 
         return StreamingResponse(
-            self._start_stream(freq),
+            self._start_stream(),
             media_type="multipart/x-mixed-replace;boundary=frame",
             status_code=status_code,
             headers=headers,

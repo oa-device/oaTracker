@@ -1,3 +1,4 @@
+import os
 import cv2  # type: ignore
 import platform
 
@@ -26,12 +27,20 @@ if MACOS:
 else:
     # Lists available camera indices up to a maximum number for other systems
     def list_available_cameras():
+        level=os.environ.get("OPENCV_LOG_LEVEL")
+        os.environ["OPENCV_LOG_LEVEL"]="SILENT"
+        print(os.environ["OPENCV_LOG_LEVEL"])
         available_cameras = []
         for index in range(10):  # Adjust the range as needed
             cap = cv2.VideoCapture(index)
             if cap.isOpened():
                 available_cameras.append({"index": index, "id": index, "name": f"Camera {index}"})
                 cap.release()
+        if not level:
+            del os.environ["OPENCV_LOG_LEVEL"]
+        else:
+            os.environ["OPENCV_LOG_LEVEL"] = level
+        print(os.environ.get("OPENCV_LOG_LEVEL"))
         return available_cameras
 
 

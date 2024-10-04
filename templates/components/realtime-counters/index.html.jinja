@@ -22,29 +22,46 @@
 	</div>
 </div>
 <script>
-	const network_latency_data =[];
+	const network_latency_data = [];
+	const full_latency_data = []
 	let fps = 0;
 	setInterval(() => {
-		clock.innerText = (fps).toFixed(1) + "fps " +new Date().toTimeString().split(' ')[0]
+		clock.innerText = (fps).toFixed(1) + "fps " + new Date().toTimeString().split(' ')[0]
 	}, 100)
+
+	const options = {
+		year: "numeric",
+		month: "numeric",
+		day: "numeric",
+		hour: "numeric",
+		minute: "numeric",
+		second: "numeric",
+		hour12: false,
+		fractionalSecondDigits: 3
+
+	}
 
 	window.sseSubscriptions["tracks"] = window.sseSubscriptions["tracks"] || []
 	window.sseSubscriptions["tracks"].push((m) => {
 
 		fps = m.fps
 
-			console.log(m.counters_data.person_counter)
-		// [[x,y,x,y], id, conf, class]
 		tbody_person_counter.replaceChildren()
 		m.counters_data.person_counter.map(x => tbody_person_counter.appendChild(personCounterDataToTr(x)))
 
-		latency_results_value.innerText = (Date.now() - m.cam_ts).toFixed(1) + " ms"
+
+		full_latency_data.push(Date.now() - m.cam_ts)
+		if (full_latency_data.length === 101) {
+			full_latency_data.shift()
+		}
+
+		latency_results_value.innerText = ((full_latency_data.reduce((a, b) => a + b, 0)) / full_latency_data.length).toFixed(1) + " ms"
 
 		network_latency_data.push(Date.now() - m.ts)
 		if (network_latency_data.length === 101) {
-			network_latency_data.shift()	
+			network_latency_data.shift()
 		}
-		network_latency_results_value.innerText = ((network_latency_data.reduce((a, b) => a+b, 0)) / network_latency_data.length).toFixed(1) + " ms"
+		network_latency_results_value.innerText = ((network_latency_data.reduce((a, b) => a + b, 0)) / network_latency_data.length).toFixed(1) + " ms"
 	})
 
 	function personCounterDataToTr(t) {
@@ -61,8 +78,8 @@
 		thId.setAttribute("scope", "row")
 		thId.innerText = t[2]
 		tdTotalFrames.innerText = t[3];
-		tdFirstSeen.innerText = t[0];
-		tdLastSeen.innerText = t[1];
+		tdFirstSeen.innerText = new Intl.DateTimeFormat('sv-SE', options).format(new Date(t[0]*1000));
+		tdLastSeen.innerText = new Intl.DateTimeFormat('sv-SE', options).format(new Date(t[1]*1000));
 		tr.appendChild(thId);
 		tr.appendChild(tdFirstSeen);
 		tr.appendChild(tdLastSeen);

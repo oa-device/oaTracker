@@ -5,6 +5,7 @@ from typing import Any, Callable
 from ultralytics.utils.plotting import Annotator
 
 
+
 def plot(
     img: Any,
     boxes,
