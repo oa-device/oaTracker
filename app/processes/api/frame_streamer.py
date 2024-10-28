@@ -3,67 +3,68 @@
 """
 
 import asyncio
-import mmap
-from multiprocessing import synchronize
+import os
+from pathlib import Path
+import threading
+import time
 from typing import Any, Mapping, Union
 from fastapi import BackgroundTasks
 from fastapi.responses import StreamingResponse
 
-__author__ = "Tiago Prata"
-__credits__ = ["Tiago Prata"]
-__license__ = "MIT"
-__version__ = "0.1.1"
-__maintainer__ = "Tiago Prata"
-__email__ = "prataaa@hotmail.com"
-__status__ = "Beta version"
+from app.utils.mmap import mmap_context, mmap_read_nonblocking
 
-from app.utils.async_lock import async_lock
-from app.utils.mmap import mmap_context, mmap_read
-from app.utils.zmipc import ZMClient
-
-import numpy as np  
-gfg = np.array((0, 0, 0, 0, 1, 5, 7, 0, 6, 2, 9, 0, 10, 0, 0)) 
-  
-# without trim parameter 
-# returns an array without any trailing  zeros  
-  
-res = np.trim_zeros(gfg, 'b') 
-
-class Value:
-    def __init__(self, value):
-        self.value = value
+loading_cam_filepath = os.path.normpath(Path(__file__).parent / "loading_cam.jpg")
 class FrameStreamer:
     """The FrameStreamer class allows you to send frames and visualize them as a stream"""
 
-    def __init__(self, condition: synchronize.Condition):
-        self.condition = condition
+    def __init__(self):
+        self.running = True
+        with open(loading_cam_filepath, "rb") as loading_cam_file:
+            self.img=loading_cam_file.read()
+        self.__thread = threading.Thread(
+            name=f"Read_img_on_disk",
+            target=self.__update,
+            args=(),
+        )
+        self.__thread.start()
 
-    async def _start_stream(self):
-        # receiver = ZMClient()
-        # receiver.add_subscription(topic='img')
-        # receiver.execute()
         
+    def __update(self):
         directory = "/dev/shm"
         pathname_img = f"{directory}/cam.shm"
+        
+        with open(loading_cam_filepath, "rb") as loading_cam_file:
+            loading_cam=loading_cam_file.read()
+        
         with mmap_context(pathname_img, 64000) as shared_memory_img:
-            """Continuous loop to stream the frame from SQLite to html image/jpeg format
-            Yields:
-                bytes: HTML containing the bytes to plot the stream
-            """
-            while True:
+            while self.running:
                 try:
-                    img = await mmap_read(shared_memory_img)
-                    if not img:
-                        await asyncio.sleep(0.0001)
-                        continue
-                    yield (
-                        b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + img + b"\r\n"
-                    )
+                    img = mmap_read_nonblocking(shared_memory_img)
+                    if img is None:
+                        img=loading_cam
+                        
+                    self.img=img
                 except Exception as a:
-                    await asyncio.sleep(0.0001)
+                    pass
                 
-                await asyncio.sleep(0.0001)
+                time.sleep(0.001)
                 
+
+    async def _start_stream(self):
+        
+        """Continuous loop to stream the frame from SQLite to html image/jpeg format
+        Yields:
+            bytes: HTML containing the bytes to plot the stream
+        """
+        while self.running:
+            try:
+                yield (
+                    b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + self.img + b"\r\n"
+                )
+            except Exception as a:
+                pass
+            
+            await asyncio.sleep(0.003)
 
 
     def get_stream(

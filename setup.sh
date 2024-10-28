@@ -3,7 +3,7 @@
 set -e
 
 # Desired Python version
-PYTHON_VERSION="3.10.11"
+PYTHON_VERSION="3.12.6"
 
 # Function to display usage information
 display_usage() {
@@ -114,6 +114,7 @@ install_pyenv() {
     else
         echo "Existing pyenv installation found. Skipping installation."
         echo "To update or reinstall pyenv, use the -p update or -p force option."
+        pyenv update
     fi
 }
 
@@ -179,6 +180,9 @@ setup_venv() {
 
     # Activate virtual environment based on shell
     source .venv/bin/activate
+
+    python -m ensurepip --upgrade
+    pip install setuptools
 
     echo "Upgrading pip..."
     pip install --upgrade pip

@@ -3,8 +3,37 @@ default_camera: 0
 default_model: "yolov10n.pt"
 default_server_port: 8000
 
-default_classes:
-  - 0
+counters:
+  - name: person_counter
+  - name: zone_counter
+    config:
+      zones:
+        - name: entrance
+          color: [0, 0, 200]
+          points: [
+                [0,0],
+                [30,0],
+                [50,100],
+                [0,100],
+              ]
+        - name: exit
+          color: [200, 0, 0]
+          points: [
+                [100,0],
+                [100,100],
+                [80,100],
+                [50,0],
+              ]
+        
+        - name: center
+          color: [200, 200, 0]
+          points: [
+                [30,0],
+                [50,0],
+                [80,100],
+                [50,100],
+              ]
+
 
 # CORS settings
 cors:

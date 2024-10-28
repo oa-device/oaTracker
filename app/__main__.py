@@ -1,12 +1,16 @@
+import time
+import os
+
+os.environ["CAM_ID"] = "2efdad08-2da0-44bd-8b62-29009bc25389"
+os.environ["CAM_BOOT_TS"] = str(time.time()*1000)
+
+from app.processes import ApiProcess, CounterProcess, ProxyDBProcess
+
+
 import multiprocessing
 from app.config import TORCH_DEVICE
 from app.parse_args import parse_args
-from app.processes.proxy_db.proxy_db_process import start_db_proxy_process
 from app.utils.logger import get_logger
-
-
-from app.processes.api.api_process import start_api_process
-from app.processes.counter.counter_process import start_counter_process
 
 import torch
 
@@ -16,8 +20,6 @@ import torch
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn")
 
-
-
 def main():
     motd()
     args = parse_args()
@@ -25,28 +27,22 @@ def main():
     logger.info("Starting communication queues")
     queue_all_events_counter_input: multiprocessing.Queue = multiprocessing.Queue()
 
-
-    cam_read_condition=multiprocessing.Condition()
-
-
-    logger.info("Spawning DB Proxy process")
-    start_db_proxy_process(
+    # logger.info("Spawning DB Proxy process")
+    ProxyDBProcess(
         args
-    )
+    ).start()
 
-    # logger.info("Spawning counter process")
-    # start_counter_process(
-    #     queue_all_events_counter_input,
-    #     cam_read_condition,
-    #     args
-    # )
+    logger.info("Spawning counter process")
+    CounterProcess(
+        args,
+        queue_all_events_counter_input
+    ).start()
 
-    # logger.info("Spawning API process")
-    # start_api_process(
-    #     queue_all_events_counter_input,
-    #     cam_read_condition,
-    #     args
-    # )
+    logger.info("Spawning API process")
+    ApiProcess(
+        args,
+        queue_all_events_counter_input
+    ).start()
 
 
 def motd():

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import json
 import logging
 from typing import Any, Literal
-from app.config import  get_config
+from app.config import  Config, get_config
 from app.utils.list_cameras import list_available_cameras, list_cameras
 from app.utils.logger import create_log_message, setup_logger
 
@@ -14,12 +14,10 @@ class Args:
     listCameras: bool
     camera: int
     model: str
-    classes: str
+    counters_config: list[dict[str, Any]]
     fileOnlyLog: bool
-    rtsp: str
     logLevel: Literal["DEBUG"] | Literal["INFO"] | Literal["WARNING"] | Literal["ERROR"] | Literal["CRITICAL"]
     input_source: str | int
-    is_camera: bool
     camera_info: dict[str, Any]
 
 def parse_args() -> Args:
@@ -40,8 +38,6 @@ def parse_args() -> Args:
         default=config["default_server_port"],
         help=f"Start HTTP server on port. (Default port is {config['default_server_port']})",
     )
-    parser.add_argument("--rtsp",type=str,  help="RTSP stream or video file instead of a camera")
-    parser.add_argument("--classes",type=str,  help="Comma separated list of classes, default 0 (person)")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument("--fileOnlyLog", action="store_true", help="Log only to file, not to console")
     parser.add_argument("--logLevel", type=str, choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Set the logging level")
@@ -67,15 +63,11 @@ def parse_args() -> Args:
         quit()
         return
 
-    # Determine the input source
-    if args.rtsp:
-        args.input_source = args.rtsp
-        args.is_camera = False
-    else:
-        args.input_source = args.camera
-        args.is_camera = True
+    args.input_source = args.camera
 
-    logger.info(create_log_message(event="selected_input", source=args.input_source, is_camera=args.is_camera))
+    args.counters_config = config["counters"]
+
+    logger.info(create_log_message(event="selected_input", source=args.input_source))
 
     # Start tracking with the specified input source and model
     logger.info(create_log_message(event="start_tracking", input_source=args.input_source, model=args.model))

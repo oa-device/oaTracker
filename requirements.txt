@@ -11,3 +11,5 @@ imutils
 numpy
 pygments
 lapx>=0.5.2
+litestream-bin
+shapely

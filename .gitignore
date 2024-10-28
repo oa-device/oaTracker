@@ -57,3 +57,5 @@ coverage.xml
 logs/*
 # But keep the directory itself
 !logs/.gitkeep
+
+db/*

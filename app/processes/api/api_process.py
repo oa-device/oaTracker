@@ -6,10 +6,12 @@ import multiprocessing
 from multiprocessing import synchronize
 import os
 import queue
+import signal
 import time
-from typing import Any
-from fastapi import FastAPI, Query, Request, HTTPException
+from typing import Any, Callable
+from fastapi import APIRouter, FastAPI, Query, Request, HTTPException, Response
 from fastapi.responses import HTMLResponse
+from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sse_starlette import EventSourceResponse
@@ -38,15 +40,43 @@ methods = ["GET", "POST", "PUT", "DELETE"]
 # Only these headers are allowed
 headers = ["Content-Type", "Authorization"]
 
+# camera feed jpg is a streaming response route lazily loading the last image we have from the detector
+fs: FrameStreamer # type: ignore 
+fs = FrameStreamer()
+
+running = True
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     asyncio.create_task(handle_counter_events())
-    #asyncio.create_task(request_counts())
+    def stop_server(*args):
+        global running
+        running = False
+        fs.running = running
+        os.kill(os.getpid(), signal.SIGTERM)
+    signal.signal(signal.SIGINT, stop_server)
     yield
 
 app = FastAPI(lifespan=lifespan)
 
+class TimedRoute(APIRoute):
+    def get_route_handler(self) -> Callable:
+        original_route_handler = super().get_route_handler()
+
+        async def custom_route_handler(request: Request) -> Response:
+            before = time.time()
+            response: Response = await original_route_handler(request)
+            duration = time.time() - before
+            response.headers["X-Response-Time"] = str(duration)
+            print(f"route duration: {duration}")
+            print(f"route response: {response}")
+            print(f"route response headers: {response.headers}")
+            return response
+
+        return custom_route_handler
+
+router = APIRouter(route_class=TimedRoute)
+app.include_router(router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,7 +96,8 @@ logger = get_logger(__name__)
 # used to show in the dashboard when the app is offline and to reboot when it's back online
 @app.get("/online")
 def online():
-    return True
+    global running
+    return running
 
 
 # the only route returning html
@@ -77,11 +108,11 @@ async def dashboard(request: Request):
 # server side event route streaming data from the detector
 client_last_presence = 0 
 @app.get("/dashboard/sse")
-async def message_stream(request: Request):
+async def message_stream(_request: Request):
     async def event_generator():
-        global client_last_presence
+        global client_last_presence, running
         with mmap_context('/dev/shm/state.shm', 64000) as shared_memory_state:
-            while True:
+            while running:
                 try:
                     client_last_presence = time.time()
                     body = await mmap_read(shared_memory_state)
@@ -97,9 +128,7 @@ async def message_stream(request: Request):
     return EventSourceResponse(event_generator())
 
 
-cam_read_condition: synchronize.Condition = None # type:ignore 
-# camera feed jpg is a streaming response route lazily loading the last image we have from the detector
-fs: FrameStreamer # type: ignore 
+
 @app.get("/cam.jpg")
 def video_feed():
     return fs.get_stream()  # type: ignore
@@ -115,8 +144,7 @@ queue_counter: queue.Queue[dict[str, Any]] = queue.Queue()
 last_to_dashboard: float = 0
 @app.get("/cam/collect")
 def collect_counter_data(to: float, _from=Query(alias="from")):
-    global queue_counter
-    global last_to_dashboard
+    global queue_counter, running, last_to_dashboard
 
     _from = float(_from)
 
@@ -142,18 +170,19 @@ def collect_counter_data(to: float, _from=Query(alias="from")):
         {"event": f"get_count", "from": _from, "to": to, "id": id}
     )
 
-    event = None
-    while True:
+    event: dict[str, Any] = None # type: ignore
+    while running:
         try:
             event = queue_counter.get_nowait()
             if event["id"] == id:
                 break
-        except:
+        except Exception:
             pass
         time.sleep(0.0001)
 
-    event.pop("id")
-    event.pop("event")
+    if event:
+        event.pop("id")
+        event.pop("event")
 
     return event
 
@@ -180,8 +209,8 @@ def video_hide_overlay():
 
 
 async def request_counts():
-    global detection_input_queues
-    while True:
+    global detection_input_queues, running
+    while running:
         i = 0
         try:
             detection_input_queue.put({
@@ -197,43 +226,39 @@ async def request_counts():
 
 
 async def handle_counter_events():
-    global detection_input_queue
-    global client_last_presence
+    global detection_input_queue, running, client_last_presence
     no_client = True
     no_client_last_sent = 0
-    now=time.time()
-    no_client_before = not not no_client
-    if now - client_last_presence > 0.5:
-        no_client = True
-    else:
-        no_client = False
-    if (no_client_before is not no_client) or now - no_client_last_sent > 1:
-        no_client_last_sent = now
-        detection_input_queue.put(
-            {"event": "set_dashboard", "value": not no_client}
-        )
-        print({"event": "set_dashboard", "value": not no_client})
+    while running:
+        now=time.time()
+        no_client_before = not not no_client
+        if now - client_last_presence > 0.5:
+            no_client = True
+        else:
+            no_client = False
+        if (no_client_before is not no_client) or now - no_client_last_sent > 1:
+            no_client_last_sent = now
+            detection_input_queue.put(
+                {"event": "set_dashboard", "value": not no_client}
+            )
+        await asyncio.sleep(0.1)
 
 
 detection_input_queue: multiprocessing.Queue = None # type: ignore
 args: Args = None # type:ignore 
 
-def start_api_process(
-    _detection_input_queue: multiprocessing.Queue,
-    _cam_read_condition: synchronize.Condition,
-    _args: Args
-):
-    global detection_input_queue
-    global cam_read_condition
-    global args
-    global fs
-    
-    detection_input_queue = _detection_input_queue
-    cam_read_condition=_cam_read_condition
-    args = _args
-    
-    fs = FrameStreamer(cam_read_condition)
 
-    uvicorn.run(
-        "app.processes.api.api_process:app", host="0.0.0.0", port=8000, log_level="info"
-    )
+class ApiProcess():
+    def __init__(self, 
+            _args: Args, _detection_input_queue: multiprocessing.Queue
+        ):
+        global detection_input_queue
+        global args
+    
+        detection_input_queue = _detection_input_queue
+        args = _args
+    
+    def start(self):
+        uvicorn.run(
+            "app.processes.api.api_process:app", host="0.0.0.0", port=8000, log_level="info"
+        )

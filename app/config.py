@@ -4,7 +4,7 @@
 
 
 from dataclasses import dataclass
-from typing import List, Literal, TypedDict
+from typing import Any, List, Literal, TypedDict
 import torch
 import yaml
 from ultralytics import settings
@@ -33,11 +33,11 @@ class Cors(TypedDict):
     allowed_headers: List[str]
 
 class Config(TypedDict):
-    default_classes: str
     default_camera: int
     default_model: str
     default_server_port: int
     cors: Cors
+    counters: list[dict[str, Any]]
     
 
 def get_config() -> Config:

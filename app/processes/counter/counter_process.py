@@ -1,344 +1,41 @@
+
+
 import asyncio
-import json
-import mmap
 import multiprocessing
-from multiprocessing import synchronize
 import os
-import threading
+import signal
 import time
-import traceback
-from typing import Any, NamedTuple
-
-import ultralytics.engine.results
-
-from app.config import TORCH_DEVICE, get_config,IMG_HEIGHT, IMG_WIDTH
+from app.counters import PersonCounter, ZoneCounter, Counter
 from app.parse_args import Args
-from app.processes.counter.counters.counters import Counters
-from app.utils.logger import get_logger
-from cv2 import imencode
-import cv2
-import numpy as np
-from app.processes.counter.counters.person_counter import PersonCounter
-from app.processes.counter.plot_results import plot
-
-from ultralytics import YOLO
-
-from app.ressources.video_capture_threading import VideoCaptureThreading
-from app.utils.mmap import mmap_context, mmap_write, pathname_state, pathname_img
-from app.utils.zmipc import ZMClient
-
-logger = get_logger(__name__)
-
-"""
-
-"""
-
-counters = Counters([
-    PersonCounter()
-])
+from app.processes.counter.counter_loop import CounterLoop
 
 
-class Tracked(NamedTuple):
-    xyxy: tuple[float,float,float,float]
-    id: int
-    conf: float
-    label: str
-    
-def byte_size(s):
-    return len(s.encode('utf-8'))
+all_counters: list[type[Counter]] = [
+    # PersonCounter,
+    ZoneCounter
+    # add counters here
+]
 
 class CounterProcess(multiprocessing.Process):
     def __init__(
         self,
-        queue_all_events_input_counter: multiprocessing.Queue,
-        cam_read_condition: synchronize.Condition,
-        args: Args
+        args: Args,
+        queue_all_events_input_counter: multiprocessing.Queue
     ):
         multiprocessing.Process.__init__(self, name=f"Counter")
-        
         self.args = args
-        
-        self.fps = 0.0
-        
-        self.cam_read_condition = cam_read_condition
         self.queue_all_events_input_counter = queue_all_events_input_counter
 
-        self.must_broadcast = False
-        
-        self.cam_read_perf_data: list[float] = []
-        self.cam_read_perf_mean = 0.0
-
-        self.inference_perf_data: list[float] = []
-        self.inference_perf_mean = 0.0
-
-        self.visualization_perf_data: list[float] = []
-        self.visualization_perf_mean = 0.0
-        
-        self.full_perf_data: list[float] = []
-        self.full_perf_mean = 0.0
-        self.full_perf_last_update = time.monotonic()
-
-        self.counters = counters
-        self.tick = 0
-
-        self.model = YOLO(f"{os.path.dirname(__file__)}/../../models/{self.args.model}", "track")
-        
-        config = get_config()
-    
-        self.classes = config["default_classes"]
-        
-        self.paused = False
-        self.hide_overlay = False
-        self.last_to = 0
-        self.last_console_log = time.time() + 5
-        self.errors = 0
-        
-        self.log: dict[str, Any]={}
-
-
     def run(self) -> None:
-        asyncio.run(self.tracking_loop())
-
-    def broadcast_dashboard(self, x: Any) -> None:
-        event_name=x["event"]
-        x.pop("event", None)
-        self.log[event_name] = x
-
-    def log_cam_read_perf(self, before_cam_read: float) -> None:
-        after_cam_read = time.monotonic()
-        cam_read_elapsed = (after_cam_read - before_cam_read) * 1000.0
-        self.cam_read_perf_data.append(cam_read_elapsed)
-        self.cam_read_perf_data = self.cam_read_perf_data[-10:]
-        self.cam_read_perf_mean = "{:.2f}".format(round(np.mean(self.cam_read_perf_data), 2)) # type: ignore 
-
-        self.broadcast_dashboard(
-            {
-                "event": f"cam_read_perf",
-                "value": cam_read_elapsed,
-                "mean": self.cam_read_perf_mean,
-                "ts": time.time() * 1000,
-            }
-        )
-
-    def log_result(self, boxes: Any, cam_ts: float) -> None:
-        now = time.monotonic()
-        diff = now - self.full_perf_last_update
-        self.full_perf_data.append(diff)
-        self.full_perf_last_update = now
-        self.full_perf_data = self.full_perf_data[-10:]
-        mean = np.mean(self.full_perf_data)
-        self.full_perf_mean = "{:.2f}".format(round(mean, 2)) # type: ignore 
-
-        self.fps = 1.0 / mean
-        self.broadcast_dashboard(
-            {
-                "event": f"tracks",
-                "boxes": boxes,
-                "ts": time.time() * 1000,
-                "frame_id": self.tick,
-                "cam_ts": cam_ts,
-                "fps": self.fps,
-                "counters_meta": self.counters.meta,
-                "counters_data": self.counters.data
-            }
-        )
-
-    def log_inference_perf(self, before_inference: float) -> None:
-        after_inference = time.monotonic()
-        inference_elapsed = (after_inference - before_inference) * 1000.0
-        self.inference_perf_data.append(inference_elapsed)
-        self.inference_perf_data = self.inference_perf_data[-10:]
-        self.inference_perf_mean = "{:.2f}".format(round(np.mean(self.inference_perf_data), 2)) # type: ignore 
-
-        self.broadcast_dashboard(
-            {
-                "event": f"inference_perf",
-                "value": inference_elapsed,
-                "mean": self.inference_perf_mean,
-                "ts": time.time() * 1000,
-            }
-        )
-
-    def log_visualization_perf(self, before_visualization: float) -> None:
-        after_visualization = time.monotonic()
-        visualization_elapsed = (after_visualization - before_visualization) * 1000.0
-        self.visualization_perf_data.append(visualization_elapsed)
-        self.visualization_perf_data = self.visualization_perf_data[-10:]
-        self.visualization_perf_mean = "{:.2f}".format(round(np.mean(self.visualization_perf_data), 2)) # type: ignore 
-
-        self.broadcast_dashboard(
-            {
-                "event": f"visualization_perf",
-                "value": visualization_elapsed,
-                "mean": self.visualization_perf_mean,
-                "ts": time.time() * 1000,
-            }
-        )
-
-    def log_to_console(self) -> None:
-        if time.time() - self.last_console_log < 5:
-            return
-        logger.info(
-            f"Detection, mean inference time: {self.inference_perf_mean}"
-        )
-        self.last_console_log = time.time()
-
-    def log_visualization(self, result: Any, cam_ts: float, shared_memory_img: mmap.mmap) -> None:
-        before_visualization = time.monotonic()
-        frame = (result.orig_img
-                    if self.hide_overlay
-                    else plot(
-                        img=result.orig_img,
-                        boxes=result.boxes,
-                        cam_ts=cam_ts,
-                        labels=self.model.names
-                    ))
-        _, img = imencode(".jpeg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 15])
-        if _:
-            mmap_write(shared_memory_img, 64000, img.tobytes())
-
-        self.log_visualization_perf(before_visualization)
-
-    async def handle_events(self) -> None:
-        once = True
-        event = None
-        while event or once:
-            once = False
-            await asyncio.sleep(0.0001)
-            try:
-                event = self.queue_all_events_input_counter.get_nowait()
-            except:
-                break
-            if event:
-                self.handle_event(event)
-
-    def handle_event(self, event):
-        if event["event"] == "get_count":
-            pass
-            # count = self.counter.get_count(event["from"], event["to"])
-            # self.last_to = event["to"]
-            # self.queue_all_events_output_counter.put(
-            #     {
-            #         "event": f"count",
-            #         "count": count,
-            #         "id": event["id"],
-            #     }
-            # )
-        elif event["event"] == "set_dashboard":
-            self.must_broadcast = event["value"]
-        elif event["event"] == "set_paused":
-            self.paused = event["value"]
-        elif event["event"] == "set_hide_overlay":
-            self.hide_overlay = event["value"]
-        elif event["event"] == "get_count_for_dashboard":
-            pass
-            # count = self.counter.get_count(event["from"], event["to"])
-            # count_since_boot = self.counter.get_count_since_boot()
-            # self.broadcast_dashboard(
-            #     {
-            #         "event": f"count_for_dashboard",
-            #         "count": count,
-            #         "count_since_boot": count_since_boot,
-            #     }
-            # )
+        global all_counters
+        counter_loop = CounterLoop(self.args, self.queue_all_events_input_counter, all_counters)
+        def stop_server(*args):
+            counter_loop.running = False
+            time.sleep(.2)
+            os.kill(os.getpid(), signal.SIGTERM)
+        signal.signal(signal.SIGINT, stop_server)
+        asyncio.run(counter_loop.tracking_loop())
 
 
-    
-    def logs_to_mmap(self, shared_memory_state:mmap.mmap):
-        data=json.dumps(self.log).encode('utf-8')
-        mmap_write(shared_memory_state, 64000, data)
-
-    async def tracking_loop(self) -> Any:
-        with (mmap_context(pathname_img, 64000) as shared_memory_img,
-                mmap_context(pathname_state, 64000) as shared_memory_state):
-            
-            while True:
-                try:
-                    cam = VideoCaptureThreading(
-                        width=IMG_WIDTH,
-                        height=IMG_HEIGHT,
-                    )
-                    cam.start()
-                    break
-                except Exception as error:
-                    print(traceback.format_exc())
-                    logger.error(error)
-                    pass
-            
-            while True:
-                
-                now_ts = time.time() * 1000
-                handle_events_coroutine = self.handle_events()
-                try:
-                    await handle_events_coroutine
-
-                    if self.paused:
-                        print('paused')
-                        continue
-
-
-                    self.tick = self.tick + 1
-                    before_cam_read = time.monotonic()
-                    grabbed, frame = cam.read()
-                    self.log_cam_read_perf(before_cam_read)
-
-                    if grabbed:
-                        before_inference = time.monotonic()
-
-                        result = self.model.track(
-                            tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
-                            source=frame,
-                            persist=True,
-                            imgsz=IMG_WIDTH,
-                            conf=0.02,
-                            classes=self.classes,
-                            iou=0.6,
-                            verbose=False,
-                            device=TORCH_DEVICE
-                        )
-                    else:
-                        self.maybe_crash()
-                        raise Exception(f"No data from device")
-                    
-                    self.log_inference_perf(before_inference)
-                    
-                    boxes: ultralytics.engine.results.Boxes =  [d for d in (result[0].boxes if result[0].boxes is not None else []) if d.is_track] # type: ignore 
-                    
-                    self.counters.update(boxes)
-                    
-                    # handle results
-                    self.log_visualization(result[0], now_ts, shared_memory_img)
-                    self.log_result(list(map(self.format_tracked, boxes)), now_ts)
-                    self.logs_to_mmap(shared_memory_state)
-                    
-                except Exception as error:
-                    print(traceback.format_exc())
-                    logger.error(error)
-                    pass
-
-                self.log_to_console()
-
-    def format_tracked(self, t):
-        val = t.xyxy
-
-        return Tracked((float(val[0][0]), float(val[0][1]), float(val[0][0] + val[0][2]), float(val[0][1] + val[0][3])), int(t.id), float(t.conf), self.model.names[int(t.cls)])
-
-
-    def maybe_crash(self):
-        self.errors = self.errors + 1
-
-
-
-
-def start_counter_process(
-    queue_all_events_input_counter: multiprocessing.Queue,
-    cam_read_condition: synchronize.Condition,
-    args: Args
-):
-    CounterProcess(
-        queue_all_events_input_counter,
-        cam_read_condition,
-        args
-    ).start()
 
 
