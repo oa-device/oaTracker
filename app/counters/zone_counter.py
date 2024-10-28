@@ -65,7 +65,7 @@ class ZoneCounter(Counter):
                     zones[i][3] = now
                     zones[i][4] = max(zones[i][4], conf)
                 elif zones[i][4] > 0.0: # reset
-W                   zones[i][0] = False
+                    zones[i][0] = False
                     zones[i][1] = uuid4().bytes
                     zones[i][2] = 0.0
                     zones[i][3] = 0.0
