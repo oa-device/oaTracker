@@ -106,6 +106,9 @@ class VideoCaptureThreading:
             except Exception as err:
                 pass
 
+    def isOpened(self):
+        return self.__cap.isOpened() if self.__cap is not None else False
+
     def __set_cap(self) -> None:
         """Initializes OpenCV's video capture"""
         try:

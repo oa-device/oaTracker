@@ -187,7 +187,7 @@ class CounterLoop():
                         ))
             _, img = imencode(".jpeg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 15])
             if _:
-                mmap_write(shared_memory_img, 64000, img.tobytes())
+                    mmap_write(shared_memory_img, 64000, img.tobytes())
 
         self.log_visualization_perf(before_visualization)
 
@@ -241,9 +241,8 @@ class CounterLoop():
         mmap_write(shared_memory_state, 64000, data)
 
     async def tracking_loop(self) -> Any:
-        with (mmap_context(pathname_img, 64000) as shared_memory_img,
-                mmap_context(pathname_state, 64000) as shared_memory_state):
-            
+        with (mmap_context(pathname_img(), 64000) as shared_memory_img,
+              mmap_context(pathname_state(), 64000) as shared_memory_state):  # Note the () to call the functions
             
             while self.running:
                 try:

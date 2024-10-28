@@ -23,7 +23,7 @@ from app.processes.api.frame_streamer import FrameStreamer
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.utils.logger import get_logger
-from app.utils.mmap import mmap_context, mmap_read, pathname_state, pathname_img
+from app.utils.mmap import mmap_context, mmap_read, pathname_state, pathname_img, get_shared_memory_path
 
 
 # Allow these origins to access the API
@@ -111,7 +111,8 @@ client_last_presence = 0
 async def message_stream(_request: Request):
     async def event_generator():
         global client_last_presence, running
-        with mmap_context('/dev/shm/state.shm', 64000) as shared_memory_state:
+        shared_memory_path = get_shared_memory_path('state.shm')
+        with mmap_context(shared_memory_path, 64000) as shared_memory_state:
             while running:
                 try:
                     client_last_presence = time.time()

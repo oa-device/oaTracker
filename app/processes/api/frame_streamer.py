@@ -10,17 +10,23 @@ import time
 from typing import Any, Mapping, Union
 from fastapi import BackgroundTasks
 from fastapi.responses import StreamingResponse
+import logging
 
 from app.utils.mmap import mmap_context, mmap_read_nonblocking
+from app.utils.mmap import pathname_img, mmap_context
+
 
 loading_cam_filepath = os.path.normpath(Path(__file__).parent / "loading_cam.jpg")
+logger = logging.getLogger(__name__)
+
+
 class FrameStreamer:
     """The FrameStreamer class allows you to send frames and visualize them as a stream"""
 
     def __init__(self):
         self.running = True
         with open(loading_cam_filepath, "rb") as loading_cam_file:
-            self.img=loading_cam_file.read()
+            self.img = loading_cam_file.read()
         self.__thread = threading.Thread(
             name=f"Read_img_on_disk",
             target=self.__update,
@@ -28,44 +34,34 @@ class FrameStreamer:
         )
         self.__thread.start()
 
-        
     def __update(self):
-        directory = "/dev/shm"
-        pathname_img = f"{directory}/cam.shm"
-        
-        with open(loading_cam_filepath, "rb") as loading_cam_file:
-            loading_cam=loading_cam_file.read()
-        
-        with mmap_context(pathname_img, 64000) as shared_memory_img:
-            while self.running:
-                try:
+        while self.running:
+            try:
+                with mmap_context(pathname_img(), 64000) as shared_memory_img:
                     img = mmap_read_nonblocking(shared_memory_img)
-                    if img is None:
-                        img=loading_cam
-                        
-                    self.img=img
-                except Exception as a:
-                    pass
-                
-                time.sleep(0.001)
-                
+                    if img is not None:
+                        self.img = img
+                    else:
+                        # If no image in shared memory, use loading screen
+                        self.img = self.loading_img
+            except Exception as e:
+                logger.error(f"Frame streamer error: {e}")
+                # On error, show loading screen
+                self.img = self.loading_img
+            time.sleep(0.001)
 
     async def _start_stream(self):
-        
         """Continuous loop to stream the frame from SQLite to html image/jpeg format
         Yields:
             bytes: HTML containing the bytes to plot the stream
         """
         while self.running:
             try:
-                yield (
-                    b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + self.img + b"\r\n"
-                )
+                yield (b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + self.img + b"\r\n")
             except Exception as a:
                 pass
-            
-            await asyncio.sleep(0.003)
 
+            await asyncio.sleep(0.003)
 
     def get_stream(
         self,

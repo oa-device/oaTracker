@@ -1,18 +1,31 @@
-
-
 import asyncio
 import contextlib
 import mmap
 import os
 import time
 import traceback
+import tempfile
 
 header_length = 32
 footer_length = 20
 
-mmap_directory = "/dev/shm"
-pathname_img = f"{mmap_directory}/cam.shm"
-pathname_state = f"{mmap_directory}/state.shm"
+def get_shared_memory_path(filename: str) -> str:
+    """Get shared memory path for Linux and macOS systems"""
+    # On Linux, use /dev/shm
+    if os.path.exists('/dev/shm'):
+        return f'/dev/shm/{filename}'
+    # On macOS, use /tmp
+    return f'/tmp/{filename}'
+
+def pathname_state() -> str:
+    return get_shared_memory_path('state.shm')
+
+def pathname_img() -> str:
+    return get_shared_memory_path('cam.shm')
+
+# mmap_directory = get_shared_memory_path("cam.shm")
+# pathname_img = f"{mmap_directory}/cam.shm"
+# pathname_state = f"{mmap_directory}/state.shm"
 
 def mmap_write(mmap_object: mmap.mmap, max_length:int, bytes:bytes):
     while True:
