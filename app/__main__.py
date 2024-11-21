@@ -27,7 +27,7 @@ def main():
     logger.info("Starting communication queues")
     queue_all_events_counter_input: multiprocessing.Queue = multiprocessing.Queue()
 
-    # logger.info("Spawning DB Proxy process")
+    logger.info("Spawning DB Proxy process")
     ProxyDBProcess(
         args
     ).start()

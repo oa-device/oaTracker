@@ -17,7 +17,7 @@ from uuid import uuid4
 from app.utils.find import find
 
 from app.parse_args import Args
-
+from pyiceberg.catalog import load_catalog
 
 database_folder_path = str(os.path.normpath(Path(__file__).parent / "../../db/"))
 
@@ -35,11 +35,12 @@ class Counter(ABC):
         self.counter_config: dict[str, Any]  =  counter_config["config"] if "config" in counter_config else dict()
         
     
-    def update(self, boxes: ultralytics.engine.results.Boxes, tracker: ultralytics.trackers.bot_sort.BOTSORT) -> None:
+    def update(self, now: float, boxes: ultralytics.engine.results.Boxes, tracker: ultralytics.trackers.bot_sort.BOTSORT) -> None:
         pass
     
     def init(self, connection: sqlite3.Connection, track_uuids: dict[int, bytes]) -> None:
         self.connection = connection
+
         self.track_uuids = track_uuids
         
     def collect(self):
@@ -76,7 +77,7 @@ class Counters():
         return all_active_counters, classes
 
     
-    def update(self, boxes: ultralytics.engine.results.Boxes, tracker: ultralytics.trackers.bot_sort.BOTSORT) -> None:
+    def update(self,now: float, boxes: ultralytics.engine.results.Boxes, tracker: ultralytics.trackers.bot_sort.BOTSORT) -> None:
         data = {}
         meta = {}
         
@@ -87,7 +88,7 @@ class Counters():
                 self.track_uuids[id] = uuid4().bytes
         
         for counter in self.counters:
-            counter.update(boxes, tracker)
+            counter.update(now, boxes, tracker)
             data[counter.name], meta[counter.name] = counter.collect()
             
         self.data = data

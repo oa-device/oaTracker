@@ -1,164 +1,363 @@
-
-
 import os
 import time
-from typing import Union
-from uuid import uuid4
+from typing import Any, TypedDict, Union
+from uuid import UUID, uuid4
 import uuid
 import cv2
 from shapely import Point, Polygon
 import ultralytics.engine.results
 import ultralytics.trackers.bot_sort
 
+from pyiceberg.expressions import And, EqualTo, GreaterThanOrEqual, In
 from app.counters import Counter
+
+from pyiceberg.table.metadata import TableMetadataCommonFields
 
 cam_id_bytes = uuid.UUID(os.environ["CAM_ID"]).bytes
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+
+class ZoneCounterPoint(TypedDict):
+    x: float
+    y: float
+    current_zone: int
+
+
+class ZoneCounterZone(TypedDict):
+    first_seen: float
+    last_seen: float
+    enter_event_id: bytes
+    leave_event_id: bytes
+
+
+class ZoneCounterTrack(dict):
+    def __init__(
+        self,
+        id: int,
+        x: float,
+        y: float,
+        current_zone: int,
+        track_names: tuple[str, str, str],
+        track_class: int,
+        track_id: bytes,
+        cam_id: bytes,
+    ):
+        self.id = id
+        self.track_names = track_names
+
+        self.conf = 0
+        self.track_id = track_id
+        self.cam_id = cam_id
+
+        self.track_class = track_class
+        self.point = ZoneCounterPoint(x=x, y=y, current_zone=current_zone)
+        self.zones = [
+            ZoneCounterZone(
+                first_seen=0.0,
+                last_seen=0.0,
+                enter_event_id=uuid4().bytes,
+                leave_event_id=uuid4().bytes,
+            )
+            for _ in range(len(track_names))
+        ]
+        self.live_row: Union[dict[str, Any], None] = None
+        self.done_rows: list[dict[str, Any]] = []
+
+    def update_present(
+        self, now: float, x: float, y: float, current_zone: int, conf: int
+    ):
+        i = -1
+        # print("update present", now, x, y, current_zone)
+        last_zone = int(self.point["current_zone"])
+        self.point.update({"x": x, "y": y, "current_zone": current_zone})
+
+        self.conf = max(conf, self.conf)
+
+        zone_changed = last_zone != current_zone
+
+        if zone_changed and self.live_row:
+            self.done_rows.append(self.live_row)
+
+        for zone in self.zones:
+            i += 1
+
+            if current_zone == i:
+                if zone["last_seen"] == 0.0:
+                    # newly in frame
+                    self.live_row = {
+                        "event_ts": 0.0,
+                        "event_id": UUID(bytes=zone["leave_event_id"], version=4).bytes,
+                        "event_name": f"leave_zone_{self.track_names[i]}",
+                        "track_conf": self.conf,
+                        "track_class": self.track_class,
+                        "track_id": UUID(bytes=self.track_id, version=4).bytes,
+                        "cam_id": UUID(bytes=self.cam_id, version=4).bytes,
+                    }
+                    self.done_rows.append(
+                        {
+                            "event_ts": now * 1000000,
+                            "event_id": UUID(bytes=zone["enter_event_id"], version=4).bytes,
+                            "event_name": f"enter_zone_{self.track_names[i]}",
+                            "track_conf": self.conf,
+                            "track_class": self.track_class,
+                            "track_id": UUID(bytes=self.track_id, version=4).bytes,
+                            "cam_id": UUID(bytes=self.cam_id, version=4).bytes,
+                        }
+                    )
+
+                if self.live_row is not None:
+                    self.live_row["event_ts"] = now * 1000000
+
+                zone["first_seen"] = (
+                    zone["first_seen"] if zone["first_seen"] != 0.0 else now
+                )
+                zone["last_seen"] = now
+
+            elif zone["last_seen"] != 0.0:
+                zone["first_seen"] = 0.0
+                zone["last_seen"] = 0.0
+                zone["enter_event_id"] = uuid4().bytes
+                zone["leave_event_id"] = uuid4().bytes
+
+    def get_rows(self):
+        _done_rows = self.done_rows.copy()
+        self.done_rows=[]
+        return {"live": self.live_row, "done": _done_rows}
+
+
 class ZoneCounter(Counter):
+
     name = "zone_counter"
+
     def __init__(self, args) -> None:
         self.classes = [0]
         super().__init__(args, ZoneCounter.name)
-        
+
         self.setup()
-        self.data_by_trackid: dict[bytes, tuple[int, bytes, list[Union[tuple[float, float], int, float]], list[list[Union[bool, bytes, float]]]]] = dict({})
+
+        self.data: dict[int, ZoneCounterTrack] = dict({})
+
+        self.data_by_trackid: dict[
+            bytes,
+            tuple[
+                int,
+                bytes,
+                list[Union[tuple[float, float], int, float]],
+                list[list[Union[bool, bytes, float]]],
+            ],
+        ] = dict({})
         self.deleted: list[int] = []
         self.last_db_update = 0.0
-        # , list[list[Union[int, float, bytes]]]
-    
-    def update(self, boxes: ultralytics.engine.results.Boxes, tracker: ultralytics.trackers.bot_sort.BOTSORT) -> None:
-        now = time.time()
+        self.rows_deleted_tracks_live = []
+        self.rows_deleted_tracks_done = []
+
+
+        self.schema = pa.schema(
+            [
+                pa.field("event_ts", pa.timestamp("us"), nullable=False),
+                pa.field("event_id", pa.binary(16), nullable=False),
+                pa.field("event_name", pa.string(), nullable=False),
+                pa.field("track_conf", pa.int8(), nullable=False),
+                pa.field("track_class", pa.int8(), nullable=False),
+                pa.field("track_id", pa.binary(16), nullable=False),
+                pa.field("cam_id", pa.binary(16), nullable=False),
+            ]
+        )
         
-        #add new tracks
+        self.done_rows_arrow = self.schema.empty_table()
+
+        # , list[list[Union[int, float, bytes]]]
+
+    def update(
+        self,
+        now: float,
+        boxes: ultralytics.engine.results.Boxes,
+        tracker: ultralytics.trackers.bot_sort.BOTSORT,
+    ) -> None:
+        self.last_update = now
+
+        # start with tracks that were in the frame
+        box_ids = []
         for box in boxes:
             id = int(box.id)
+            box_ids.append(id)
             center_x = float(box.xywh[0][0])
             bottom_y = float(box.xyxy[0][3])
-            small_quarter_wh = min(
-                float(box.xywh[0][2]),
-                float(box.xywh[0][3])
-            ) / 6
-            
+            small_quarter_wh = min(float(box.xywh[0][2]), float(box.xywh[0][3])) / 6
+            x = center_x
+            y = float(bottom_y - small_quarter_wh)
+
             uuid = self.track_uuids[id]
-            new_track = uuid not in self.data_by_trackid
-            conf = float(box.conf)
-            
-            point: list[Union[tuple[float, float], int]] =  [(0.0,0.0), -1] if new_track else self.data_by_trackid[uuid][2]
-            zones:list[list[bool | bytes]] = [[False, uuid4().bytes, 0.0, 0.0, -1.0] for i in range(0,self.zone_count)] if new_track else self.data_by_trackid[uuid][3]
-            
-            if new_track:
-                self.data_by_trackid[uuid] = (id, uuid4().bytes, point, zones)
-            
-            point[0] = (float(center_x), float(bottom_y - small_quarter_wh))
-            point[1] =  -1
-            
-            
-            i=-1
+            new_track = id not in self.data
+            conf = int(box.conf * 100)
+            track_class = int(box.cls)
+
+            current_zone = -1
+            i = -1
             for zone_shape in self.zones_shape:
-                i+=1
-                contains = zone_shape.contains(Point(point[0][0], point[0][1])) # type: ignore
+                i += 1
+                contains = zone_shape.contains(Point(x, y))  # type: ignore
                 if contains:
-                    point[1] = i
-                    zones[i][0] = True
-                    if zones[i][4] < 0.0: # set begin if first frame
-                        zones[i][2] = now
-                    zones[i][3] = now
-                    zones[i][4] = max(zones[i][4], conf)
-                elif zones[i][4] > 0.0: # reset
-                    zones[i][0] = False
-                    zones[i][1] = uuid4().bytes
-                    zones[i][2] = 0.0
-                    zones[i][3] = 0.0
-                    zones[i][4] = -1.0
-                    
-                
-            
-        # cleanup
-        for not_deleted in [x.track_id for x in tracker.removed_stracks if x.track_id not in self.deleted]:
-            if not_deleted in self.track_uuids:
-                not_deleted_uuid = self.track_uuids[not_deleted]
-                if not_deleted_uuid in self.data_by_trackid:
-                    del self.data_by_trackid[not_deleted_uuid]
-            
-        self.deleted = self.deleted + sorted(set([x.track_id for x in tracker.removed_stracks]) - set(self.deleted))
-    
-        if now - self.last_db_update > 1.0:
-            self.update_db(now)
-            
-    def update_db(self, now:float):
-        rows=[]
-        for id in self.data_by_trackid:
-            id, track_id, _, zones = self.data_by_trackid[id]
-            i=-1
-            for zone in zones:
-                i+=1
-                _, event_id, start, end, conf =  zone
-                
-                if conf < 0.0 or end < self.last_db_update: # type: ignore
-                    continue
-                
-                rows.append(
-                    (
-                        event_id,
-                        start,
-                        end,
-                        f"person_zone_{self.zones_name[i]}", # type: ignore
-                        cam_id_bytes,
-                        track_id,
-                        conf,
-                        0
-                    )
+                    current_zone = i
+
+            if new_track:
+                self.data[id] = ZoneCounterTrack(
+                    id,
+                    x,
+                    y,
+                    current_zone,
+                    self.zones_name,
+                    track_class,
+                    cam_id=cam_id_bytes,
+                    track_id=uuid
                 )
+
+            self.data[id].update_present(now, x, y, current_zone, conf)
+
+        # update tracks not in frame
+        # tracks_not_in_frame = [
+        #     track for id, track in self.data.items() if not id in box_ids
+        # ]
+        # for track_not_in_frame in tracks_not_in_frame:
+        #     print("not in frame", track_not_in_frame.id)
             
-        cursor = self.connection.cursor()
-        cursor.executemany(
-            "INSERT INTO events(event_id, start, end, name, cam_id, track_id, conf, class) values (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(event_id) DO UPDATE SET conf=excluded.conf, end=excluded.end",
-            rows,
+
+        # cleanup
+        # to_write = []
+        for not_deleted in [
+            x.track_id
+            for x in tracker.removed_stracks
+            if x.track_id not in self.deleted
+        ]:
+            if not_deleted in self.data:
+                rows = self.data[not_deleted].get_rows()
+                self.rows_deleted_tracks_live.append(rows["live"])
+                self.rows_deleted_tracks_done += rows["done"]
+                del self.data[not_deleted]
+
+        self.deleted = self.deleted + sorted(
+            set([x.track_id for x in tracker.removed_stracks]) - set(self.deleted)
         )
-                    
-        self.connection.commit()
-        cursor.close()
-        self.last_db_update = now
+
+        if now - self.last_db_update > 1:
+            self.update_db(now)
+            self.last_db_update = now
+
+    def update_db(self, now: float):
+        rows_deleted_tracks_live = self.rows_deleted_tracks_live
+        rows_deleted_tracks_done = self.rows_deleted_tracks_done
+        self.rows_deleted_tracks_live = []
+        self.rows_deleted_tracks_done = []
         
-        
+        rows = [data.get_rows() for data in self.data.values()]
+        done_rows = [row for _rows in rows for row in _rows["done"]] + rows_deleted_tracks_done
+
+        live_rows_arrow = pa.Table.from_pylist([_rows["live"] for _rows in rows] + rows_deleted_tracks_live, schema=self.schema)
+        self.done_rows_arrow = pa.concat_tables([pa.Table.from_pylist(done_rows, schema=self.schema), self.done_rows_arrow ])
+
+        begin = time.monotonic()
+        if self.done_rows_arrow.num_rows != 0:
+            pq.write_table(self.done_rows_arrow, "/tmp/warehouse_oa/done.parquet", compression="snappy")
+        if live_rows_arrow.num_rows != 0:
+            pq.write_table(live_rows_arrow, "/tmp/warehouse_oa/live.parquet", compression="snappy")
+        print("writes", (time.monotonic() - begin) * 1000)
+
+
+        pass
+        # begin = time.monotonic()
+        # to_append = []
+        # to_overwrite = []
+        # for id in self.data_by_trackid:
+        #     id, track_id, _, zones = self.data_by_trackid[id]
+        #     i = -1
+        #     for zone in zones:
+        #         i += 1
+        #         _, event_id, start, end, conf = zone
+
+        #         if conf < 0.0 or end < self.last_db_update:  # type: ignore
+        #             continue
+
+        #         to_overwrite.append(
+        #             {
+        #                 "event_ts": end * 1000000,
+        #                 "event_id": UUID(bytes=event_id, version=4).bytes,  # type: ignore
+        #                 "event_name": f"leave_zone_{self.zones_name[i]}",  # type: ignore
+        #                 "track_class": 0,
+        #                 "track_conf": int(conf * 100),
+        #                 "track_id": UUID(bytes=track_id, version=4).bytes,
+        #                 "cam_id": UUID(bytes=cam_id_bytes, version=4).bytes,
+        #             }
+        #         )
+
+        #         # should be to append, and only once !!
+        #         to_overwrite.append(
+        #             {
+        #                 "event_ts": start * 1000000,
+        #                 "event_id": UUID(bytes=event_id, version=4).bytes,  # type: ignore
+        #                 "event_name": f"enter_zone_{self.zones_name[i]}",  # type: ignore
+        #                 "track_class": 0,
+        #                 "track_conf": int(conf * 100),
+        #                 "track_id": UUID(bytes=track_id, version=4).bytes,
+        #                 "cam_id": UUID(bytes=cam_id_bytes, version=4).bytes,
+        #             }
+        #         )
+
+        # if len(to_overwrite):
+        #     tab_overwrite: pa.Table = pa.Table.from_pylist(
+        #         to_overwrite, schema=self.schema
+        #     )
+
+        #     pq.write_table(tab_overwrite, "/tmp/warehouse_oa/live.parquet")
+
+        #     print(time.monotonic() - begin, "s")
+
+        # self.connection.commit()
+        # cursor.close()
+        # self.last_db_update = now
+
     def setup(self):
-        zones_coords=[]
+        zones_coords = []
         self.zone_count = len(self.counter_config["zones"])
         for zone in self.counter_config["zones"]:
-            coords=[]
+            coords = []
             for points in zone["points"]:
-                coords.append(
-                    (int(points[0] * 6.4), int(points[1] * 4.8)))
+                coords.append((int(points[0] * 6.4), int(points[1] * 4.8)))
             zones_coords.append(coords)
         self.zones_coords = tuple(zones_coords)
-        
+
         zones_shape = []
         for coords in self.zones_coords:
             zones_shape.append(Polygon(coords))
-        self.zones_shape: tuple[Polygon] = tuple(zones_shape) # type: ignore
-        
+        self.zones_shape: tuple[Polygon] = tuple(zones_shape)  # type: ignore
+
         background_small_zones_lines = []
         for zone_shape in self.zones_shape:
             background_small_zone_lines = []
-            coords=zone_shape.buffer(-2).exterior.coords
-            coords_count=len(coords)
-            for i in range(0, coords_count-1):
-                    line = ((int(coords[i][0]), int(coords[i][1])), (int(coords[i+1][0]), int(coords[i+1][1])))
-                    background_small_zone_lines.append(line)
+            coords = zone_shape.buffer(-2).exterior.coords
+            coords_count = len(coords)
+            for i in range(0, coords_count - 1):
+                line = (
+                    (int(coords[i][0]), int(coords[i][1])),
+                    (int(coords[i + 1][0]), int(coords[i + 1][1])),
+                )
+                background_small_zone_lines.append(line)
             background_small_zones_lines.append(tuple(background_small_zone_lines))
-        
+
         self.background_small_zones_lines = tuple(background_small_zones_lines)
 
-        zones_color=[]
+        zones_color = []
         for zone in self.counter_config["zones"]:
             zones_color.append(tuple(reversed(zone["color"])))
-        self.zones_color=tuple(zones_color)
-        
-        zones_name=[]
+        self.zones_color = tuple(zones_color)
+
+        zones_name = []
         for zone in self.counter_config["zones"]:
             zones_name.append(zone["name"])
-        self.zones_name=tuple(zones_name)
+        self.zones_name = tuple(zones_name)
 
+        self.zones_count = len(zones_name)
 
     def get_label(self, id: int) -> str | None:
         return ""
@@ -167,10 +366,10 @@ class ZoneCounter(Counter):
         # background
         i = 0
         for background_small_zone_lines in self.background_small_zones_lines:
-            background_small_zone_lines=self.background_small_zones_lines[i]
+            background_small_zone_lines = self.background_small_zones_lines[i]
             for line in background_small_zone_lines:
                 img = cv2.line(
-                    img, # type: ignore
+                    img,  # type: ignore
                     line[0],
                     line[1],
                     self.zones_color[i],
@@ -178,15 +377,15 @@ class ZoneCounter(Counter):
                     lineType=cv2.LINE_AA,
                 )
             i += 1
-            
+
         # tracking points
-        
-        for trackid in self.data_by_trackid:
-            (_1, _2, point, _3) = self.data_by_trackid[trackid]
+
+        for id in self.data:
+            point = self.data[id].point
             img = cv2.circle(
-                img, # type: ignore
-                center=(int(point[0][0]), int(point[0][1])),
-                color=(255,255,255) if point[1] == -1 else self.zones_color[point[1]], # type: ignore
+                img,  # type: ignore
+                center=(int(point["x"]), int(point["y"])),
+                color=(255, 255, 255) if point["current_zone"] == -1 else self.zones_color[point["current_zone"]],  # type: ignore
                 radius=6,
                 thickness=-1,
             )

@@ -126,7 +126,7 @@ class CounterLoop():
                 "boxes": boxes,
                 "ts": time.time() * 1000,
                 "frame_id": self.tick,
-                "cam_ts": cam_ts,
+                "cam_ts": cam_ts * 1000,
                 "fps": self.fps,
                 "counters_meta": meta,
                 "counters_data": data
@@ -260,7 +260,7 @@ class CounterLoop():
             
             while self.running:
                 
-                now_ts = time.time() * 1000
+                now = time.time()
                 handle_events_coroutine = self.handle_events()
                 try:
                     await handle_events_coroutine
@@ -296,11 +296,11 @@ class CounterLoop():
                     self.log_inference_perf(before_inference)
                     
                     boxes: ultralytics.engine.results.Boxes =  [d for d in (result[0].boxes if result[0].boxes is not None else []) if d.is_track] # type: ignore 
-                    self.counters.update(boxes, self.model.predictor.trackers[0]) # type: ignore
+                    self.counters.update(now, boxes, self.model.predictor.trackers[0]) # type: ignore
                     
                     # handle results
-                    self.log_visualization(result[0], now_ts, shared_memory_img)
-                    self.log_result(list(map(self.format_tracked, boxes)), now_ts)
+                    self.log_visualization(result[0], now * 1000, shared_memory_img)
+                    self.log_result(list(map(self.format_tracked, boxes)), now * 1000)
                     self.logs_to_mmap(shared_memory_state)
                     
                 except Exception as error:

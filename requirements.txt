@@ -13,3 +13,12 @@ pygments
 lapx>=0.5.2
 litestream-bin
 shapely
+duckdb
+pyiceberg[s3fs,duckdb,sql-sqlite]
+chdb
+fsspec
+cramjam
+pandas
+fastparquet
+getdaft
+ipykernel

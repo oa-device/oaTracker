@@ -149,6 +149,7 @@
 
 	let gotFirstMessage = false;
 	sse.onmessage = (event) => {
+		return;
 		if (!gotFirstMessage) {
 			try {
 				const alert = window.bootstrap.Alert.getOrCreateInstance('#waiting-for-data')
@@ -165,11 +166,13 @@
 
 
 	let interval1
+	let interval2
 	function resetReloadTimeout() {
 		clearInterval(interval1)
 		interval1 = setInterval(() => fetch(onlineUrl).catch(() => {
 			clearInterval(interval1)
-			setInterval(() => fetch(onlineUrl).then(() => { window.location.reload() }), 500)
+			clearInterval(interval2)
+			interval2 = setInterval(() => fetch(onlineUrl).then(() => { window.location.reload() }), 500)
 		}), 1500)
 	}
 </script>

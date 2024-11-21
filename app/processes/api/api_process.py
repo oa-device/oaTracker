@@ -9,6 +9,7 @@ import queue
 import signal
 import time
 from typing import Any, Callable
+import uuid
 from fastapi import APIRouter, FastAPI, Query, Request, HTTPException, Response
 from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute
@@ -25,6 +26,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.utils.logger import get_logger
 from app.utils.mmap import mmap_context, mmap_read, pathname_state, pathname_img
 
+import duckdb
+import pyarrow as pa
+from duckdb.typing import *
+
+duckdb_con = duckdb.connect()
 
 # Allow these origins to access the API
 origins = [
@@ -127,6 +133,27 @@ async def message_stream(_request: Request):
 
     return EventSourceResponse(event_generator())
 
+@app.get("/api/zone/movement")
+def api_zone_movement():
+    result = duckdb_con.sql('''SELECT 
+        track_id,
+        MIN(CASE WHEN event_name = 'enter_zone_entrance' THEN event_ts END) as entrance_ts,
+        MAX(CASE WHEN event_name IN ('enter_zone_exit', 'leave_zone_exit') THEN event_ts END) as exit_ts,
+        exit_ts - entrance_ts as duration
+    FROM '/tmp/warehouse_oa/*.parquet'
+    GROUP BY track_id
+    HAVING MIN(CASE WHEN event_name = 'enter_zone_entrance' THEN event_ts END) IS NOT NULL
+    AND MAX(CASE WHEN event_name IN ('enter_zone_exit', 'leave_zone_exit') THEN event_ts END) IS NOT NULL
+    AND MIN(CASE WHEN event_name = 'enter_zone_entrance' THEN event_ts END) < 
+        MAX(CASE WHEN event_name IN ('enter_zone_exit', 'leave_zone_exit') THEN event_ts END);''').fetchall()
+    return [(str(uuid.UUID(bytes=x[0], version=4)), str(x[1]), str(x[2]), str(x[3])) for x in result]
+
+
+
+@app.get("/api/zone/last_20")
+def api_zone_last_20():
+    return fs.get_stream()  # type: ignore
+
 
 
 @app.get("/cam.jpg")
@@ -134,117 +161,117 @@ def video_feed():
     return fs.get_stream()  # type: ignore
 
 
-@app.get("/cam/play")
-def video_play():
-    detection_input_queue.put({"event": "set_paused", "value": False})
+# @app.get("/cam/play")
+# def video_play():
+#     detection_input_queue.put({"event": "set_paused", "value": False})
 
 
-# route to get data of all detectors between two timestamps
-queue_counter: queue.Queue[dict[str, Any]] = queue.Queue()
-last_to_dashboard: float = 0
-@app.get("/cam/collect")
-def collect_counter_data(to: float, _from=Query(alias="from")):
-    global queue_counter, running, last_to_dashboard
+# # route to get data of all detectors between two timestamps
+# queue_counter: queue.Queue[dict[str, Any]] = queue.Queue()
+# last_to_dashboard: float = 0
+# @app.get("/cam/collect")
+# def collect_counter_data(to: float, _from=Query(alias="from")):
+#     global queue_counter, running, last_to_dashboard
 
-    _from = float(_from)
+#     _from = float(_from)
 
-    if _from >= to:
-        return HTTPException(status_code=400, detail="From must be smaller than to")
+#     if _from >= to:
+#         return HTTPException(status_code=400, detail="From must be smaller than to")
 
-    if to - _from < 1000:
-        return HTTPException(
-            status_code=400,
-            detail=f"Duration must exceed one second, from: {_from} to: {to} duration: {to - _from}",
-        )
+#     if to - _from < 1000:
+#         return HTTPException(
+#             status_code=400,
+#             detail=f"Duration must exceed one second, from: {_from} to: {to} duration: {to - _from}",
+#         )
 
-    now = time.time() * 1000
+#     now = time.time() * 1000
 
-    if to > now or _from > now:
-        return HTTPException(status_code=400, detail="To and from must be in the past")
+#     if to > now or _from > now:
+#         return HTTPException(status_code=400, detail="To and from must be in the past")
 
-    id = time.time()
+#     id = time.time()
 
-    last_to_dashboard = to
+#     last_to_dashboard = to
 
-    detection_input_queue.put(
-        {"event": f"get_count", "from": _from, "to": to, "id": id}
-    )
+#     detection_input_queue.put(
+#         {"event": f"get_count", "from": _from, "to": to, "id": id}
+#     )
 
-    event: dict[str, Any] = None # type: ignore
-    while running:
-        try:
-            event = queue_counter.get_nowait()
-            if event["id"] == id:
-                break
-        except Exception:
-            pass
-        time.sleep(0.0001)
+#     event: dict[str, Any] = None # type: ignore
+#     while running:
+#         try:
+#             event = queue_counter.get_nowait()
+#             if event["id"] == id:
+#                 break
+#         except Exception:
+#             pass
+#         time.sleep(0.0001)
 
-    if event:
-        event.pop("id")
-        event.pop("event")
+#     if event:
+#         event.pop("id")
+#         event.pop("event")
 
-    return event
+#     return event
 
-# pauses the detection process sending the camera
-@app.get("/cam/pause")
-def video_pause():
-    detection_input_queue.put({"event": "set_paused", "value": True})
-
-
-# show the overlay over the camera image
-@app.get("/cam/show_overlay")
-def video_show_overlay():
-    detection_input_queue.put(
-        {"event": "set_hide_overlay", "value": False}
-    )
+# # pauses the detection process sending the camera
+# @app.get("/cam/pause")
+# def video_pause():
+#     detection_input_queue.put({"event": "set_paused", "value": True})
 
 
-# remove the overlay over the camera image
-@app.get("/cam/hide_overlay")
-def video_hide_overlay():
-    detection_input_queue.put(
-        {"event": "set_hide_overlay", "value": True}
-    )
+# # show the overlay over the camera image
+# @app.get("/cam/show_overlay")
+# def video_show_overlay():
+#     detection_input_queue.put(
+#         {"event": "set_hide_overlay", "value": False}
+#     )
 
 
-async def request_counts():
-    global detection_input_queues, running
-    while running:
-        i = 0
-        try:
-            detection_input_queue.put({
-                "event": "get_count_for_dashboard",
-                "from": last_to_dashboard,
-                "to": time.time() * 1000,
-            })
-        except Exception as err:
-            logger.error(err)
-            pass
-
-        i = i + 1
+# # remove the overlay over the camera image
+# @app.get("/cam/hide_overlay")
+# def video_hide_overlay():
+#     detection_input_queue.put(
+#         {"event": "set_hide_overlay", "value": True}
+#     )
 
 
-async def handle_counter_events():
-    global detection_input_queue, running, client_last_presence
-    no_client = True
-    no_client_last_sent = 0
-    while running:
-        now=time.time()
-        no_client_before = not not no_client
-        if now - client_last_presence > 0.5:
-            no_client = True
-        else:
-            no_client = False
-        if (no_client_before is not no_client) or now - no_client_last_sent > 1:
-            no_client_last_sent = now
-            detection_input_queue.put(
-                {"event": "set_dashboard", "value": not no_client}
-            )
-        await asyncio.sleep(0.1)
+# async def request_counts():
+#     global detection_input_queues, running
+#     while running:
+#         i = 0
+#         try:
+#             detection_input_queue.put({
+#                 "event": "get_count_for_dashboard",
+#                 "from": last_to_dashboard,
+#                 "to": time.time() * 1000,
+#             })
+#         except Exception as err:
+#             logger.error(err)
+#             pass
+
+#         i = i + 1
 
 
-detection_input_queue: multiprocessing.Queue = None # type: ignore
+# async def handle_counter_events():
+#     global detection_input_queue, running, client_last_presence
+#     no_client = True
+#     no_client_last_sent = 0
+#     while running:
+#         now=time.time()
+#         no_client_before = not not no_client
+#         if now - client_last_presence > 0.5:
+#             no_client = True
+#         else:
+#             no_client = False
+#         if (no_client_before is not no_client) or now - no_client_last_sent > 1:
+#             no_client_last_sent = now
+#             detection_input_queue.put(
+#                 {"event": "set_dashboard", "value": not no_client}
+#             )
+#         await asyncio.sleep(0.1)
+
+
+# detection_input_queue: multiprocessing.Queue = None # type: ignore
 args: Args = None # type:ignore 
 
 
@@ -252,10 +279,10 @@ class ApiProcess():
     def __init__(self, 
             _args: Args, _detection_input_queue: multiprocessing.Queue
         ):
-        global detection_input_queue
+        # global detection_input_queue
         global args
     
-        detection_input_queue = _detection_input_queue
+        # detection_input_queue = _detection_input_queue
         args = _args
     
     def start(self):
