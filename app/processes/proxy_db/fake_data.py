@@ -5,11 +5,9 @@ from datetime import datetime
 import sqlite3
 import uuid
 
-import pyarrow as pa
-
 # Configuration
-num_tracks = 5000
-num_events = 1_000_000
+num_tracks = 25000
+num_events = 2_500_000
 base_time = datetime(2024, 1, 1).timestamp()
 batch_size = 100_000
 
@@ -19,7 +17,7 @@ import multiprocessing
 import uuid
 
 def get_uuid(_):
-    return str(uuid.UUID(bytes=os.urandom(16), version=4))
+    return uuid.UUID(bytes=os.urandom(16), version=4).bytes
 
 uuids=[]
 def main():
@@ -28,9 +26,6 @@ def main():
     uuids = pool.map( get_uuid, range( uuid_count ) )
 
 if __name__ == '__main__': main()
-
-def get_precalculated_uuid():
-    return uuid.uuid4().bytes
 
 cam_id = uuids[len(uuids)-1]
 
@@ -109,14 +104,13 @@ database_folder_path = os.path.normpath(Path(__file__).parent / "../../../db/")
 connection = sqlite3.connect(f"{str(database_folder_path)}/cam1.db")
 cursor = connection.cursor()
 cursor.execute(f""" CREATE TABLE IF NOT EXISTS events (
-    event_id TEXT PRIMARY KEY,
-    cam_id TEXT NOT NULL,
-    event_end NUMERIC NOT NULL,
+    event_id BLOB PRIMARY KEY,
+    cam_id BLOB NOT NULL,
     event_name TEXT NOT NULL,
-    event_start NUMERIC NOT NULL,
+    event_ts NUMERIC NOT NULL,
     track_class INTEGER NOT NULL,
     track_conf NUMERIC NOT NULL,
-    track_id TEXT NOT NULL
+    track_id BLOB NOT NULL
 );""")
 cursor.execute('CREATE INDEX IF NOT EXISTS idx_events_track_name_start ON events(track_id, event_name, event_start);')
 connection.commit()

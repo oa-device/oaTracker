@@ -25,7 +25,6 @@ def main():
     args = parse_args()
     logger = get_logger(__name__)
     logger.info("Starting communication queues")
-    queue_all_events_counter_input: multiprocessing.Queue = multiprocessing.Queue()
 
     logger.info("Spawning DB Proxy process")
     ProxyDBProcess(
@@ -34,14 +33,12 @@ def main():
 
     logger.info("Spawning counter process")
     CounterProcess(
-        args,
-        queue_all_events_counter_input
+        args
     ).start()
 
     logger.info("Spawning API process")
     ApiProcess(
-        args,
-        queue_all_events_counter_input
+        args
     ).start()
 
 

@@ -1,13 +1,10 @@
 
 from abc import ABC
 from copy import deepcopy
-from functools import reduce
 import os
 from pathlib import Path
 import sqlite3
-import time
-from typing import Any, Union
-import uuid
+from typing import Any
 import ultralytics.engine.results
 import ultralytics.trackers
 from ultralytics.utils.plotting import Annotator
@@ -17,11 +14,8 @@ from uuid import uuid4
 from app.utils.find import find
 
 from app.parse_args import Args
-from pyiceberg.catalog import load_catalog
 
 database_folder_path = str(os.path.normpath(Path(__file__).parent / "../../db/"))
-
-
 
 class Counter(ABC):
     def __init__(self, args: Args, name:str) -> None:
@@ -30,7 +24,6 @@ class Counter(ABC):
         self.track_limit = 10_000
         self.meta = { "name": name, "track_limit": self.track_limit }
         self.args = args
-        print(self.args.counters_config)
         counter_config = find(lambda counter_config: counter_config["name"] == name, self.args.counters_config) # type: ignore
         self.counter_config: dict[str, Any]  =  counter_config["config"] if "config" in counter_config else dict()
         
@@ -49,7 +42,7 @@ class Counter(ABC):
     def get_label(self, id: int) -> str | None:
         return ""
     
-    def plot(self, img: bytearray) -> bytearray:
+    def plot(self, img: bytearray, boxes) -> bytearray:
         return img
 
 
@@ -105,7 +98,7 @@ class Counters():
 
 
         for counter in self.counters:
-            counter.plot(img)
+            counter.plot(img, boxes)
 
         annotator = Annotator(
             deepcopy(img),
@@ -126,10 +119,10 @@ class Counters():
             
                 box_labels = self.get_labels(id)
                 name = "" if id is None else f"id:{id} {labels[cls]}"
-                label = f"{name}{" " + box_labels if len(box_labels) != 0 else ""} {int(conf * 100)}%" if conf else name
+                label = f"{box_labels if len(box_labels) != 0 else ""} {int(conf * 100)}%" if conf else name
                 annotator.box_label(d.xyxy[0], label, color=(0, 225, 27))
 
-        annotator.text_label((544,460,640,480), datetime.datetime.fromtimestamp(cam_ts/1000).strftime('%H:%M:%S'), color=(0,0,0))
+        annotator.text_label((1184,700,1280,720), datetime.datetime.fromtimestamp(cam_ts/1000).strftime('%H:%M:%S'), color=(0,0,0))
 
         return annotator.result()
  

@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import threading
 import time
-from typing import Any, Mapping, Union
+from typing import Mapping, Union
 from fastapi import BackgroundTasks
 from fastapi.responses import StreamingResponse
 
@@ -36,7 +36,7 @@ class FrameStreamer:
         with open(loading_cam_filepath, "rb") as loading_cam_file:
             loading_cam=loading_cam_file.read()
         
-        with mmap_context(pathname_img, 64000) as shared_memory_img:
+        with mmap_context(pathname_img, 512000) as shared_memory_img:
             while self.running:
                 try:
                     img = mmap_read_nonblocking(shared_memory_img)
@@ -64,7 +64,7 @@ class FrameStreamer:
             except Exception as a:
                 pass
             
-            await asyncio.sleep(0.003)
+            await asyncio.sleep(0.066)
 
 
     def get_stream(

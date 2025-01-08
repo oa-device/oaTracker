@@ -1,7 +1,5 @@
 import chdb
 
-
-
 print(chdb.query("""
 CREATE DATABASE _temporary_and_external_tables;
 CREATE DATABASE test;

@@ -3,7 +3,7 @@
 set -e
 
 # Desired Python version
-PYTHON_VERSION="3.12.6"
+PYTHON_VERSION="3.12.8"
 
 # Function to display usage information
 display_usage() {
@@ -66,7 +66,11 @@ install_ubuntu_dependencies() {
     echo "Installing build dependencies..."
     sudo apt-get install -y make build-essential libssl-dev zlib1g-dev libbz2-dev \
         libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
-        xz-utils tk-dev libffi-dev liblzma-dev python3-opencv
+        xz-utils tk-dev libffi-dev liblzma-dev python3-opencv;
+    
+    curl -s -L https://github.com/bluenviron/mediamtx/releases/download/v1.11.0/mediamtx_v1.11.0_linux_amd64.tar.gz | tar xvz -C /tmp;
+    mv /tmp/mediamtx bin/mediamtx
+    chmod +x bin/mediamtx;
 }
 
 # Function to install packages on macOS
@@ -87,6 +91,9 @@ install_macos_dependencies() {
             brew install $pkg
         fi
     done
+    curl -s -L https://github.com/bluenviron/mediamtx/releases/download/v1.11.0/mediamtx_v1.11.0_darwin_arm64.tar.gz | tar xvz -C /tmp;
+    mv /tmp/mediamtx bin/mediamtx
+    chmod +x bin/mediamtx;
 }
 
 # Function to install and configure pyenv
@@ -258,13 +265,13 @@ else
     exit 1
 fi
 
-# Install and configure pyenv
+# # Install and configure pyenv
 install_pyenv
 
-# Install desired Python version
+# # Install desired Python version
 install_python
 
-# Set up virtual environment and install dependencies
+# # Set up virtual environment and install dependencies
 setup_venv
 
 # Deactivate the virtual environment

@@ -25,7 +25,7 @@ def mmap_write(mmap_object: mmap.mmap, max_length:int, bytes:bytes):
                 return
             else:
                 print(traceback.format_exc())
-                print('data too big for mmap2', max_length, "<",body_length)
+                print('data too big for mmap', max_length, "<",body_length)
         except Exception as e:
             print(traceback.format_exc())
             print(e)

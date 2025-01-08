@@ -6,6 +6,10 @@
 	<script src="/static/chartjs-date-adapter.js"></script>
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet"
 		integrity="sha384-4bw+/aepP/YC94hEpVNVgiZdgIC5+VKNBQNGCHeKRQN+PtmoHDEXuppvnDJzQIu9" crossorigin="anonymous">
+<script src="https://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css' />
+    <script src='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'></script>
+  
 </head>
 <style>
 	.accordion-button:not(.collapsed) {
@@ -137,33 +141,39 @@
 		}
 	}
 
-	const onlineUrl = window.location.href.replace('dashboard', 'online');
-	const sse = new EventSource(`//${window.location.hostname}:8000/dashboard/sse`);
-
 	const throttledError = throttle((e) => {
 		console.error(e)
 	}, 1000)
 
-	window.sseSubscriptions = {}
 
+	const onlineUrl = window.location.href.replace('dashboard', 'online');
 
-	let gotFirstMessage = false;
-	sse.onmessage = (event) => {
-		return;
-		if (!gotFirstMessage) {
-			try {
-				const alert = window.bootstrap.Alert.getOrCreateInstance('#waiting-for-data')
-				alert.close()
-				gotFirstMessage = true
-			} catch { }
+	let sse;
+	function setupSSE(_start, _end) {
+		const start = _start || 'entrance';
+		const end = _end || 'exit';
+
+		if (typeof sse !== 'undefined') {
+			sse.close();
 		}
-		resetReloadTimeout();
-		const message = JSON.parse(event.data)
-		Object.entries(message).map(([event, m]) => {
-			sseSubscriptions[event]?.forEach(s => s(m));
-		})
-	};
 
+		sse = new EventSource(`//${window.location.hostname}:8080/dashboard/sse?start=${start}&end=${end}`);
+
+		if (!window.sseSubscriptions) {
+			window.sseSubscriptions = {}
+		}
+
+		const gotFirstMessage = false;
+		sse.onmessage = (event) => {
+			resetReloadTimeout();
+			const message = JSON.parse(event.data)
+			console.log(message)
+
+			window.onData(message)
+		};
+	}
+
+	setupSSE();
 
 	let interval1
 	let interval2
@@ -172,7 +182,8 @@
 		interval1 = setInterval(() => fetch(onlineUrl).catch(() => {
 			clearInterval(interval1)
 			clearInterval(interval2)
-			interval2 = setInterval(() => fetch(onlineUrl).then(() => { window.location.reload() }), 500)
+			interval2 = setInterval(() => fetch(onlineUrl).then(() => { window.location.reload(); 
+			clearInterval(interval2); }), 500)
 		}), 1500)
 	}
 </script>
@@ -187,9 +198,12 @@
     top:50%;
     -webkit-transform: translate(-50%, -50%);
     -moz-transform: translate(-50%, -50%);
-    transform: translate(-50%, -50%);"
+    transform: translate(-50%, -50%);
+	
+    max-width: 50%;"
 >
-				<img src="/cam.jpg" alt="Camera 0" style="margin: 0 auto;">
+				<img src="/cam.jpg" alt="Camera 0" style="margin: 0 auto;
+    max-width: 100%;">
 				<div style="
     padding-top: 0.2rem;
     width: 640px;
@@ -229,16 +243,9 @@
 					aria-label="Search">
 			</div>
 			</header>
-
-				<div class="alert alert-warning" id="waiting-for-data" role="alert">
-					Waiting for data
-					<div class="spinner-border spinner-border-sm text-warning" role="status">
-						<span class="visually-hidden">Loading...</span>
-					</div>
-				</div>
-				{% include 'components/realtime-counters/index.html.jinja' %}
-				{% include 'components/counting/index.html.jinja' %}
-				{% include 'components/performance/index.html.jinja' %}
+				{% include 'components/map/index.html.jinja' %}
+				{% include 'components/realtime-counters/index.html.jinja' %} 
+				{# {% include 'components/performance/index.html.jinja' %} #}
 			</div>
 		</div>
 

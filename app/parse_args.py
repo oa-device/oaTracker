@@ -2,15 +2,16 @@
 
 import argparse
 from dataclasses import dataclass
-import json
 import logging
 from typing import Any, Literal
-from app.config import  Config, get_config
+from app.config import get_config
 from app.utils.list_cameras import list_available_cameras, list_cameras
 from app.utils.logger import create_log_message, setup_logger
+from app.utils.time_int import time_int
 
 @dataclass
 class Args:
+    boot_int: int
     listCameras: bool
     camera: int
     model: str
@@ -66,6 +67,8 @@ def parse_args() -> Args:
     args.input_source = args.camera
 
     args.counters_config = config["counters"]
+    
+    args.boot_int = time_int()
 
     logger.info(create_log_message(event="selected_input", source=args.input_source))
 

@@ -1,22 +1,19 @@
 import asyncio
 from contextlib import asynccontextmanager
+import gzip
 import json
-import mmap
-import multiprocessing
-from multiprocessing import synchronize
 import os
-import queue
 import signal
 import time
-from typing import Any, Callable
+from typing import Callable
 import uuid
-from fastapi import APIRouter, FastAPI, Query, Request, HTTPException, Response
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, FastAPI,  Request,  Response
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+import functools
 from sse_starlette import EventSourceResponse
-
 import uvicorn
 from app.parse_args import Args
 from app.processes.api.frame_streamer import FrameStreamer
@@ -24,7 +21,6 @@ from app.processes.api.frame_streamer import FrameStreamer
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.utils.logger import get_logger
-from app.utils.mmap import mmap_context, mmap_read, pathname_state, pathname_img
 
 import duckdb
 import pyarrow as pa
@@ -50,11 +46,26 @@ headers = ["Content-Type", "Authorization"]
 fs: FrameStreamer # type: ignore 
 fs = FrameStreamer()
 
+@functools.lru_cache(maxsize=128)
+def numberToBase(n, b):
+    if n == 0:
+        return [0]
+    digits = []
+    while n:
+        digits.append(int(n % b))
+        n //= b
+    return digits[::-1]
+
+urlsafe_66_alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_-.~'
+@functools.lru_cache(maxsize=128)
+def bytes_to_uuid(b:bytes):
+    return str(uuid.UUID(bytes=b, version=4))[:8]
+
 running = True
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    asyncio.create_task(handle_counter_events())
+    # asyncio.create_task(handle_counter_events())
     def stop_server(*args):
         global running
         running = False
@@ -70,6 +81,7 @@ class TimedRoute(APIRoute):
         original_route_handler = super().get_route_handler()
 
         async def custom_route_handler(request: Request) -> Response:
+            print(111)
             before = time.time()
             response: Response = await original_route_handler(request)
             duration = time.time() - before
@@ -111,181 +123,71 @@ def online():
 async def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html.jinja", {"request": request, "dashboard_data": {}})  # type: ignore
 
-# server side event route streaming data from the detector
 client_last_presence = 0 
 @app.get("/dashboard/sse")
-async def message_stream(_request: Request):
+async def message_stream(start: str = 'entrance', end: str = "exit"):
     async def event_generator():
         global client_last_presence, running
-        with mmap_context('/dev/shm/state.shm', 64000) as shared_memory_state:
-            while running:
-                try:
-                    client_last_presence = time.time()
-                    body = await mmap_read(shared_memory_state)
-                    yield {
-                        "id": time.time(),
-                        "retry": 15000,
-                        "data": body.decode('utf-8'),
-                    }
-                except Exception as e:
-                    print(e)
-                await asyncio.sleep(0.0333)
+        while running:
+            try:
+                client_last_presence = time.time()
+                cur = duckdb_con.cursor()
+                yield {
+                    "id": str(client_last_presence),
+                    "retry": 15000,
+                    "data": json.dumps([api_zone_movement(cur, start, end), api_zone_last_15(cur)]),
+                }
+                cur.close()
+            except Exception as e:
+                print(e)
+            await asyncio.sleep(1)
 
     return EventSourceResponse(event_generator())
 
-@app.get("/api/zone/movement")
-def api_zone_movement():
-    result = duckdb_con.sql('''SELECT 
+
+def api_zone_movement(cur, start = "entrance", end = "exit"):
+    try:
+        result = cur.sql(f'''SELECT 
         track_id,
-        MIN(CASE WHEN event_name = 'enter_zone_entrance' THEN event_ts END) as entrance_ts,
-        MAX(CASE WHEN event_name IN ('enter_zone_exit', 'leave_zone_exit') THEN event_ts END) as exit_ts,
-        exit_ts - entrance_ts as duration
+        MIN(CASE WHEN event_name = 'enter_zone_{start}' THEN event_ts END) as start_ts,
+        MAX(CASE WHEN event_name IN ('enter_zone_{end}', 'leave_zone_{end}') THEN event_ts END) as end_ts,
+        strftime(start_ts, '%Y-%m-%dT%H:%M:%S.%g+00:00') as start,
+        strftime(end_ts, '%Y-%m-%dT%H:%M:%S.%g+00:00') as end
     FROM '/tmp/warehouse_oa/*.parquet'
     GROUP BY track_id
-    HAVING MIN(CASE WHEN event_name = 'enter_zone_entrance' THEN event_ts END) IS NOT NULL
-    AND MAX(CASE WHEN event_name IN ('enter_zone_exit', 'leave_zone_exit') THEN event_ts END) IS NOT NULL
-    AND MIN(CASE WHEN event_name = 'enter_zone_entrance' THEN event_ts END) < 
-        MAX(CASE WHEN event_name IN ('enter_zone_exit', 'leave_zone_exit') THEN event_ts END);''').fetchall()
-    return [(str(uuid.UUID(bytes=x[0], version=4)), str(x[1]), str(x[2]), str(x[3])) for x in result]
+    HAVING MIN(CASE WHEN event_name = 'enter_zone_{start}' THEN event_ts END) IS NOT NULL
+    AND MAX(CASE WHEN event_name IN ('enter_zone_{end}', 'leave_zone_{end}') THEN event_ts END) IS NOT NULL
+    AND MIN(CASE WHEN event_name = 'enter_zone_{start}' THEN event_ts END) < 
+        MAX(CASE WHEN event_name IN ('enter_zone_{end}', 'leave_zone_{end}') THEN event_ts END) ORDER BY start_ts DESC LIMIT 15;''').fetchall()
+
+    except:
+        return []
+    return [(bytes_to_uuid(x[0]), str(x[3]), str(x[4])) for x in result]
 
 
-
-@app.get("/api/zone/last_20")
-def api_zone_last_20():
-    return fs.get_stream()  # type: ignore
-
-
+def api_zone_last_15(cur):
+    try:
+        result = cur.sql('''SELECT track_id, event_ts as _event_ts, strftime(event_ts, '%Y-%m-%dT%H:%M:%S.%g+00:00') as event_ts, event_name, track_conf, track_class FROM '/tmp/warehouse_oa/*.parquet' ORDER BY _event_ts DESC LIMIT 15;''').fetchall()
+    except:
+        return []
+    return [(bytes_to_uuid(x[0]), str(x[1]), str(x[2]), str(x[3]), str(x[4])) for x in result]
 
 @app.get("/cam.jpg")
 def video_feed():
     return fs.get_stream()  # type: ignore
 
-
-# @app.get("/cam/play")
-# def video_play():
-#     detection_input_queue.put({"event": "set_paused", "value": False})
-
-
-# # route to get data of all detectors between two timestamps
-# queue_counter: queue.Queue[dict[str, Any]] = queue.Queue()
-# last_to_dashboard: float = 0
-# @app.get("/cam/collect")
-# def collect_counter_data(to: float, _from=Query(alias="from")):
-#     global queue_counter, running, last_to_dashboard
-
-#     _from = float(_from)
-
-#     if _from >= to:
-#         return HTTPException(status_code=400, detail="From must be smaller than to")
-
-#     if to - _from < 1000:
-#         return HTTPException(
-#             status_code=400,
-#             detail=f"Duration must exceed one second, from: {_from} to: {to} duration: {to - _from}",
-#         )
-
-#     now = time.time() * 1000
-
-#     if to > now or _from > now:
-#         return HTTPException(status_code=400, detail="To and from must be in the past")
-
-#     id = time.time()
-
-#     last_to_dashboard = to
-
-#     detection_input_queue.put(
-#         {"event": f"get_count", "from": _from, "to": to, "id": id}
-#     )
-
-#     event: dict[str, Any] = None # type: ignore
-#     while running:
-#         try:
-#             event = queue_counter.get_nowait()
-#             if event["id"] == id:
-#                 break
-#         except Exception:
-#             pass
-#         time.sleep(0.0001)
-
-#     if event:
-#         event.pop("id")
-#         event.pop("event")
-
-#     return event
-
-# # pauses the detection process sending the camera
-# @app.get("/cam/pause")
-# def video_pause():
-#     detection_input_queue.put({"event": "set_paused", "value": True})
-
-
-# # show the overlay over the camera image
-# @app.get("/cam/show_overlay")
-# def video_show_overlay():
-#     detection_input_queue.put(
-#         {"event": "set_hide_overlay", "value": False}
-#     )
-
-
-# # remove the overlay over the camera image
-# @app.get("/cam/hide_overlay")
-# def video_hide_overlay():
-#     detection_input_queue.put(
-#         {"event": "set_hide_overlay", "value": True}
-#     )
-
-
-# async def request_counts():
-#     global detection_input_queues, running
-#     while running:
-#         i = 0
-#         try:
-#             detection_input_queue.put({
-#                 "event": "get_count_for_dashboard",
-#                 "from": last_to_dashboard,
-#                 "to": time.time() * 1000,
-#             })
-#         except Exception as err:
-#             logger.error(err)
-#             pass
-
-#         i = i + 1
-
-
-# async def handle_counter_events():
-#     global detection_input_queue, running, client_last_presence
-#     no_client = True
-#     no_client_last_sent = 0
-#     while running:
-#         now=time.time()
-#         no_client_before = not not no_client
-#         if now - client_last_presence > 0.5:
-#             no_client = True
-#         else:
-#             no_client = False
-#         if (no_client_before is not no_client) or now - no_client_last_sent > 1:
-#             no_client_last_sent = now
-#             detection_input_queue.put(
-#                 {"event": "set_dashboard", "value": not no_client}
-#             )
-#         await asyncio.sleep(0.1)
-
-
-# detection_input_queue: multiprocessing.Queue = None # type: ignore
 args: Args = None # type:ignore 
 
 
 class ApiProcess():
     def __init__(self, 
-            _args: Args, _detection_input_queue: multiprocessing.Queue
+            _args: Args
         ):
-        # global detection_input_queue
         global args
     
-        # detection_input_queue = _detection_input_queue
         args = _args
     
     def start(self):
         uvicorn.run(
-            "app.processes.api.api_process:app", host="0.0.0.0", port=8000, log_level="info"
+            "app.processes.api.api_process:app", host="0.0.0.0", port=8080, log_level="info"
         )

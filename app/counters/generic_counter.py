@@ -1,6 +1,5 @@
 import os
 import time
-from typing import Any, Union
 import uuid
 
 from app.counters import Counter
@@ -8,7 +7,7 @@ import ultralytics.engine.results
 import ultralytics.trackers.bot_sort
 
 from app.parse_args import Args
-from app.utils.logger import create_log_message, get_logger
+from app.utils.logger import get_logger
 
 
 logger = get_logger(__name__)

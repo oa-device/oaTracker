@@ -4,24 +4,52 @@
 	</div>
 </div>
 <div class="card" style="width: 100%;">
-	Person counter
+	<div style="text-align:center">
+		Zone movement from <span>
+			<select id="realtime_from" name="from"  change="window.zone_movement_change()">
+				<option value="entrance" selected>Entrance (blue)</option>
+				<option value="exit">Exit (red)</option>
+			</select></span> to <span><select  id="realtime_to"  name="to" change="window.zone_movement_change()">
+				<option value="entrance">Entrance (blue)</option>
+				<option value="exit" selected>Exit (red)</option>
+			</select></span>
+	</div>
 	<div class="card-body">
-		<table id="detection_data_table" class="table table-sm table-striped">
+		<table id="zone_movement_table" class="table table-sm table-striped">
 			<thead>
 				<tr>
-					<th scope="col">ID</th>
-					<th scope="col">First seen</th>
-					<th scope="col">Last seen</th>
-					<th scope="col">Total frames
-					</th>
+					<th scope="col">track_id</th>
+					<th scope="col">start_ts</th>
+					<th scope="col">end_ts</th>
+					<th scope="col">when</th>
+					<th scope="col">duration</th>
 				</tr>
 			</thead>
-			<tbody id="tbody_person_counter">
+			<tbody id="tbody_zone_movement">
+			</tbody>
+		</table>
+	</div>
+	<div style="text-align:center">
+		All data (last 40)
+	</div>
+	<div class="card-body">
+		<table id="zone_last_40_table" class="table table-sm table-striped">
+			<thead>
+				<tr>
+					<th scope="col">track_id</th>
+					<th scope="col">event_ts</th>
+					<th scope="col">event_name</th>
+					<th scope="col">track_conf</th>
+					<th scope="col">track_class</th>
+				</tr>
+			</thead>
+			<tbody id="tbody_zone_last_40">
 			</tbody>
 		</table>
 	</div>
 </div>
 <script>
+
 	const network_latency_data = [];
 	const full_latency_data = []
 	let fps = 0;
@@ -29,62 +57,228 @@
 		clock.innerText = (fps).toFixed(1) + "fps " + new Date().toTimeString().split(' ')[0]
 	}, 100)
 
-	const options = {
-		year: "numeric",
-		month: "numeric",
-		day: "numeric",
-		hour: "numeric",
-		minute: "numeric",
-		second: "numeric",
-		hour12: false,
-		fractionalSecondDigits: 3
-
+	window.onData = ([movements, last_40]) => {
+			tbody_zone_movement.replaceChildren()
+			movements.map(m => tbody_zone_movement.appendChild(zoneMovementToTr(m)))
+			tbody_zone_last_40.replaceChildren()
+			last_40.map(l => tbody_zone_last_40.appendChild(zoneEventToTr(l)))
 	}
 
-	window.sseSubscriptions["tracks"] = window.sseSubscriptions["tracks"] || []
-	window.sseSubscriptions["tracks"].push((m) => {
-
-		fps = m.fps
-
-		tbody_person_counter.replaceChildren()
-		m.counters_data.person_counter.map(x => tbody_person_counter.appendChild(personCounterDataToTr(x)))
-
-
-		full_latency_data.push(Date.now() - m.cam_ts)
-		if (full_latency_data.length === 101) {
-			full_latency_data.shift()
+	const onchange_fromto = (e) => {
+		const vals = {
+			from: document.getElementById('realtime_from').value,
+			to: document.getElementById('realtime_to').value
 		}
 
-		latency_results_value.innerText = ((full_latency_data.reduce((a, b) => a + b, 0)) / full_latency_data.length).toFixed(1) + " ms"
-
-		network_latency_data.push(Date.now() - m.ts)
-		if (network_latency_data.length === 101) {
-			network_latency_data.shift()
+		if (vals.from === vals.to) {
+			const otherId = e.target.id === 'realtime_from' ? 'realtime_to' : 'realtime_from';
+			const otherValue = e.target.value === 'exit' ? 'entrance' : 'exit';
+			const otherVar = e.target.id === 'realtime_from' ? 'to' : 'from';
+			document.getElementById(otherId).value = otherValue;
+			vals[otherVar] = otherValue;
 		}
-		network_latency_results_value.innerText = ((network_latency_data.reduce((a, b) => a + b, 0)) / network_latency_data.length).toFixed(1) + " ms"
-	})
 
-	function personCounterDataToTr(t) {
+		const {from, to} = vals;
+
+		setupSSE(from, to);
+	}
+
+	document.getElementById('realtime_from').onchange = onchange_fromto
+	document.getElementById('realtime_to').onchange = onchange_fromto
+
+	const regex = /[^.]*\.\d/;
+
+	function zoneMovementToTr(t) {
 		/** @type {HTMLTableRowElement} */
 		const tr = document.createElement("TR");
 		/** @type {HTMLTableCellElement} */
-		const thId = document.createElement("TH");
+		const thTrackId = document.createElement("TH");
 		/** @type {HTMLTableCellElement} */
-		const tdFirstSeen = document.createElement("TD");
+		const tdStart = document.createElement("TD");
 		/** @type {HTMLTableCellElement} */
-		const tdLastSeen = document.createElement("TD");
+		const tdEnd = document.createElement("TD");
 		/** @type {HTMLTableCellElement} */
-		const tdTotalFrames = document.createElement("TD");
-		thId.setAttribute("scope", "row")
-		thId.innerText = t[2]
-		tdTotalFrames.innerText = t[3];
-		tdFirstSeen.innerText = new Intl.DateTimeFormat('sv-SE', options).format(new Date(t[0]*1000));
-		tdLastSeen.innerText = new Intl.DateTimeFormat('sv-SE', options).format(new Date(t[1]*1000));
-		tr.appendChild(thId);
-		tr.appendChild(tdFirstSeen);
-		tr.appendChild(tdLastSeen);
-		tr.appendChild(tdTotalFrames);
+		const tdWhen = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdDuration = document.createElement("TD");
+		thTrackId.setAttribute("scope", "row")
+		thTrackId.innerText = t[0]
+		const start = new Date(t[1])
+		const end = new Date(t[2])
+		tdStart.innerText = start.toLocaleDateString() + " "  + start.toLocaleTimeString();
+		tdEnd.innerText = end.toLocaleDateString() + " "  + end.toLocaleTimeString();
+		tdWhen.innerText = new Duration(end, new Date(), true).toString().substring(1) + ' ago';
+		tdDuration.innerText = new Duration(start, end).toString().substring(1);
+		tr.appendChild(thTrackId);
+		tr.appendChild(tdStart);
+		tr.appendChild(tdEnd);
+		tr.appendChild(tdWhen);
+		tr.appendChild(tdDuration);
 		return tr
 	}
+
+	function zoneEventToTr(t) {
+		/** @type {HTMLTableRowElement} */
+		const tr = document.createElement("TR");
+		/** @type {HTMLTableCellElement} */
+		const thTrackId = document.createElement("TH");
+		/** @type {HTMLTableCellElement} */
+		const tdEventTs = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdEventName = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdTrackConf = document.createElement("TD");
+		/** @type {HTMLTableCellElement} */
+		const tdTrackClass = document.createElement("TD");
+		thTrackId.setAttribute("scope", "row")
+		thTrackId.innerText = t[0]
+		tdEventTs.innerText = new Date(t[1]).toLocaleDateString() + " "  + new Date(t[1]).toLocaleTimeString()
+		tdEventName.innerText = t[2];
+		tdTrackConf.innerText = t[3];
+		tdTrackClass.innerText = t[4];
+		tr.appendChild(thTrackId);
+		tr.appendChild(tdEventTs);
+		tr.appendChild(tdEventName);
+		tr.appendChild(tdTrackConf);
+		tr.appendChild(tdTrackClass);
+		return tr
+	}
+
+	class Duration {
+    constructor(
+    /**
+     * Starting Date
+     */
+    from, 
+    /**
+     * Ending date
+     */
+    to, noMs) {
+		this.noMs = !!noMs;
+        this.from = from;
+        this.to = to;
+        /**
+         * Sign in front of the output toString()
+         */
+        this.sign = "+";
+        this._dates = [new Date(this.from), new Date(this.to)];
+        if (from > to) {
+            this.sign = "-";
+            this._dates = this._dates.reverse();
+        }
+        this.ms = this._parse((d) => d.getMilliseconds(), {
+            get: (d) => d.getSeconds(),
+            set: (d, v) => d.setSeconds(v),
+            inc: () => 1000,
+        });
+        this.s = this._parse((d) => d.getSeconds(), {
+            get: (d) => d.getMinutes(),
+            set: (d, v) => d.setMinutes(v),
+            inc: () => 60,
+        });
+        this.min = this._parse((d) => d.getMinutes(), {
+            get: (d) => d.getHours(),
+            set: (d, v) => d.setHours(v),
+            inc: () => 60,
+        });
+        this.h = this._parse((d) => d.getHours(), {
+            get: (d) => d.getDate(),
+            set: (d, v) => d.setDate(v),
+            inc: () => 24,
+        });
+        this.d = this._parse((d) => d.getDate(), {
+            get: (d) => d.getMonth(),
+            set: (d, v) => d.setMonth(v),
+            inc: (d) => {
+                const y = d.getFullYear();
+                let isLeapYear = true;
+                if (y % 4) {
+                    isLeapYear = false;
+                }
+                else if (y % 100) {
+                    isLeapYear = true;
+                }
+                else if (y % 400) {
+                    isLeapYear = false;
+                }
+                return [
+                    31,
+                    isLeapYear ? 29 : 28,
+                    31,
+                    30,
+                    31,
+                    30,
+                    31,
+                    31,
+                    30,
+                    31,
+                    30,
+                    31,
+                ][d.getMonth()];
+            },
+        });
+        this.w = Math.floor(this.d / 7);
+        this.d = this.d % 7;
+        this.mo = this._parse((d) => d.getMonth(), {
+            get: (d) => d.getFullYear(),
+            set: (d, v) => d.setFullYear(v),
+            inc: () => 12,
+        });
+        this.y = this._parse((d) => d.getFullYear());
+    }
+    /**
+     * Parse milliseconds (i.e. epoch) to Duration, based on before present time
+     */
+    static of(msec) {
+        const to = new Date();
+        const output = new this(new Date(+to - msec), to);
+        output.sign = "";
+        return output;
+    }
+    /**
+     * To JSON-serializable OrderedDict
+     */
+    toOrderedDict() {
+        return [
+            ...this.noMs  ? [] : [["ms", this.ms]],
+            ["s", this.s],
+            ["min", this.min],
+            ["h", this.h],
+            ["d", this.d],
+            ["w", this.w],
+            ["mo", this.mo],
+            ["y", this.y],
+        ];
+    }
+    /**
+     * To String
+     *
+     * Works with `${duration}` also
+     */
+    toString({ sign = true, granularity, maxUnit, unit = {}, } = {}) {
+        const filteredDict = this.toOrderedDict().filter(([, v]) => v);
+        const str = filteredDict
+            .slice(granularity ? filteredDict.length - granularity : 0)
+            .reverse()
+            .slice(0, maxUnit)
+            .map(([k, v]) => `${v.toLocaleString()}${unit[k] || k}`)
+            .join(" ");
+        if (sign) {
+            return this.sign + str;
+        }
+        return str;
+    }
+    _parse(current, upper) {
+        let a = current(this._dates[1]) - current(this._dates[0]);
+        if (upper) {
+            while (a < 0) {
+                upper.set(this._dates[1], upper.get(this._dates[1]) - 1);
+                this._dates[1] = new Date(this._dates[1]);
+                a += upper.inc(this._dates[1]);
+            }
+        }
+        return a;
+    }
+}
 </script>
 <br />

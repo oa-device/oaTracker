@@ -3,15 +3,14 @@
 
 
 
-from dataclasses import dataclass
 from typing import Any, List, Literal, TypedDict
 import torch
 import yaml
 from ultralytics import settings
 
 # dimension of the camera output
-IMG_WIDTH = 640
-IMG_HEIGHT = 480
+IMG_WIDTH = 1280
+IMG_HEIGHT = 720
 
 # torch device detection, enables cross-platform hardware acceleration
 TORCH_DEVICE = (
