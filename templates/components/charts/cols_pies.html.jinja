@@ -1,0 +1,197 @@
+<div class="col-3">
+<div style="
+    height: 100%;
+    width: 100%;
+">
+    <canvas id="chartEnterBuilding" class="chart-canvas"></canvas>
+    <script>
+
+        const dataEnterBuilding = {
+            labels: ['Left door', 'Right door'],
+            datasets: [
+                {
+                    data: [],
+                    backgroundColor: [window.colors[0],window.colors[1]]
+                }
+            ],
+        };
+
+        const ctxEnterBuilding = document.getElementById('chartEnterBuilding');
+
+        const chartEnterBuilding = new Chart(ctxEnterBuilding, {
+            type: 'pie',
+            data: dataEnterBuilding,
+            options: {
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Enter Building'
+                    },
+                    legend: {
+                        display: true,
+                    },
+                }
+            }
+        });
+
+        const chartEnterBuildingUpdate = () => {
+            chartEnterBuilding.update("none");
+        }
+        window.addEventListener("sse", ({detail: m}) => {
+            const data = m[3];
+            chartEnterBuilding.data.datasets[0].data = [data.first_seen_zone_out_door_left, data.first_seen_zone_out_door_right]
+            chartEnterBuildingUpdate()
+        })
+    </script>
+</div>
+</div>
+<div class="col-3">
+<div style="
+    height: 100%;
+    width: 100%;
+">
+    <canvas id="chartLeaveBuilding" class="chart-canvas"></canvas>
+    <script>
+
+        const dataLeaveBuilding = {
+            labels: ['Left door', 'Right door'],
+            datasets: [
+                {
+                    data: [],
+                    backgroundColor: [window.colors[0],window.colors[1]]
+                }
+            ],
+        };
+
+        const ctxLeaveBuilding = document.getElementById('chartLeaveBuilding');
+
+        const chartLeaveBuilding = new Chart(ctxLeaveBuilding, {
+            type: 'pie',
+            data: dataLeaveBuilding,
+            options: {
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Leave Building'
+                    },
+                    legend: {
+                        display: true,
+                    },
+                }
+            }
+        });
+
+        const chartLeaveBuildingUpdate = () => {
+            chartLeaveBuilding.update("none");
+        }
+        window.addEventListener("sse", ({detail: m}) => {
+            const data = m[2];
+            chartLeaveBuilding.data.datasets[0].data = [data.last_seen_zone_out_door_left, data.last_seen_zone_out_door_right]
+            chartLeaveBuildingUpdate()
+        })
+    </script>
+</div>
+</div>
+
+
+<div class="col-3">
+<div style="
+    height: 100%;
+    width: 100%;
+">
+    <canvas id="chartLeaveOutside" class="chart-canvas"></canvas>
+    <script>
+
+        const dataLeaveOutside = {
+            labels: ['Left', 'Bottom', 'Right'],
+            datasets: [
+                {
+                    data: [],
+                    backgroundColor: [window.colors[0],window.colors[1],window.colors[2]]
+                }
+            ],
+        };
+
+        const ctxLeaveOutside = document.getElementById('chartLeaveOutside');
+
+        const chartLeaveOutside = new Chart(ctxLeaveOutside, {
+            type: 'pie',
+            data: dataLeaveOutside,
+            options: {
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Leave Outside'
+                    },
+                    legend: {
+                        display: true,
+                    },
+                }
+            }
+        });
+
+        const chartLeaveOutsideUpdate = () => {
+            chartLeaveOutside.update("none");
+        }
+        window.addEventListener("sse", ({detail: m}) => {
+            const data = m[2];
+            chartLeaveOutside.data.datasets[0].data = [data.last_seen_zone_out_top_left, data.
+last_seen_zone_out_bottom,data.last_seen_zone_out_bottom_right
+]
+            chartLeaveOutsideUpdate()
+        })
+    </script>
+</div>
+</div>
+
+
+<div class="col-3">
+<div style="
+    height: 100%;
+    width: 100%;
+">
+    <canvas id="chartEnterOutside" class="chart-canvas"></canvas>
+    <script>
+
+        const dataEnterOutside = {
+            labels: ['Left', 'Bottom', 'Right'],
+            datasets: [
+                {
+                    data: [],
+                    backgroundColor: [window.colors[0],window.colors[1],window.colors[2]]
+                }
+            ],
+        };
+
+        const ctxEnterOutside = document.getElementById('chartEnterOutside');
+
+        const chartEnterOutside = new Chart(ctxEnterOutside, {
+            type: 'pie',
+            data: dataEnterOutside,
+            options: {
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Enter Outside'
+                    },
+                    legend: {
+                        display: true,
+                    },
+                }
+            }
+        });
+
+        const chartEnterOutsideUpdate = () => {
+            chartEnterOutside.update("none");
+        }
+        window.addEventListener("sse", ({detail: m}) => {
+            const data = m[3];
+            console.log(data)
+            chartEnterOutside.data.datasets[0].data = [data.first_seen_zone_out_top_left, data.
+                first_seen_zone_out_bottom,data.first_seen_zone_out_bottom_right
+]
+            chartEnterOutsideUpdate()
+        })
+    </script>
+</div>
+</div>

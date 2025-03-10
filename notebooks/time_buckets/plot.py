@@ -1,9 +1,5 @@
 from bokeh.colors import RGB
-import matplotlib.pyplot as plt
 import pandas as pd
-import matplotlib.dates as mdates
-
-
 
 import pandas as pd
 import numpy as np
@@ -24,53 +20,11 @@ dark_theme_colors = [
     (0.80, 0.40, 0.00),  # Dark Orange
 ]
 
-
-def plot(data, zones, name, bucket_size_minutes):
-    # Convert to a Pandas DataFrame
-    df = pd.DataFrame(data)
-    # Set dark mode for the plot
-    plt.style.use('dark_background')
-
-    # Create the plot
-    plt.figure(figsize=(14, 6))
-
-    # Plot the categories of visits
-    i = 0
-    for zone in zones:
-        plt.plot(df['time_bucket'], df[f'{zone}_{name}'], label=f'{zone} {name}', marker='o', linestyle='-', color=dark_theme_colors[i], markersize=8)
-        i+=1
-
-    # Customize the plot
-    plt.title(f'{name} per {bucket_size_minutes} minutes', fontsize=14, color='white')
-    plt.xlabel('Time', fontsize=12, color='white')
-    plt.ylabel(name, fontsize=12, color='white')
-
-
-    # Set the format for the x-axis to display full time bucket
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
-
-    # Make sure all time buckets are visible on the x-axis
-    plt.xticks(df['time_bucket'], rotation=45, fontsize=10, color='white', ha='right')  # Display full time_bucket strings
-    plt.yticks(fontsize=10, color='white')
-
-    # Add gridlines for clarity
-    plt.grid(True, linestyle='--', alpha=0.5)
-
-    # Add legend
-    plt.legend(loc='upper left', fontsize=10, shadow=True)
-
-    # Adjust layout to ensure everything fits (including rotated x-ticks)
-    plt.tight_layout()
-
-    # Show the plot
-    plt.show()
-
-
 from bokeh.models import HoverTool, WheelZoomTool
 
 def plot2(data, zones, name, bucket_size_minutes):
 
-    df = pd.DataFrame(data)
+    df = data
 
     # Convert 'time_bucket' to datetime
     df["time_bucket"] = pd.to_datetime(df["time_bucket"])
@@ -83,7 +37,7 @@ def plot2(data, zones, name, bucket_size_minutes):
         ("value", "@data")
     ])
     
-    p = figure(title=f'{name} per {bucket_size_minutes} minutes',height=700, width=1200, tools=[hover, "xpan", "wheel_zoom"], toolbar_location=None,
+    p = figure(title=f'{name} per {bucket_size_minutes} minutes',height=250, width=1200, tools=[hover, "xpan", "wheel_zoom"], toolbar_location=None,
             x_axis_type="datetime",
             background_fill_color="#efefef", 
             x_range=(dates[0], dates[-1]), x_axis_location="below")
@@ -104,7 +58,7 @@ def plot2(data, zones, name, bucket_size_minutes):
 
     # Range selector
     select = figure(title="Drag the middle and edges of the selection box to change the range above",
-                    height=130, width=1200, y_range=p.y_range,
+                    height=80, width=1200, y_range=p.y_range,
                     x_axis_type="datetime", y_axis_type=None,
                     tools="", toolbar_location=None, background_fill_color="#efefef")
 
@@ -152,4 +106,4 @@ def plot2(data, zones, name, bucket_size_minutes):
     select.xaxis.ticker.desired_num_ticks = len(dates)
 
     # Display the plots
-    show(column(p,select))
+    show(column(p))

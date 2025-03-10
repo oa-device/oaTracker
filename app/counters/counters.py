@@ -3,7 +3,6 @@ from abc import ABC
 from copy import deepcopy
 import os
 from pathlib import Path
-import sqlite3
 from typing import Any
 import ultralytics.engine.results
 import ultralytics.trackers
@@ -24,16 +23,13 @@ class Counter(ABC):
         self.track_limit = 10_000
         self.meta = { "name": name, "track_limit": self.track_limit }
         self.args = args
-        counter_config = find(lambda counter_config: counter_config["name"] == name, self.args.counters_config) # type: ignore
-        self.counter_config: dict[str, Any]  =  counter_config["config"] if "config" in counter_config else dict()
+        self.counter_config: dict[str, Any]  =  self.args.counters_config["zone_counter"]
         
     
-    def update(self, now: float, boxes: ultralytics.engine.results.Boxes, tracker: ultralytics.trackers.bot_sort.BOTSORT) -> None:
+    def update(self, now: float, boxes: ultralytics.engine.results.Boxes, removed_stracks: list[Any]) -> None:
         pass
     
-    def init(self, connection: sqlite3.Connection, track_uuids: dict[int, bytes]) -> None:
-        self.connection = connection
-
+    def init(self, track_uuids: dict[int, bytes]) -> None:
         self.track_uuids = track_uuids
         
     def collect(self):
@@ -51,26 +47,25 @@ class Counters():
         self.data = {}
         self.meta = {}
         self.track_uuids = {}
-        self.connection = sqlite3.connect(database_folder_path + "/cam1.db")
         self.counters, self.classes = self.get_all_active_counters(args, all_counters)
             
         
     def get_all_active_counters(self, args: Args, all_counters: list[Counter]):
         all_active_counters=[]
         classes=[]
-        active_counters_name =  list(map(lambda counter_config: counter_config["name"], args.counters_config))
+        active_counters_name =  args.counters_config.keys()
         for active_counter_name in active_counters_name:
             configs = [_counter for _counter in all_counters if active_counter_name == _counter.name]
             if len(configs) != 0:
                 counter = configs[0](args)
-                counter.init(self.connection, self.track_uuids)
+                counter.init(self.track_uuids)
                 all_active_counters.append(counter)
                 classes += counter.classes
             
         return all_active_counters, classes
 
     
-    def update(self,now: float, boxes: ultralytics.engine.results.Boxes, tracker: ultralytics.trackers.bot_sort.BOTSORT) -> None:
+    def update(self,now: float, boxes: ultralytics.engine.results.Boxes, removed_stracks: list[Any]) -> None:
         data = {}
         meta = {}
         
@@ -81,7 +76,7 @@ class Counters():
                 self.track_uuids[id] = uuid4().bytes
         
         for counter in self.counters:
-            counter.update(now, boxes, tracker)
+            counter.update(now, boxes, removed_stracks)
             data[counter.name], meta[counter.name] = counter.collect()
             
         self.data = data
@@ -122,7 +117,7 @@ class Counters():
                 label = f"{box_labels if len(box_labels) != 0 else ""} {int(conf * 100)}%" if conf else name
                 annotator.box_label(d.xyxy[0], label, color=(0, 225, 27))
 
-        annotator.text_label((1184,700,1280,720), datetime.datetime.fromtimestamp(cam_ts/1000).strftime('%H:%M:%S'), color=(0,0,0))
+        annotator.text_label((1140,690,1280,720), datetime.datetime.fromtimestamp(cam_ts).strftime('%H:%M:%S'), color=(0,0,0))
 
         return annotator.result()
  

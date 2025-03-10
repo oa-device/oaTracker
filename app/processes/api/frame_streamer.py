@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-"""Defines the FrameStreamer class and it's interface with the in memory SQLite datebase
-"""
 
 import asyncio
 import os
@@ -26,6 +24,7 @@ class FrameStreamer:
             target=self.__update,
             args=(),
         )
+        self.__thread.daemon = True
         self.__thread.start()
 
         
@@ -45,26 +44,27 @@ class FrameStreamer:
                         
                     self.img=img
                 except Exception as a:
+                    print(1)
                     pass
                 
-                time.sleep(0.001)
+                time.sleep(1 / 33)
                 
 
     async def _start_stream(self):
         
-        """Continuous loop to stream the frame from SQLite to html image/jpeg format
+        """Continuous loop to stream the frame to html image/webp format
         Yields:
             bytes: HTML containing the bytes to plot the stream
         """
         while self.running:
             try:
                 yield (
-                    b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + self.img + b"\r\n"
+                    b"--frame\r\n" b"Content-Type: image/webp\r\n\r\n" + self.img + b"\r\n"
                 )
             except Exception as a:
                 pass
             
-            await asyncio.sleep(0.066)
+            await asyncio.sleep(1 / 15)
 
 
     def get_stream(

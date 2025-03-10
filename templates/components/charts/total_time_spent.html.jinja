@@ -1,0 +1,80 @@
+<div style="
+    height: 100%;
+    width: 100%;
+">
+    <canvas id="chartTotalTimeSpent" class="chart-canvas"></canvas>
+    <script>
+
+        const dataTotalTimeSpent = {
+            datasets: [
+                {
+                    data: [],
+                    fill: false,
+                    label:
+                        'Total Time Spent',
+                    borderColor: window.colors[0],
+                    backgroundColor: window.colors[0],
+                    
+                }
+            ],
+        };
+
+        const ctxTotalTimeSpent = document.getElementById('chartTotalTimeSpent');
+
+        const chartTotalTimeSpent = new Chart(ctxTotalTimeSpent, {
+            type: 'line',
+            data: dataTotalTimeSpent,
+            options: {
+                aspectRatio: 1.5,
+                events: [],
+                scales: {
+                    x: {
+                        type: 'time', // Enables time series on the x-axis
+                        time: {
+                        unit: 'second', // Adjust as needed: 'second', 'minute', 'hour', 'day', 'month', etc.
+                            displayFormats: {
+                                second: 'HH:mm:ss', // Format for the x-axis labels
+                            },
+                        },
+            title: {
+              display: true,
+              text: 'Time',
+            },
+                    },
+                    y: {
+                        ticks: {
+                            callback: function (value, index, ticks) {
+                                return window.formatDuration(value * 1000)
+                            }
+                        }
+                    }
+                }
+                , plugins: {
+                    title: {
+                        display: true,
+                        text: 'Total Time Spent'
+                    },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+          },
+          legend: {
+            display: true,
+          },
+                }
+            }
+        });
+
+        const chartTotalTimeSpentUpdate = () => {
+            chartTotalTimeSpent.update("none");
+        }
+        window.addEventListener("sse", ({detail: m}) => {
+            const now = Date.now();
+            const limit = (now) - 120 * 60000;
+            const data = m[5][1];
+            chartTotalTimeSpent.data.datasets[0].data.push([now, data])
+            chartTotalTimeSpent.data.datasets[0].data = window.processBuckets(chartTotalTimeSpent.data.datasets[0].data.filter(x => x[0] > limit))
+            chartTotalTimeSpentUpdate()
+        })
+    </script>
+</div>

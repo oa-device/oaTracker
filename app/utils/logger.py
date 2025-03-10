@@ -9,7 +9,6 @@ from pygments import highlight, lexers, formatters
 
 class CloudCompatibleFormatter(logging.Formatter):
 
-        
     def format(self, record):
         log_data = {
             "level": record.levelname,

@@ -32,10 +32,11 @@ class Cors(TypedDict):
     allowed_headers: List[str]
 
 class Config(TypedDict):
-    default_camera: int
+    default_yolo_source: int | str
     default_model: str
     default_server_port: int
     cors: Cors
+    cam_id: str | None
     counters: list[dict[str, Any]]
     
 

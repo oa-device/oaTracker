@@ -1,5 +1,5 @@
 def get_bucket_durations_snippet(bucket_size_minutes: int):
-    return """SELECT 
+    return f"""SELECT 
         zp.track_id,
         zp.zone_name,
         tb.time_bucket,

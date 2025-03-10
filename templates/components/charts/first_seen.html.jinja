@@ -1,0 +1,116 @@
+<div style="
+    height: 100%;
+    width: 100%;
+">
+    <canvas id="chartFirstSeen" class="chart-canvas"></canvas>
+    <script>
+
+        const dataFirstSeen = {
+            datasets: [
+                {
+                    data: [],
+                    fill: false,
+                    label:
+                        'enter from out_bottom',
+                    borderColor: window.colors[0],
+                    backgroundColor: window.colors[0],
+                    
+                },
+                {
+                    data: [],
+                    fill: false,
+                    label:
+                        'enter from out_bottom_right',
+                    borderColor: window.colors[1],
+                    backgroundColor: window.colors[1],
+                    
+                },
+                {
+                    data: [],
+                    fill: false,
+                    label:
+                        'enter enter from zone door_left',
+                    borderColor: window.colors[2],
+                    backgroundColor: window.colors[2],
+                    
+                },
+                {
+                    data: [],
+                    fill: false,
+                    label:
+                        'enter from zone door_right',
+                    borderColor: window.colors[3],
+                    backgroundColor: window.colors[3],
+                    
+                },
+                {
+                    data: [],
+                    fill: false,
+                    label: 'enter from out_top_left',
+                    borderColor: window.colors[4],
+                    backgroundColor: window.colors[4],
+                    
+                },
+            ],
+        };
+
+        const ctxFirstSeen = document.getElementById('chartFirstSeen');
+
+        const chartFirstSeen = new Chart(ctxFirstSeen, {
+            type: 'line',
+            data: dataFirstSeen,
+            options: {
+                aspectRatio: 1.5,
+                ...window.chartTooltip,
+                events: [],
+                scales: {
+                    x: {
+                        type: 'time', // Enables time series on the x-axis
+                        time: {
+                        unit: 'second', // Adjust as needed: 'second', 'minute', 'hour', 'day', 'month', etc.
+                            displayFormats: {
+                                second: 'HH:mm:ss', // Format for the x-axis labels
+                            },
+                        },
+                    },
+                    y: {
+                        ticks: {
+                                beginAtZero: true,
+                                callback: function (value) {
+                                    if (value % 1 === 0) { return value; }
+                                }
+                        },
+                    }
+                }
+                , plugins: {
+                    colorschemes: {
+
+                        scheme: 'brewer.Paired12'
+
+                    },
+                    title: {
+                        display: true,
+                        text: 'FirstSeen'
+                    },
+                    legend: {
+                        display: true
+                    }
+                }
+            }
+        });
+
+        const chartFirstSeenUpdate = () => {
+            chartFirstSeen.update("none");
+        }
+        window.addEventListener("sse", ({ detail: m }) => {
+            const now = Date.now();
+            const limit = (now) - 120 * 60000;
+            const data = m[3];
+            Object.entries(data).map(([key, value], i) => {
+                chartFirstSeen.data.datasets[i].data.push([now, value]);
+                chartFirstSeen.data.datasets[i].data = window.processBuckets(chartFirstSeen.data.datasets[i].data.filter(x => x[0] > limit));
+            });
+            chartFirstSeenUpdate();
+        })
+    </script>
+</div>

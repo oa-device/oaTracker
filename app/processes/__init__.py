@@ -1,4 +1,4 @@
 from .api import ApiProcess
-from .proxy_db import ProxyDBProcess
+from .sync import SyncProcess
 from .counter import CounterProcess
 

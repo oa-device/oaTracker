@@ -57,7 +57,7 @@
 		clock.innerText = (fps).toFixed(1) + "fps " + new Date().toTimeString().split(' ')[0]
 	}, 100)
 
-	window.onData = ([movements, last_40]) => {
+	window.onDataRT = ([movements, last_40]) => {
 			tbody_zone_movement.replaceChildren()
 			movements.map(m => tbody_zone_movement.appendChild(zoneMovementToTr(m)))
 			tbody_zone_last_40.replaceChildren()

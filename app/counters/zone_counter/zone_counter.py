@@ -1,6 +1,6 @@
+import datetime
 import os
 from queue import Queue
-from threading import Thread
 import time
 from typing import Any, TypedDict, Union
 from uuid import uuid4
@@ -13,8 +13,6 @@ import ultralytics.trackers.bot_sort
 from app.counters import Counter
 from app.utils.time_int import time_int
 
-
-cam_id_bytes = uuid.UUID(os.environ["CAM_ID"]).bytes
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -122,29 +120,36 @@ class ZoneCounterTrack(dict):
                 zone["enter_event_id"] = uuid4().bytes
                 zone["leave_event_id"] = uuid4().bytes
 
-    def get_rows(self):
+    def get_rows(self, last_update):
         _done_rows = self.done_rows.copy()
         self.done_rows=[]
         # print('self.live_row', self.live_row)
-        return {"live": self.live_row, "done": _done_rows}
+        live_rows = []
+        if self.live_row is not None and self.live_row["event_ts"] < last_update:
+            _done_rows.append(self.live_row)
+            self.live_row = None
+        elif self.live_row is not None:
+            live_rows.append(self.live_row)
+        
+        return {"live": live_rows, "done": _done_rows}
 
-
+        
+schema = pa.schema(
+    [
+        pa.field("event_ts", pa.timestamp("us"), nullable=False),
+        pa.field("event_id", pa.binary(16), nullable=False),
+        pa.field("event_name", pa.string(), nullable=False),
+        pa.field("track_conf", pa.int8(), nullable=False),
+        pa.field("track_class", pa.int8(), nullable=False),
+        pa.field("track_id", pa.binary(16), nullable=False),
+        pa.field("cam_id", pa.binary(16), nullable=False),
+    ]
+)
+        
 
 def write_files(q: Queue, boot_int: int):
           
-    schema = pa.schema(
-        [
-            pa.field("event_ts", pa.timestamp("us"), nullable=False),
-            pa.field("event_id", pa.binary(16), nullable=False),
-            pa.field("event_name", pa.string(), nullable=False),
-            pa.field("track_conf", pa.int8(), nullable=False),
-            pa.field("track_class", pa.int8(), nullable=False),
-            pa.field("track_id", pa.binary(16), nullable=False),
-            pa.field("cam_id", pa.binary(16), nullable=False),
-        ]
-    )
-    done_rows_arrow = schema.empty_table()
-    last_done_int = boot_int
+
     
     while True:
         from_queue=q.get()
@@ -153,24 +158,7 @@ def write_files(q: Queue, boot_int: int):
         live_row = from_queue[0]
         done_rows = from_queue[1]
         done_int = from_queue[2]
-        
-        if last_done_int != done_int:
-            done_rows_arrow = schema.empty_table()
-            last_done_int = done_int
-        
-        live_rows_arrow = pa.Table.from_pylist(live_row, schema=schema)
-        pq.write_table(live_rows_arrow, "/tmp/warehouse_oa/live.parquet.tmp", compression="snappy")
-        
-        update_done=len(done_rows) != 0
 
-        if update_done != 0:
-            done_rows_arrow = pa.concat_tables([pa.Table.from_pylist(done_rows, schema=schema), done_rows_arrow ])
-            pq.write_table(done_rows_arrow, "/tmp/warehouse_oa/done.parquet.tmp", compression="snappy")
-            
-        if update_done:
-            os.replace("/tmp/warehouse_oa/done.parquet.tmp", f"/tmp/warehouse_oa/done-{boot_int}-{done_int}.parquet")
-       
-        os.replace("/tmp/warehouse_oa/live.parquet.tmp", f"/tmp/warehouse_oa/live-{boot_int}.parquet")
         
         # print("writes", (time.monotonic() - begin) * 1000, 'live', live_rows_arrow.num_rows, 'done', done_rows_arrow.num_rows, 'update_done', update_done)
 
@@ -179,7 +167,7 @@ class ZoneCounter(Counter):
     name = "zone_counter"
 
     def __init__(self, args) -> None:
-        self.classes = [0]
+        self.classes = [0,2,3,5]
         super().__init__(args, ZoneCounter.name)
 
         self.setup()
@@ -200,111 +188,153 @@ class ZoneCounter(Counter):
         self.rows_deleted_tracks_live = []
         self.rows_deleted_tracks_done = []
         self.done_int = self.args.boot_int
+        self.done_rows_arrow = schema.empty_table()
+        self.last_done_int = self.args.boot_int
+        
+        
+
+        self.cam_id_bytes = uuid.UUID(args.camId).bytes
+        self.cam_id_hex = str(uuid.UUID(args.camId).hex).upper()
+            
         
         self.write_thread_queue: Queue[dict[str, Any]] = Queue()
-        
-        worker = Thread(target=write_files, args=(self.write_thread_queue, self.args.boot_int))
-        worker.setDaemon(True)
-        worker.start()
+
 
         # , list[list[Union[int, float, bytes]]]
 
     def update(
         self,
         now: float,
-        boxes: ultralytics.engine.results.Boxes,
-        tracker: ultralytics.trackers.bot_sort.BOTSORT,
+        boxes: ultralytics.engine.results.Boxes, removed_stracks: list[Any]
     ) -> None:
-        self.last_update = now
+        try:
+            self.last_update = now
 
-        # start with tracks that were in the frame
-        box_ids = []
-        for box in boxes:
-            if box.id is None:
-                continue
-            id = int(box.id)
-            box_ids.append(id)
-            center_x = float(box.xywh[0][0])
-            bottom_y = float(box.xyxy[0][3])
-            small_quarter_wh = min(float(box.xywh[0][2]), float(box.xywh[0][3])) / 6
-            x = center_x
-            y = float(bottom_y - small_quarter_wh)
+            # start with tracks that were in the frame
+            box_ids = []
+            for box in boxes:
+                if box.id is None:
+                    continue
+                id = int(box.id)
+                box_ids.append(id)
+                center_x = float(box.xywh[0][0])
+                bottom_y = float(box.xyxy[0][3])
+                small_quarter_wh = min(float(box.xywh[0][2]), float(box.xywh[0][3])) / 6
+                x = center_x
+                y = float(bottom_y - small_quarter_wh)
 
-            uuid = self.track_uuids[id]
-            new_track = id not in self.data
-            conf = int(box.conf * 100)
-            track_class = int(box.cls)
+                uuid = self.track_uuids[id]
+                new_track = id not in self.data
+                conf = int(box.conf * 100)
+                track_class = int(box.cls)
 
-            current_zone = -1
-            i = -1
-            for zone_shape in self.zones_shape:
-                i += 1
-                contains = zone_shape.contains(Point(x, y))  # type: ignore
-                if contains:
-                    current_zone = i
+                current_zone = -1
+                i = -1
+                for zone_shape in self.zones_shape:
+                    i += 1
+                    contains = zone_shape.contains(Point(x, y))  # type: ignore
+                    if contains:
+                        current_zone = i
 
-            if new_track:
-                self.data[id] = ZoneCounterTrack(
-                    id,
-                    x,
-                    y,
-                    current_zone,
-                    self.zones_name,
-                    track_class,
-                    cam_id=cam_id_bytes,
-                    track_id=uuid
-                )
+                if new_track:
+                    self.data[id] = ZoneCounterTrack(
+                        id,
+                        x,
+                        y,
+                        current_zone,
+                        self.zones_name,
+                        track_class,
+                        cam_id=self.cam_id_bytes,
+                        track_id=uuid
+                    )
 
-            self.data[id].update_present(now, x, y, current_zone, conf)
+                self.data[id].update_present(now, x, y, current_zone, conf)
 
-        # update tracks not in frame
-        # tracks_not_in_frame = [
-        #     track for id, track in self.data.items() if not id in box_ids
-        # ]
-        # for track_not_in_frame in tracks_not_in_frame:
-        #     print("not in frame", track_not_in_frame.id)
-            
+            # update tracks not in frame
+            # tracks_not_in_frame = [
+            #     track for id, track in self.data.items() if not id in box_ids
+            # ]
+            # for track_not_in_frame in tracks_not_in_frame:
+            #     print("not in frame", track_not_in_frame.id)
+                
 
-        # cleanup
-        # to_write = []
-        for not_deleted in [
-            x.track_id
-            for x in tracker.removed_stracks
-            if x.track_id not in self.deleted
-        ]:
-            if not_deleted in self.data:
-                rows = self.data[not_deleted].get_rows()
-                self.rows_deleted_tracks_live.append(rows["live"])
-                self.rows_deleted_tracks_done += rows["done"]
-                del self.data[not_deleted]
+            # cleanup
+            # to_write = []
+            # for not_deleted in [
+            #     x.track_id
+            #     for x in removed_stracks
+            #     if x.track_id not in self.deleted
+            # ]:
+            #     if not_deleted in self.data:
+            #         rows = self.data[not_deleted].get_rows()
+            #         self.rows_deleted_tracks_live.append(rows["live"])
+            #         self.rows_deleted_tracks_done += rows["done"]
+            #         del self.data[not_deleted]
 
-        self.deleted = self.deleted + sorted(
-            set([x.track_id for x in tracker.removed_stracks]) - set(self.deleted)
-        )
+            # self.deleted = self.deleted + sorted(
+            #     set([x.track_id for x in removed_stracks]) - set(self.deleted)
+            # )
 
-        if now - self.last_db_update > 1:
-            self.update_db()
-            self.last_db_update = now
+            if now - self.last_db_update > 1:
+                self.update_db()
+                self.last_db_update = now
+        except Exception as e:
+            print(e)
 
     def update_db(self):
+        begin=time.time()
         rows_deleted_tracks_live = self.rows_deleted_tracks_live
         rows_deleted_tracks_done = self.rows_deleted_tracks_done
         self.rows_deleted_tracks_live = []
         self.rows_deleted_tracks_done = []
         
-        rows = [data.get_rows() for data in self.data.values()]
+        last_db_update_ms = self.last_db_update * 1000000
+        
+        rows = [data.get_rows(last_db_update_ms) for data in self.data.values()]
         done_rows = [row for _rows in rows for row in _rows["done"]] + rows_deleted_tracks_done
-        live_rows = [_rows["live"] for _rows in rows] + rows_deleted_tracks_live
+        live_rows = [row for _rows in rows for row in _rows["live"]] + rows_deleted_tracks_live
+
+        live_rows = [row for row in live_rows if row["event_ts"] > last_db_update_ms]
+                
+        schema = pa.schema(
+            [
+                pa.field("event_ts", pa.timestamp("us"), nullable=False),
+                pa.field("event_id", pa.binary(16), nullable=False),
+                pa.field("event_name", pa.string(), nullable=False),
+                pa.field("track_conf", pa.int8(), nullable=False),
+                pa.field("track_class", pa.int8(), nullable=False),
+                pa.field("track_id", pa.binary(16), nullable=False),
+                pa.field("cam_id", pa.binary(16), nullable=False),
+            ]
+        )
         
-        split = len(done_rows) > 100
         
-        self.write_thread_queue.put((live_rows, done_rows, self.done_int)) # type: ignore
+        update_live=len(live_rows) != 0
+        update_done=len(done_rows) != 0
         
-        # print(done_rows)
+        if update_live:
+            live_rows_arrow = pa.Table.from_pylist(live_rows, schema=schema)
+            pq.write_table(live_rows_arrow, "/tmp/live.parquet.tmp", compression="snappy")
         
-        if split:
-            # print('more than 3, splitting !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            self.done_int = time_int()
+        
+        hive_path = f"year={datetime.datetime.now(datetime.timezone.utc).year}/month={datetime.datetime.now(datetime.timezone.utc).month}/cam_id_hex={self.cam_id_hex}"
+
+        from pathlib import Path
+        Path(f"/tmp/warehouse_oa/{hive_path}").mkdir(parents=True, exist_ok=True)
+        if update_done:
+            self.done_rows_arrow = pa.concat_tables([pa.Table.from_pylist(done_rows, schema=schema), self.done_rows_arrow ])
+            pq.write_table(self.done_rows_arrow, "/tmp/done.parquet.tmp", compression="snappy")
+            os.replace("/tmp/done.parquet.tmp", f"/tmp/warehouse_oa/{hive_path}/done-{self.args.boot_int}-{self.done_int}.parquet")
+            split = len(self.done_rows_arrow) > 10_000
+            if split:
+                self.done_int = time_int()
+                self.done_rows_arrow = schema.empty_table()
+            
+        if update_live:
+            os.replace("/tmp/live.parquet.tmp", f"/tmp/warehouse_oa/{hive_path}/live-{self.args.boot_int}.parquet")
+        
+        # print('update', (time.time() - begin)*1000, 'LIVE', live_count, 'done', done_count)
+
 
 
     def setup(self):

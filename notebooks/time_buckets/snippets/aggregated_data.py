@@ -1,8 +1,5 @@
 def get_aggregated_data_snippet(): 
-    return f"""
-  
-  
-  SELECT 
+    return f"""SELECT 
     time_bucket,
     zone_name,
     COUNT(*) AS total_visits,

@@ -1,0 +1,29 @@
+default_yolo_source: 0
+cam_id: uuid
+cors:
+  allowed_headers:
+  - Content-Type
+  allowed_methods:
+  - GET
+  - OPTIONS
+  allowed_origins:
+  - http://localhost:5173
+counters:
+  zone_counter:
+    zones:
+    - color:
+      - 0
+      - 0
+      - 200
+      name: everything
+      points:
+      - - 0
+        - 0
+      - - 100
+        - 0
+      - - 100
+        - 100
+      - - 0
+        - 100
+default_model: yolo12s.pt
+default_server_port: 8000

@@ -1,0 +1,34 @@
+[project]
+name = "oa-detector"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+dependencies = [
+    "opencv-python",
+    "ultralytics",
+    "mypy",
+    "torch",
+    "fastapi",
+    "sse_starlette",
+    "numpy",
+    "pygments",
+    "shapely",
+    "duckdb",
+    "boto3",
+    "pyarrow",
+    "pylint",
+    "uvicorn",
+    "lap>=0.5.12",
+    "jupysql",
+    "duckdb-engine",
+    "rich",
+    "ipykernel",
+    "matplotlib",
+    "notebook",
+    "jupyter-client",
+    "pyzmq",
+    "bokeh",
+    "jupyter_bokeh",
+    "ipywidgets_bokeh",
+    'pyobjc ; platform_system == "Darwin"'
+]

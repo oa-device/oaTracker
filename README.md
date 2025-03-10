@@ -71,7 +71,7 @@ oaTracker is an internal application for MacOS and Ubuntu that utilizes Ultralyt
 Modify `config.yaml` in the root directory to change default settings:
 
 ```yaml
-default_camera: 0
+default_yolo_source: 0
 default_model: "yolov10n.pt"
 default_server_port: 8000
 

@@ -17,6 +17,7 @@ pathname_state = f"{mmap_directory}/state.shm"
 def mmap_write(mmap_object: mmap.mmap, max_length:int, bytes:bytes):
     while True:
         try:
+            #print(3333)
             body_length = len(bytes)
             if body_length < max_length:
                 twelve_char_length = str(float(body_length)).ljust(12, '0').encode('utf-8')
@@ -34,6 +35,7 @@ def mmap_write(mmap_object: mmap.mmap, max_length:int, bytes:bytes):
 async def mmap_read(mmap_object: mmap.mmap):
     try:
         while True:
+            print(2222)
             mmap_object.seek(0)
             twelve_char_length_raw=mmap_object.read(12)
             
@@ -55,6 +57,7 @@ def mmap_read_nonblocking(mmap_object: mmap.mmap):
         while True:
             mmap_object.seek(0)
             twelve_char_length_raw=mmap_object.read(12)
+            #print(1111)
             
             if twelve_char_length_raw == bytearray(12):
                 return None
@@ -65,7 +68,6 @@ def mmap_read_nonblocking(mmap_object: mmap.mmap):
             return body
     except Exception as e:
         print(traceback.format_exc())
-        print(e)
     return bytearray()
 
 

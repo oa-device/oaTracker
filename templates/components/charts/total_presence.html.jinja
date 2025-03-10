@@ -1,0 +1,74 @@
+<div style="
+    height: 100%;
+    width: 100%;
+">
+    <canvas id="chartTotalPresence" class="chart-canvas"></canvas>
+    <script>
+
+        const dataTotalPresence = {
+            datasets: [
+                {
+                    data: [],
+                    fill: false,
+                    label:
+                        'Person Count',
+                    borderColor: window.colors[0],
+                    backgroundColor: window.colors[0],
+                    
+                }
+            ],
+        };
+
+        const ctxTotalPresence = document.getElementById('chartTotalPresence');
+
+        const chartTotalPresence = new Chart(ctxTotalPresence, {
+            type: 'line',
+            data: dataTotalPresence,
+            options: {
+                aspectRatio: 1.5,
+
+                events: [],
+                scales: {
+                    x: {
+                        type: 'time', // Enables time series on the x-axis
+                        time: {
+                        unit: 'second', // Adjust as needed: 'second', 'minute', 'hour', 'day', 'month', etc.
+                            displayFormats: {
+                                second: 'HH:mm:ss', // Format for the x-axis labels
+                            },
+                        },
+                    },
+                    y: {
+                        ticks: {
+                                beginAtZero: true,
+                                callback: function (value) {
+                                    if (value % 1 === 0) { return value; }
+                                }
+                        }
+                    }
+                }
+                , plugins: {
+                    title: {
+                        display: true,
+                        text: 'Person Count'
+                    },
+                    legend: {
+                        display: true
+                    }
+                }
+            }
+        });
+
+        const chartTotalPresenceUpdate = () => {
+            chartTotalPresence.update("none");
+        }
+        window.addEventListener("sse", ({detail: m}) => {
+            const now = Date.now();
+            const limit = (now) - 120 * 60000;
+            const data = m[5][0];
+            chartTotalPresence.data.datasets[0].data.push([now, data]);
+            chartTotalPresence.data.datasets[0].data = window.processBuckets(chartTotalPresence.data.datasets[0].data.filter(x => x[0] > limit));
+            chartTotalPresenceUpdate();
+        })
+    </script>
+</div>

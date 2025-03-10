@@ -1,4 +1,3 @@
-import os
 import time
 import uuid
 
@@ -13,7 +12,7 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-cam_id_bytes = uuid.UUID(os.environ["CAM_ID"]).bytes
+#cam_id_bytes = uuid.UUID(os.environ["CAM_ID"]).bytes
 
 
 class GenericCounter(Counter):

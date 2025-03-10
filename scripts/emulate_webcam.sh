@@ -11,7 +11,7 @@ USB_NAME_A="USB Camera2"
 DEVICE_NUMBER_A=0
 
 sudo modprobe -r v4l2loopback
-sudo modprobe v4l2loopback devices=2 video_nr=$DEVICE_NUMBER_A max_buffers=4 exclusive_caps=1 card_label="$USB_NAME_A"
+sudo modprobe v4l2loopback devices=1 video_nr=$DEVICE_NUMBER_A max_buffers=4 exclusive_caps=1 card_label="$USB_NAME_A"
 
 ffmpeg -nostats -loglevel 0 -stream_loop -1 -re -i /home/deagle/sloppy.mp4 -f v4l2 -vcodec rawvideo -s 1280x720 /dev/video$DEVICE_NUMBER_A &
 

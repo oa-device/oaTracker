@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zone Mapper 🎯</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <!-- Controls Section -->
+            <div class="controls">
+                <div class="control-group">
+                    <label for="currentZoneName">Zone Name</label>
+                    <input type="text" id="currentZoneName" placeholder="Enter zone name">
+                    <div id="zoneWarnings" class="warnings"></div>
+                </div>
+                <div class="control-group">
+                    <label for="currentZoneColor">Color</label>
+                    <input type="color" id="currentZoneColor">
+                </div>
+                <div class="control-group">
+                    <button id="newZone" class="btn primary">Complete Zone</button>
+                    <span id="pointCounter" class="point-counter">Points: 0/3</span>
+                </div>
+                <div class="control-group">
+                    <button id="undoPointBtn" class="btn secondary" title="Remove last point">
+                        ↩️ Undo Point
+                    </button>
+                </div>
+                <div class="camera-toggle">
+                    <label class="switch">
+                        <input type="checkbox" id="cameraToggle">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="toggle-label">Use Camera Image</span>
+                </div>
+            </div>
+
+            <!-- Canvas Section -->
+            <div class="canvas-container">
+                <canvas id="canvas"></canvas>
+                <div class="canvas-overlay" id="canvasOverlay">
+                    <h2>📷 Upload Image</h2>
+                    <p>Click here or drag & drop an image</p>
+                </div>
+            </div>
+
+            <!-- Zones List Section -->
+            <div id="zonesList" class="zones-list">
+                <h3>📋 Completed Zones</h3>
+            </div>
+        </div>
+
+        <!-- Output Section -->
+        <div class="output-wrapper">
+            <h3>📋 Config</h3><br />
+            <div class="output-header">
+                <button id="copyButton" class="btn secondary" data-tooltip="Copy to clipboard">
+                    <span class="icon">📋</span> Copy YAML
+                </button>
+                <button id="saveButton" class="btn primary" data-tooltip="Save to device">
+                    <span class="icon">💾</span> Save Configuration
+                </button>
+                <div class="edit-toggle">
+                    <label class="switch">
+                        <input type="checkbox" id="editModeToggle">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="toggle-label">Edit Mode</span>
+                </div>
+            </div>
+            <div class="output-container">
+                <pre id="output" class="output-display"></pre>
+                <textarea id="outputEdit" class="output-edit" style="display: none"></textarea>
+                <button id="applyChanges" class="btn primary apply-changes" style="display: none">
+                    Apply Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+<script>
+// Constants and Default Values
+const defaultColors = [
+    "#7aa2f7", "#f7768e", "#9ece6a", "#e0af68",
+    "#bb9af7", "#7dcfff", "#ff9e64", "#1abc9c",
+    "#2ac3de", "#ff007c", "#9d7cd8", "#c0caf5"
+];
+
+class ZoneMapper {
+    constructor() {
+        this.initializeElements();
+        this.initializeState();
+        this.setupEventListeners();
+        this.initializeCanvas();
+
+        // Show loading state
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading-message';
+        loadingDiv.textContent = 'Loading configuration...';
+        document.querySelector('.container').prepend(loadingDiv);
+
+        // Load config and remove loading message when done
+        this.loadInitialConfig().finally(() => {
+            loadingDiv.remove();
+        });
+    }
+
+    initializeElements() {
+        const elements = {
+            canvas: 'canvas',
+            output: 'output',
+            currentZoneName: 'currentZoneName',
+            currentZoneColor: 'currentZoneColor',
+            zonesList: 'zonesList',
+            pointCounter: 'pointCounter',
+            zoneWarnings: 'zoneWarnings',
+            canvasOverlay: 'canvasOverlay',
+            copyButton: 'copyButton',
+            undoPointBtn: 'undoPointBtn',
+            cameraToggle: 'cameraToggle',
+            saveButton: 'saveButton',
+            editModeToggle: 'editModeToggle',
+            outputEdit: 'outputEdit',
+            applyChanges: 'applyChanges',
+            newZone: 'newZone'
+        };
+
+        for (const [key, id] of Object.entries(elements)) {
+            this[key] = document.getElementById(id);
+            if (!this[key]) {
+                console.error(`Missing element with id: ${id}`);
+            }
+        }
+
+        this.ctx = this.canvas?.getContext('2d');
+    }
+
+    initializeState() {
+        this.zones = [];
+        this.currentColorIndex = 0;
+        this.image = null;
+        this.currentZone = this.createNewZone();
+        this.currentZoneColor.value = defaultColors[0];
+        this.isDragging = false;
+        this.dragPointIndex = null;
+        this.dragZoneIndex = null;
+        this.pointRadius = 6;
+    }
+
+    createNewZone() {
+        return {
+            name: '',
+            color: this.hexToRgb(defaultColors[this.currentColorIndex]),
+            points: []
+        };
+    }
+    setupEventListeners() {
+        // Canvas setup
+        this.setupCanvasEvents();
+
+        // Form inputs
+        this.currentZoneName.addEventListener('input', () => this.handleNameInput());
+        this.currentZoneName.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.submitZone();
+            }
+        });
+
+        this.cameraToggle.addEventListener('change', () => this.toggleCamera());
+        this.saveButton.addEventListener('click', () => this.saveConfiguration());
+        this.editModeToggle.addEventListener('change', () => this.toggleEditMode());
+        this.applyChanges.addEventListener('click', () => this.applyYamlChanges());
+        this.currentZoneColor.addEventListener('input', (e) => this.handleColorInput(e));
+        this.newZone.addEventListener('click', () => this.submitZone());
+        this.copyButton.addEventListener('click', () => this.copyOutput());
+        this.undoPointBtn.addEventListener('click', () => this.removeLastPoint());
+        window.addEventListener('resize', () => this.handleResize());
+    }
+
+    setupCanvasEvents() {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.style.display = 'none';
+        document.body.appendChild(fileInput);
+
+        const container = this.canvas.parentElement;
+
+        // Click to upload
+        container.addEventListener('click', () => {
+            if (!this.image) fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                this.handleImage(e.target.files[0]);
+            }
+        });
+
+        // Drag and drop handlers
+        container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (!this.image) {
+                this.canvasOverlay.classList.add('drag-hover');
+            }
+        });
+
+        container.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            this.canvasOverlay.classList.remove('drag-hover');
+        });
+
+        container.addEventListener('drop', (e) => {
+            e.preventDefault();
+            this.canvasOverlay.classList.remove('drag-hover');
+            if (!this.image && e.dataTransfer.files[0]) {
+                this.handleImage(e.dataTransfer.files[0]);
+            }
+        });
+
+        // Canvas interaction events
+        this.canvas.addEventListener('click', (e) => {
+            if (!this.isDragging) {
+                this.handleCanvasClick(e);
+            }
+        });
+
+        // Mouse events for dragging
+        this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
+        this.canvas.addEventListener('mouseleave', () => this.handleMouseUp());
+
+        // Touch events for mobile
+        this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e));
+        this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e));
+        this.canvas.addEventListener('touchend', () => this.handleMouseUp());
+    }
+    handleCanvasClick(e) {
+        if (!this.image || this.isDragging) return;
+
+        const point = this.getCanvasPoint(e);
+        const xPercent = (point.x / this.canvas.width) * 100;
+        const yPercent = (point.y / this.canvas.height) * 100;
+
+        const limitDecimals = (num) => Number(num.toFixed(2));
+
+        this.currentZone.points.push([
+            limitDecimals(xPercent),
+            limitDecimals(yPercent)
+        ]);
+
+        this.updatePointCounter();
+        this.validateZone();
+        this.drawCanvas();
+        this.updateOutput();
+    }
+
+initializeCanvas() {
+    const container = this.canvas.parentElement;
+    this.canvas.width = container.clientWidth;
+    this.canvas.height = container.clientHeight;
+    this.drawCanvas();
+    this.updateOutput();
+}
+
+    drawCanvas() {
+        if (!this.ctx) return;
+
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        if (this.image) {
+            this.ctx.drawImage(this.image, 0, 0, this.canvas.width, this.canvas.height);
+        }
+
+        // Draw completed zones
+        this.zones.forEach(zone => {
+            this.drawZone(zone.points, `rgb(${zone.color.join(',')})`, true);
+        });
+
+        // Draw current zone
+        if (this.currentZone.points.length > 0) {
+            this.drawZone(this.currentZone.points, `rgb(${this.currentZone.color.join(',')})`, false);
+        }
+    }
+
+    drawZone(points, color, isComplete) {
+        if (points.length === 0) return;
+
+        // Draw lines
+        this.ctx.beginPath();
+        points.forEach((point, index) => {
+            const x = (point[0] / 100) * this.canvas.width;
+            const y = (point[1] / 100) * this.canvas.height;
+
+            if (index === 0) this.ctx.moveTo(x, y);
+            else this.ctx.lineTo(x, y);
+        });
+
+        if (isComplete && points.length > 2) {
+            this.ctx.closePath();
+        }
+
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+
+        // Draw points with hover effect
+        points.forEach((point, index) => {
+            const x = (point[0] / 100) * this.canvas.width;
+            const y = (point[1] / 100) * this.canvas.height;
+
+            // Draw point circle
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, this.pointRadius, 0, Math.PI * 2);
+            this.ctx.fillStyle = color;
+            this.ctx.fill();
+
+            // Draw point border
+            this.ctx.strokeStyle = '#fff';
+            this.ctx.lineWidth = 2;
+            this.ctx.stroke();
+
+            // Draw point number
+            this.ctx.fillStyle = '#fff';
+            this.ctx.font = '12px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(index + 1, x, y);
+        });
+    }
+
+    handleMouseDown(e) {
+        if (!this.image) return;
+
+        const point = this.getCanvasPoint(e);
+        const found = this.findClickedPoint(point.x, point.y);
+
+        if (found) {
+            e.preventDefault();
+            this.isDragging = true;
+            this.dragPointIndex = found.pointIndex;
+            this.dragZoneIndex = found.zoneIndex;
+            this.canvas.style.cursor = 'grabbing';
+        }
+    }
+
+    handleMouseMove(e) {
+        if (!this.image) return;
+
+        const point = this.getCanvasPoint(e);
+
+        if (!this.isDragging) {
+            if (this.findClickedPoint(point.x, point.y)) {
+                this.canvas.style.cursor = 'grab';
+            } else {
+                this.canvas.style.cursor = 'crosshair';
+            }
+            return;
+        }
+
+        if (this.isDragging) {
+            const xPercent = (point.x / this.canvas.width) * 100;
+            const yPercent = (point.y / this.canvas.height) * 100;
+
+            const limitDecimals = (num) => Number(num.toFixed(2));
+
+            if (this.dragZoneIndex === -1) {
+                this.currentZone.points[this.dragPointIndex] = [
+                    limitDecimals(xPercent),
+                    limitDecimals(yPercent)
+                ];
+            } else {
+                this.zones[this.dragZoneIndex].points[this.dragPointIndex] = [
+                    limitDecimals(xPercent),
+                    limitDecimals(yPercent)
+                ];
+            }
+
+            this.drawCanvas();
+            this.updateOutput();
+        }
+    }
+    handleMouseUp() {
+        if (this.isDragging) {
+            setTimeout(() => {
+                this.isDragging = false;
+            }, 10);
+        }
+        this.dragPointIndex = null;
+        this.dragZoneIndex = null;
+        this.canvas.style.cursor = 'crosshair';
+    }
+
+    handleTouchStart(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        this.handleMouseDown(touch);
+    }
+
+    handleTouchMove(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        this.handleMouseMove(touch);
+    }
+
+    getCanvasPoint(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    }
+
+    findClickedPoint(x, y) {
+        // Check current zone points
+        for (let i = 0; i < this.currentZone.points.length; i++) {
+            const point = this.currentZone.points[i];
+            const px = (point[0] / 100) * this.canvas.width;
+            const py = (point[1] / 100) * this.canvas.height;
+
+            if (this.isPointInRadius(x, y, px, py)) {
+                return { pointIndex: i, zoneIndex: -1 };
+            }
+        }
+
+        // Check completed zones points
+        for (let i = 0; i < this.zones.length; i++) {
+            const zone = this.zones[i];
+            for (let j = 0; j < zone.points.length; j++) {
+                const point = zone.points[j];
+                const px = (point[0] / 100) * this.canvas.width;
+                const py = (point[1] / 100) * this.canvas.height;
+
+                if (this.isPointInRadius(x, y, px, py)) {
+                    return { pointIndex: j, zoneIndex: i };
+                }
+            }
+        }
+
+        return null;
+    }
+
+    isPointInRadius(x, y, px, py) {
+        const distance = Math.sqrt(Math.pow(x - px, 2) + Math.pow(y - py, 2));
+        return distance <= this.pointRadius * 2;
+    }
+
+    async loadInitialConfig() {
+        try {
+            const response = await fetch('/config');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            this.fullConfig = data;
+            const loadedZones = data?.counters?.zone_counter?.zones || [];
+
+            this.zones = loadedZones.map(zone => ({
+                name: zone.name,
+                color: zone.color,
+                points: zone.points
+            }));
+
+            this.updateZonesList();
+            this.drawCanvas();
+            this.updateOutput();
+
+        } catch (error) {
+            console.error('Error loading configuration:', error);
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'config-error';
+            errorDiv.textContent = 'Failed to load configuration';
+            document.querySelector('.container').prepend(errorDiv);
+            setTimeout(() => errorDiv.remove(), 3000);
+        }
+    }
+
+    async saveConfiguration() {
+        if (this.zones.length === 0) {
+            this.saveButton.innerHTML = '<span class="icon">⚠️</span> No zones defined';
+            this.saveButton.classList.add('warning');
+            setTimeout(() => {
+                this.saveButton.innerHTML = '<span class="icon">💾</span> Save Configuration';
+                this.saveButton.classList.remove('warning');
+            }, 2000);
+            return;
+        }
+
+        try {
+            this.saveButton.disabled = true;
+            this.saveButton.innerHTML = '<span class="icon">⏳</span> Saving...';
+
+            const zones = this.zones.map(zone => ({
+                name: zone.name,
+                color: zone.color,
+                points: zone.points
+            }));
+
+            this.fullConfig.counters.zone_counter.zones = zones;
+
+            const response = await fetch('/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(this.fullConfig)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            this.saveButton.innerHTML = '<span class="icon">✅</span> Saved!';
+        } catch (error) {
+            console.error('Error saving configuration:', error);
+            this.saveButton.innerHTML = '<span class="icon">❌</span> Error Saving';
+        } finally {
+            setTimeout(() => {
+                this.saveButton.disabled = false;
+                this.saveButton.innerHTML = '<span class="icon">💾</span> Save Configuration';
+            }, 2000);
+        }
+    }
+
+    updateOutput() {
+        const output_data = this.zones.map(zone => ({
+            name: zone.name,
+            color: zone.color,
+            points: zone.points
+        }));
+
+        let yamlOutput = '';
+        output_data.forEach(zone => {
+            yamlOutput += `- name: ${zone.name}\n`;
+            yamlOutput += `  color: [${zone.color.join(', ')}]\n`;
+            yamlOutput += `  points: [${zone.points.map(p => `[${p.join(', ')}]`).join(', ')}]\n`;
+        });
+
+        this.output.textContent = yamlOutput;
+        if (this.editModeToggle.checked) {
+            this.outputEdit.value = yamlOutput;
+        }
+    }
+
+    // Utility functions
+    hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? [
+            parseInt(result[1], 16),
+            parseInt(result[2], 16),
+            parseInt(result[3], 16)
+        ] : null;
+    }
+
+    rgbToHex(r, g, b) {
+        return '#' + [r, g, b].map(x => {
+            const hex = x.toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        }).join('');
+    }
+
+    escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    async copyOutput() {
+        try {
+            await navigator.clipboard.writeText(this.output.textContent);
+            const originalText = this.copyButton.textContent;
+            this.copyButton.textContent = '✅ Copied!';
+            setTimeout(() => {
+                this.copyButton.textContent = originalText;
+            }, 2000);
+        } catch (err) {
+            console.error('Failed to copy:', err);
+            this.copyButton.textContent = '❌ Failed to copy';
+        }
+    }
+
+    handleImage(file) {
+    if (!file.type.startsWith('image/')) {
+        this.showError('Please upload an image file');
+        return;
+    }
+
+    if (this.cameraToggle.checked) {
+        this.cameraToggle.checked = false;
+        this.stopCameraFeed();
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        this.image = new Image();
+        this.image.onload = () => {
+            this.resizeCanvasToFit();
+            this.canvasOverlay.style.display = 'none';
+            this.drawCanvas();
+        };
+        this.image.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+resizeCanvasToFit() {
+    const container = this.canvas.parentElement;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    const scale = Math.min(
+        containerWidth / this.image.width,
+        containerHeight / this.image.height
+    );
+
+    this.canvas.width = this.image.width * scale;
+    this.canvas.height = this.image.height * scale;
+}
+
+handleResize() {
+    if (this.image) {
+        this.resizeCanvasToFit();
+        this.drawCanvas();
+    }
+}
+
+toggleCamera() {
+    if (this.cameraToggle.checked) {
+        this.loadCameraImage();
+    } else {
+        this.image = null;
+        this.canvasOverlay.style.display = 'flex';
+        this.drawCanvas();
+    }
+}
+
+loadCameraImage() {
+    this.image = new Image();
+    this.image.onload = () => {
+        this.resizeCanvasToFit();
+        this.canvasOverlay.style.display = 'none';
+        this.drawCanvas();
+    };
+    this.image.src = '/cam.jpg';
+}
+
+handleNameInput() {
+    this.currentZone.name = this.currentZoneName.value.trim();
+    this.validateZone();
+    this.updateOutput();
+}
+
+handleColorInput(e) {
+    this.currentZone.color = this.hexToRgb(e.target.value);
+    this.drawCanvas();
+    this.updateOutput();
+}
+
+validateZone() {
+    this.clearWarnings();
+    let isValid = true;
+
+    if (!this.currentZone.name.trim()) {
+        this.showWarning('Zone name cannot be empty');
+        isValid = false;
+    }
+
+    if (this.zones.some(zone => zone.name === this.currentZone.name.trim())) {
+        this.showWarning('Zone name must be unique');
+        isValid = false;
+    }
+
+    if (this.currentZone.points.length < 3) {
+        this.showWarning(`Need at least 3 points (currently have ${this.currentZone.points.length})`);
+        isValid = false;
+    }
+
+    return isValid;
+}
+
+showWarning(message) {
+    if (this.zoneWarnings) {
+        const warning = document.createElement('div');
+        warning.className = 'warning';
+        warning.textContent = message;
+        this.zoneWarnings.appendChild(warning);
+    }
+}
+
+showError(message) {
+    alert(message); // Could be replaced with a more sophisticated error display
+}
+
+clearWarnings() {
+    if (this.zoneWarnings) {
+        this.zoneWarnings.innerHTML = '';
+    }
+}
+
+updatePointCounter() {
+    if (this.pointCounter) {
+        this.pointCounter.textContent = `Points: ${this.currentZone.points.length}/3`;
+    }
+}
+
+toggleEditMode() {
+    const isEditMode = this.editModeToggle.checked;
+    this.output.style.display = isEditMode ? 'none' : 'block';
+    this.outputEdit.style.display = isEditMode ? 'block' : 'none';
+    this.applyChanges.style.display = isEditMode ? 'block' : 'none';
+
+    if (isEditMode) {
+        this.outputEdit.value = this.output.textContent;
+    }
+}
+
+applyYamlChanges() {
+    try {
+        const existingError = document.querySelector('.yaml-error');
+        if (existingError) existingError.remove();
+
+        const yamlText = this.outputEdit.value;
+        const parsedZones = jsyaml.load(yamlText);
+
+        if (!Array.isArray(parsedZones)) {
+            throw new Error('YAML must contain an array of zones');
+        }
+
+        parsedZones.forEach((zone, index) => {
+            if (!zone.name || !Array.isArray(zone.color) || !Array.isArray(zone.points)) {
+                throw new Error(`Invalid zone structure at index ${index}`);
+            }
+            if (zone.color.length !== 3) {
+                throw new Error(`Invalid color format at zone "${zone.name}"`);
+            }
+            if (zone.points.length < 3) {
+                throw new Error(`Zone "${zone.name}" must have at least 3 points`);
+            }
+        });
+
+        this.zones = parsedZones;
+        this.updateZonesList();
+        this.drawCanvas();
+        this.updateOutput();
+
+        this.editModeToggle.checked = false;
+        this.toggleEditMode();
+
+        this.applyChanges.innerHTML = '<span class="icon">✅</span> Applied';
+        setTimeout(() => {
+            this.applyChanges.innerHTML = 'Apply Changes';
+        }, 2000);
+
+    } catch (error) {
+        console.error('YAML parsing error:', error);
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'yaml-error';
+        errorDiv.textContent = `Error: ${error.message}`;
+        this.outputEdit.parentNode.appendChild(errorDiv);
+
+        this.applyChanges.innerHTML = '<span class="icon">❌</span> Error';
+        setTimeout(() => {
+            this.applyChanges.innerHTML = 'Apply Changes';
+        }, 2000);
+    }
+}
+
+updateZonesList() {
+    const completedZones = this.zones.map((zone, index) => `
+        <div class="zone-item">
+            <strong>${this.escapeHtml(zone.name)}</strong>
+            <div class="zone-controls">
+                <input type="text" value="${this.escapeHtml(zone.name)}" 
+                    onchange="zoneMapper.updateZoneName(${index}, this.value)">
+                <input type="color" value="${this.rgbToHex(...zone.color)}" 
+                    onchange="zoneMapper.updateZoneColor(${index}, this.value)">
+                <button class="btn secondary" onclick="zoneMapper.deleteZone(${index})">🗑️</button>
+            </div>
+        </div>
+    `).join('');
+
+    this.zonesList.innerHTML = `
+        <h3>📋 Completed Zones</h3>
+        ${completedZones}
+    `;
+}
+updateZoneName(index, name) {
+    this.zones[index].name = name;
+    this.updateOutput();
+    this.updateZonesList();
+}
+
+updateZoneColor(index, color) {
+    this.zones[index].color = this.hexToRgb(color);
+    this.drawCanvas();
+    this.updateOutput();
+}
+
+deleteZone(index) {
+    this.zones.splice(index, 1);
+    this.updateZonesList();
+    this.drawCanvas();
+    this.updateOutput();
+}
+}
+
+// Initialize the application
+const zoneMapper = new ZoneMapper();
+</script>
+
+    <style>
+    :root {
+        --bg-primary: #1a1b26;
+        --bg-secondary: #24283b;
+        --text-primary: #c0caf5;
+        --text-secondary: #7982a9;
+        --accent: #7aa2f7;
+        --error: #f7768e;
+        --success: #9ece6a;
+        --warning: #e0af68;
+        --border-radius: 8px;
+        --transition: all 0.2s ease;
+    }
+
+    /* Reset and Base Styles */
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: 'Inter', sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        line-height: 1.6;
+        padding: 2rem;
+        min-height: 100vh;
+    }
+
+    /* Layout */
+    .container {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    @media (max-width: 1024px) {
+        .container {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Controls Section */
+    .controls {
+        display: flex;
+        gap: 1rem;
+        background: var(--bg-secondary);
+        padding: 1rem;
+        border-radius: var(--border-radius);
+        margin-bottom: 1rem;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .control-group {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .control-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: var(--text-secondary);
+    }
+
+    /* Form Elements */
+    input[type="text"] {
+        width: 100%;
+        padding: 0.6rem;
+        background: var(--bg-primary);
+        border: 2px solid var(--text-secondary);
+        border-radius: var(--border-radius);
+        color: var(--text-primary);
+        transition: var(--transition);
+    }
+
+    input[type="text"]:focus {
+        border-color: var(--accent);
+        outline: none;
+    }
+
+    input[type="color"] {
+        width: 100%;
+        height: 38px;
+        border: none;
+        border-radius: var(--border-radius);
+        cursor: pointer;
+    }
+
+    /* Buttons */
+    .btn {
+        background: var(--accent);
+        color: var(--bg-primary);
+        border: none;
+        padding: 0.6rem 1rem;
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        font-weight: 600;
+        transition: var(--transition);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+
+    .btn.secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--text-secondary);
+    }
+
+    .btn.secondary:hover {
+        background: var(--text-secondary);
+        color: var(--bg-primary);
+    }
+
+    /* Canvas Container */
+    .canvas-container {
+        aspect-ratio: 16/9;
+        background: var(--bg-secondary);
+        border-radius: var(--border-radius);
+        overflow: hidden;
+        position: relative;
+    }
+
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        cursor: crosshair;
+    }
+
+    .canvas-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background: var(--bg-secondary);
+        border: 2px dashed var(--text-secondary);
+        border-radius: var(--border-radius);
+        padding: 1rem;
+        text-align: center;
+        gap: 0.5rem;
+        transition: var(--transition);
+    }
+
+    .canvas-overlay.drag-hover {
+        border-color: var(--accent);
+        background: rgba(36, 40, 59, 0.9);
+    }
+
+    /* Output Section */
+    .output-wrapper {
+        background: var(--bg-secondary);
+        border-radius: var(--border-radius);
+        padding: 1rem;
+    }
+
+    .output-header {
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    #output {
+        font-family: 'JetBrains Mono', monospace;
+        background: var(--bg-primary);
+        padding: 1rem;
+        border-radius: var(--border-radius);
+        white-space: pre-wrap;
+        font-size: 0.9em;
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    /* Toggle Switch */
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 60px;
+        height: 34px;
+    }
+
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: var(--bg-primary);
+        transition: .4s;
+        border: 2px solid var(--text-secondary);
+    }
+
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 26px;
+        width: 26px;
+        left: 2px;
+        bottom: 2px;
+        background-color: var(--text-secondary);
+        transition: .4s;
+    }
+
+    input:checked + .slider {
+        background-color: var(--accent);
+        border-color: var(--accent);
+    }
+
+    input:checked + .slider:before {
+        transform: translateX(26px);
+        background-color: white;
+    }
+
+    .slider.round {
+        border-radius: 34px;
+    }
+
+    .slider.round:before {
+        border-radius: 50%;
+    }
+
+    /* Utility Classes */
+    .warnings {
+        color: var(--error);
+        font-size: 0.9em;
+        margin-top: 0.5rem;
+    }
+
+    .point-counter {
+        color: var(--text-secondary);
+        font-size: 0.9em;
+        margin-top: 0.5rem;
+    }
+
+    .yaml-error {
+        color: var(--error);
+        margin-top: 0.5rem;
+        font-size: 0.9em;
+    }
+
+    .loading-message {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        padding: 0.5rem 1rem;
+        border-radius: var(--border-radius);
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+
+    .config-error {
+        background: var(--error);
+        color: var(--bg-primary);
+        padding: 0.5rem 1rem;
+        border-radius: var(--border-radius);
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+    .zones-list {
+    margin-top: 1rem;
+    background: var(--bg-secondary);
+    padding: 1rem;
+    border-radius: var(--border-radius);
+}
+
+.zone-item {
+    background: var(--bg-primary);
+    padding: 0.75rem;
+    border-radius: var(--border-radius);
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.zone-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.zone-item input[type="text"] {
+    width: 120px;
+    padding: 0.4rem;
+}
+
+.zone-item input[type="color"] {
+    width: 40px;
+    height: 30px;
+}
+</style>
+</body>
+
+
+</html>

@@ -1,4 +1,3 @@
-
 def get_zone_pairs_snippet():
     return f"""
   SELECT 
@@ -6,8 +5,6 @@ def get_zone_pairs_snippet():
     e.zone_name,
     e.event_ts as enter_time,
     MIN(l.event_ts) as leave_time,
-    e.track_conf,
-    e.time_bucket as time_bucket
   FROM base_events e
   LEFT JOIN base_events l ON 
     e.track_id = l.track_id AND
@@ -18,8 +15,6 @@ def get_zone_pairs_snippet():
   GROUP BY 
     e.track_id,
     e.zone_name,
-    e.event_ts,
-    e.track_conf,
-    e.time_bucket"""
+    e.event_ts"""
 
 
