@@ -243,8 +243,6 @@ class ZoneCounter(Counter):
                         track_id=uuid,
                     )
                     
-                print((now, x, y, current_zone, conf))
-
                 self.data[id].update_present(now, x, y, current_zone, conf)
 
             # update tracks not in frame
