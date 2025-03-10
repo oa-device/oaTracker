@@ -205,6 +205,8 @@ class ZoneCounter(Counter):
         try:
             self.last_update = now
 
+            print(boxes)
+
             # start with tracks that were in the frame
             box_ids = []
             for box in boxes:
