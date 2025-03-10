@@ -4,8 +4,8 @@ import yaml
 from ultralytics import settings
 
 # dimension of the camera output
-IMG_WIDTH = 1280
-IMG_HEIGHT = 720
+IMG_WIDTH = 1920
+IMG_HEIGHT = 1080
 
 # torch device detection, enables cross-platform hardware acceleration
 TORCH_DEVICE = (
