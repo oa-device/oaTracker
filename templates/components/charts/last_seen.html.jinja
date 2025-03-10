@@ -1,0 +1,117 @@
+<div style="
+    height: 100%;
+    width: 100%;
+">
+    <canvas id="chartLastSeen" class="chart-canvas"></canvas>
+    <script>
+
+        const dataLastSeen = {
+            datasets: [
+                {
+                    data: [],
+                    fill: false,
+                    label: 
+                'left at out_bottom',
+      borderColor: window.colors[0],
+      backgroundColor: window.colors[0],
+                    
+                },
+                {
+                    data: [],
+                    fill: false,
+                    label: 
+                'left at out_bottom_right',
+      borderColor: window.colors[1],
+      backgroundColor: window.colors[1],
+                    
+                },
+                {
+                    data: [],
+                    fill: false,
+                    label: 
+                'left at door_left',
+      borderColor: window.colors[2],
+      backgroundColor: window.colors[2],
+                    
+                },
+                {
+                    data: [],
+                    fill: false,
+                    label: 
+                'left at door_right',
+      borderColor: window.colors[3],
+      backgroundColor: window.colors[3],
+                    
+                },
+                {
+                    data: [],
+                    fill: false,
+                    label: 'left at out_top_left',
+      borderColor: window.colors[4],
+      backgroundColor: window.colors[4],
+                    
+                },
+            ],
+        };
+
+        const ctxLastSeen = document.getElementById('chartLastSeen');
+
+        const chartLastSeen = new Chart(ctxLastSeen, {
+            type: 'line',
+            data: dataLastSeen,
+            options: {
+                aspectRatio: 1.5,
+
+                events: [],
+                scales: {
+                    x: {
+                        type: 'time', // Enables time series on the x-axis
+                        time: {
+                        unit: 'second', // Adjust as needed: 'second', 'minute', 'hour', 'day', 'month', etc.
+                            displayFormats: {
+                                second: 'HH:mm:ss', // Format for the x-axis labels
+                            },
+                        },
+                    },
+                    y: {
+                        ticks: {
+                                beginAtZero: true,
+                                callback: function (value) {
+                                    if (value % 1 === 0) { return value; }
+                                }
+                        }
+                    }
+                }
+                , plugins: {
+      colorschemes: {
+
+        scheme: 'brewer.Paired12'
+
+      },
+                    title: {
+                        display: true,
+                        text: 'LastSeen'
+                    },
+                    legend: {
+                        display: true
+                    }
+                }
+            }
+        });
+
+        const chartLastSeenUpdate = () => {
+            chartLastSeen.update("none");
+        }
+        window.addEventListener("sse", ({detail: m}) => {
+            const now = Date.now();
+            const limit = (now) - 120 * 60000;
+            const data = m[2];
+            Object.entries(data).map(([key, value], i)  => {
+
+                chartLastSeen.data.datasets[i].data.push([now, value]);
+                chartLastSeen.data.datasets[i].data = window.processBuckets(chartLastSeen.data.datasets[i].data.filter(x => x[0] > limit));
+            });
+            chartLastSeenUpdate();
+        })
+    </script>
+</div>

@@ -1,0 +1,60 @@
+<div style="min-width: 0;">
+    <canvas id="chartVisualization" class="chart-canvas"></canvas>
+    <script>
+
+        const dataVisualization = {
+            datasets: [
+                {
+                    data: [],
+                    fill: false,
+                    tension: 0.1,
+                }
+            ],
+        };
+
+        const ctxVisualization = document.getElementById('chartVisualization');
+
+        const chartVisualization = new Chart(ctxVisualization, {
+            type: 'line',
+            data: dataVisualization,
+            options: {
+
+        events: [],
+                scales: {
+                    x: {
+                        type: 'timeseries',
+                    },
+                    y: {
+                        ticks: {
+                            // Include a dollar sign in the ticks
+                            callback: function (value, index, ticks) {
+                                return value + 'ms';
+                            }
+                        }
+                    }
+                }
+                , plugins: {
+                    title: {
+                        display: true,
+                        text: 'Visualization'
+                    },
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+
+        const chartVisualizationUpdate = () => {
+            chartVisualization.update("none");
+        }
+
+        window.sseSubscriptions["visualization_perf"] = window.sseSubscriptions["visualization_perf"] || []
+        window.sseSubscriptions["visualization_perf"].push((m) => {
+            const limit = (Date.now()) - 10000;
+            chartVisualization.data.datasets[0].data.push([m.ts, m.value])
+            chartVisualization.data.datasets[0].data = chartVisualization.data.datasets[0].data.filter(x => x[0] > limit)
+            chartVisualizationUpdate()
+        })
+    </script>
+</div>

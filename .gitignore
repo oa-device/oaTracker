@@ -1,6 +1,7 @@
 # Ignore virtual environment
 .venv/
 venv/
+.venv/
 ENV/
 
 # macOS system files
@@ -57,3 +58,7 @@ coverage.xml
 logs/*
 # But keep the directory itself
 !logs/.gitkeep
+
+db/*
+
+config.yaml

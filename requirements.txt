@@ -1,4 +1,0 @@
-opencv-python
-ultralytics
-pyyaml
-lapx>=0.5.2

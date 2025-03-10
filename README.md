@@ -71,7 +71,7 @@ oaTracker is an internal application for MacOS and Ubuntu that utilizes Ultralyt
 Modify `config.yaml` in the root directory to change default settings:
 
 ```yaml
-default_camera: 0
+default_yolo_source: 0
 default_model: "yolov10n.pt"
 default_server_port: 8000
 
@@ -176,13 +176,13 @@ The application provides a simple HTTP API for retrieving detection data. By def
 
 - `GET /detections`: Returns current frame detections (boxes, labels, confidence).
 - `GET /detections?from=X`: Returns unique object counts for the last X seconds (1 <= X <= 30).
-- `GET /cam/collect?from=X&to=Y&cam=0`: Returns the count of unique persons detected between X and Y milliseconds ago.
+- `GET /cam/collect?from=X&to=Y`: Returns the count of unique persons detected between X and Y milliseconds ago.
 
 Example requests:
 
 ```http
 GET http://localhost:8000/detections?from=10
-GET http://localhost:8000/cam/collect?from={from}&to={to}&cam=0
+GET http://localhost:8000/cam/collect?from={from}&to={to}
 ```
 
 Note: The `cam=0` parameter is always used in the `/cam/collect` endpoint, regardless of the actual input source (camera, RTSP, or video file).

@@ -1,0 +1,62 @@
+<div class="chart-container">
+    <canvas id="chartInference" class="chart-canvas"></canvas>
+    <script>
+        const dataInference = {
+            datasets: [
+                {
+                    data: [],
+                    fill: false,
+                    tension: 0.1,
+                }
+            ],
+        };
+
+        const ctxInference = document.getElementById('chartInference');
+
+        const chartInference = new Chart(ctxInference, {
+            type: 'line',
+            data: dataInference,
+            options: {
+
+
+        events: [],
+                scales: {
+                    x: {
+                        type: 'timeseries',
+                    },
+                    y: {
+                        ticks: {
+                            // Include a dollar sign in the ticks
+                            callback: function (value, index, ticks) {
+                                return value + 'ms';
+                            }
+                        }
+                    }
+                }
+                , plugins: {
+                    title: {
+                        display: true,
+                        text: 'Inference'
+                    },
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+
+
+
+        const chartInferenceUpdate = () => {
+            chartInference.update("none");
+        }
+
+        window.sseSubscriptions["inference_perf"] = window.sseSubscriptions["inference_perf"] || []
+        window.sseSubscriptions["inference_perf"].push((m) => {
+            const limit = (Date.now()) - 10000;
+            chartInference.data.datasets[0].data.push([m.ts, m.value])
+            chartInference.data.datasets[0].data = chartInference.data.datasets[0].data.filter(x => x[0] > limit)
+            chartInferenceUpdate()
+        })
+    </script>
+</div>

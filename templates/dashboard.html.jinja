@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<script src="/static/chartjs-date-adapter.js"></script>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+		integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+
+
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"
+		integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm"
+		crossorigin="anonymous"></script>
+	<script src="https://cdn.jsdelivr.net/npm/masonry-layout@4.2.2/dist/masonry.pkgd.min.js"
+		integrity="sha384-GNFwBvfVxBkLMJpYMOABq3c+d3KnQxudP/mGPkzpZSTYykLBNsZEnG2D9G/X/+7D" crossorigin="anonymous"
+		async></script>
+
+	{#
+	<script src="https://d3js.org/d3.v3.min.js" charset="utf-8"></script> #}
+</head>
+<style>
+	.big_col {
+		width: 100%;
+	}
+
+	.big_col img {
+		width: 100%;
+	}
+	canvas {
+		width: 100% !important;
+		height: 100% !important;
+	}
+</style>
+<script>
+	console.log(Chart.Tooltip)
+	Chart.register([Chart.Tooltip])
+	Chart.defaults.font.color = 'white'
+	Chart.defaults.borderColor = 'rgb(135, 138, 140)';
+	Chart.defaults.color = 'rgb(222, 226, 230)';
+	let reload = !document.hidden;
+	document.addEventListener("visibilitychange", () => {
+		if (document.hidden) {
+			reload = false
+		} else {
+			reload = true
+		}
+	});
+	window.colors = ["#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"]
+
+
+	function throttle(cb, delay = 250) {
+		let shouldWait = false
+
+		return (...args) => {
+			if (shouldWait) return
+
+			cb(...args)
+			shouldWait = true
+			setTimeout(() => {
+				shouldWait = false
+			}, delay)
+		}
+	}
+
+	const throttledError = throttle((e) => {
+		console.error(e)
+	}, 1000)
+
+
+	const onlineUrl = window.location.href.replace('dashboard', 'online');
+	const fifteenSecondsInMs = 15 * 1000;
+	const fiveSecondsInMs = 5 * 1000;
+	const fiveMinutesInMs = 5 * 60 * 1000;
+	window.processBuckets = function processBuckets(data) {
+		const latestTimestamp = data[data.length - 1][0];
+
+		const buckets = new Map();
+
+		data.forEach((item) => {
+			const timestamp = item[0]
+			const value = item[1]
+			const isLatest = timestamp >= latestTimestamp - fiveMinutesInMs;
+
+			if (isLatest) {
+				const bucketKey = Math.floor(timestamp / fiveSecondsInMs);
+				buckets.set('l'+bucketKey, [timestamp, value]); // Overwrite to keep the last value in the bucket
+			}
+			else {
+				const bucketKey = Math.floor(timestamp / fifteenSecondsInMs);
+				buckets.set(bucketKey, [timestamp, value]); // Overwrite to keep the last value in the bucket
+			}
+		});
+
+
+		// Combine earlier buckets and latest data
+		const result = Array.from(buckets.values());
+		
+		// Sort the result by timestamp
+		result.sort((a, b) => a[0] - b[0]);
+		
+		return result;
+	}
+
+
+	window.chartTooltip = {
+
+		tooltip: {
+
+			enabled: true, // Enable tooltips
+			mode: 'x',
+			intersect: false,
+
+			callbacks: {
+				// Customize tooltip labels
+				title: (tooltipItems) => {
+					return `Date: ${tooltipItems[0].label}`;
+				},
+				label: (tooltipItem) => {
+					return `Value: ${tooltipItem.raw}`;
+				},
+			},
+		}
+	}
+	setInterval(() => { clock.innerText = new Date().toTimeString().split(' ')[0] }, 50);
+
+	let sse;
+	function setupSSE(_start, _end) {
+		const start = _start || 'entrance';
+		const end = _end || 'exit';
+
+		if (typeof sse !== 'undefined') {
+			sse.close();
+		}
+
+		sse = new EventSource(`//${window.location.hostname}:8080/dashboard/sse?start=${start}&end=${end}`);
+
+		if (!window.sseSubscriptions) {
+			window.sseSubscriptions = {}
+		}
+
+		const gotFirstMessage = false;
+		sse.onmessage = (event) => {
+			//resetReloadTimeout();
+			const message = JSON.parse(event.data)
+			window.dispatchEvent(new CustomEvent("sse", { detail: message }))
+			enter_building_door_left_value.innerText = message[2].last_seen_zone_out_door_left
+			enter_building_door_right_value.innerText = message[2].last_seen_zone_out_door_right
+			last_15_seconds_presence.innerText = message[6]
+		};
+	}
+
+	setupSSE();
+
+	/* let interval1
+	let interval2
+	function resetReloadTimeout() {
+		clearInterval(interval1)
+		interval1 = setInterval(() => fetch(onlineUrl).catch(() => {
+			clearInterval(interval1)
+			clearInterval(interval2)
+			interval2 = setInterval(() => fetch(onlineUrl).then(() => {
+				window.location.reload();
+				clearInterval(interval2);
+			}), 500)
+		}), 1500)
+	}*/
+	window.formatDuration = function formatDuration(milliseconds) {
+		var time = { a: 31536000000, j: 86400000, h: 3600000, m: 60000, s: 1000, ms: 1 },
+			res = [];
+
+		if (milliseconds === 0) return 'now';
+
+
+		for (var key in time) {
+			if (milliseconds >= time[key]) {
+				var val = Math.floor(milliseconds / time[key]);
+				res.push(val += val > 1 ? ' ' + key + '' : ' ' + key);
+				milliseconds = milliseconds % time[key];
+			}
+		}
+
+		cam_img.addEventListener("click", (event) => {
+
+		});
+
+		return res.length > 1 ? res.join(', ').replace(/,([^,]*)$/, ',' + '$1') : res[0]
+	}
+</script>
+</head>
+
+<body data-bs-theme="dark" style="overflow-x: hidden;">
+	<main class="container">
+		<div class="row">
+			<div class="col-sm-12">
+				<header class="navbar sticky-top bg-dark flex-md-nowrap p-0 shadow" data-bs-theme="dark">
+					<a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6 text-white" href="#"><img
+							style="height: 1.5rem;" src="/static/logo.webp"> People Counter
+						Dashboard</a>
+
+					<ul class="navbar-nav flex-row d-md-none">
+					</ul>
+				</header>
+			</div>
+			<div class="col-sm-12 col-md-6">
+				<div style="
+					height: 100%;
+					width: 100%;
+					display:flex;
+					align-items:center;
+					justify-content: center;
+				">
+					<div id="cam" style="width: 100%;">
+						<img id="cam_img" src="/cam.jpg" alt="Camera 0" style="max-width:100%;">
+						<div>
+							<div><span id="clock" style="float:right;"></span></div>
+
+
+							{# <div class="btn-group me-2" style="float:right">
+								<button type="button" class="btn btn-sm btn-outline-secondary"
+									onclick="fetch('/cam/pause')">⏸</button>
+								<button type="button" class="btn btn-sm btn-outline-secondary"
+									onclick="fetch('/cam/play')">▶</button>
+							</div>
+							<div class="btn-group me-2" style="float:right">
+								<button type="button" class="btn btn-sm btn-outline-secondary"
+									onclick="fetch('/cam/hide_overlay')">Hide overlay</button>
+								<button type="button" class="btn btn-sm btn-outline-secondary"
+									onclick="fetch('/cam/show_overlay')">Show overlay</button>
+							</div> #}
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="col-sm-12 col-md-6">
+				{% include 'components/charts/mean_dwell.html.jinja' %}
+			</div>
+			<div class="col-sm-12 col-md-6">
+				{% include 'components/charts/total_time_spent.html.jinja' %}
+			</div>
+			<div class="col-sm-12 col-md-6">
+				{% include 'components/charts/total_presence.html.jinja' %}
+			</div>
+			<div class="col-sm-12 col-md-6">
+				{% include 'components/charts/first_seen.html.jinja' %}
+			</div>
+			<div class="col-sm-12 col-md-6">
+				{% include 'components/charts/last_seen.html.jinja' %}
+			</div>
+			{% include 'components/charts/cols_pies.html.jinja' %}
+			<div class="col-12">Misc:<div> </span>Entrés dans le batiment par la porte de gauche: <span
+						id="enter_building_door_left_value"></span></div>
+				<div>Entrés dans le batiment par la porte de droite: <span id="enter_building_door_right_value"></span>
+				</div>
+				<div>Personnes présentes dans les dernières 15 secondes: <span id="last_15_seconds_presence"></span>
+				</div>
+			</div>
+		</div>
+		</div>
+</body>
+
+<script>
+
+	Array.from(document.querySelectorAll('.col-sm-12')).map(x => {
+		x.addEventListener('click', function () {
+			if (x.className.includes('big_col')) {
+				x.className = x.className.replace(' big_col', '');
+				return;
+			}
+
+			Array.from(document.querySelectorAll('.col-sm-12')).map(y => {
+				y.className = y.className.replace(' big_col', '')
+			})
+			x.className = x.className + ' big_col'
+			x.scrollIntoView()
+		})
+	})
+
+</script>
+
+</html>

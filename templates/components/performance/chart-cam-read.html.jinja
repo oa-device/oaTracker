@@ -1,0 +1,59 @@
+<div class="chart-container">
+    <canvas id="chartCamRead" class="chart-canvas"></canvas>
+    <script>
+
+        const dataCamRead = {
+            datasets: [
+                {
+                    data: [],
+                    fill: false,
+                    tension: 0.1,
+                }
+            ],
+        };
+
+        const ctxCamRead = document.getElementById('chartCamRead');
+
+        const chartCamRead = new Chart(ctxCamRead, {
+            type: 'line',
+            data: dataCamRead,
+            options: {
+            events: [],
+                scales: {
+                    x: {
+                        type: 'timeseries',
+                    },
+                    y: {
+                        ticks: {
+                            // Include a dollar sign in the ticks
+                            callback: function (value, index, ticks) {
+                                return value + 'ms';
+                            }
+                        }
+                    }
+                }, plugins: {
+                    title: {
+                        display: true,
+                        text: 'Cam read'
+                    },
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+
+        const chartCamReadUpdate = () => {
+            chartCamRead.update("none");
+        }
+
+        window.sseSubscriptions["cam_read_perf"] = window.sseSubscriptions["cam_read_perf"] || []
+        window.sseSubscriptions["cam_read_perf"].push((m) => {
+            const limit = (Date.now()) - 10000;
+            chartCamRead.data.datasets[0].data.push([m.ts, m.value])
+            chartCamRead.data.datasets[0].data = chartCamRead.data.datasets[0].data.filter(x => x[0] > limit)
+            chartCamReadUpdate()
+        })
+
+    </script>
+</div>

@@ -1,0 +1,69 @@
+<div style="min-width: 0;">
+    <canvas id="chartFullView" class="chart-canvas"></canvas>
+    <script>
+
+        const dataFullView = {
+            labels: ['Cam read', 'Inference', 'Visualization'],
+            datasets: [{
+                data: [0, 0, 0],
+            }
+            ]
+        };
+
+        const ctxFullView = document.getElementById('chartFullView');
+
+        const chartFullView = new Chart(ctxFullView, {
+            type: 'radar',
+            data: dataFullView,
+            options: {
+                aspectRatio:1.77777777778,
+
+                events: [],
+                scales: {
+                    r: {
+                        ticks: {
+                            showLabelBackdrop: false,
+                            // Include a dollar sign in the ticks
+                            callback: function (value, index, ticks) {
+                                return value + 'ms';
+                            }
+                        }
+                    }
+                },
+                elements: {
+                    line: {
+                        borderWidth: 3
+                    }
+                }
+                , plugins: {
+                    title: {
+                        display: true,
+                        text: 'Full view'
+                    },
+                    legend: {
+                        display: false
+                    }
+                }
+            },
+        });
+
+        window.sseSubscriptions["cam_read_perf"] = window.sseSubscriptions["cam_read_perf"] || []
+        window.sseSubscriptions["cam_read_perf"].push((m) => {
+            chartFullView.data.datasets[0].data[0] = m.mean;
+            chartFullView.update("none")
+        })
+
+        window.sseSubscriptions["inference_perf"] = window.sseSubscriptions["inference_perf"] || []
+        window.sseSubscriptions["inference_perf"].push((m) => {
+            chartFullView.data.datasets[0].data[1] = m.mean;
+            chartFullView.update("none")
+        })
+
+
+        window.sseSubscriptions["visualization_perf"] = window.sseSubscriptions["visualization_perf"] || []
+        window.sseSubscriptions["visualization_perf"].push((m) => {
+            chartFullView.data.datasets[0].data[2] = m.mean;
+            chartFullView.update("none")
+        })
+    </script>
+</div>
