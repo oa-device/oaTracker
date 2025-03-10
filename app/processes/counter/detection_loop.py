@@ -118,7 +118,7 @@ class CounterLoop:
                 iou=0.4,
                 augment=False,
                 verbose=False,
-                device="cuda:0",
+                device="mps",
             )
 
             try:

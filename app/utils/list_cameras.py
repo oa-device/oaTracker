@@ -10,8 +10,6 @@ if MACOS:
     from AVFoundation import (
         AVCaptureDeviceDiscoverySession,
         AVCaptureDeviceTypeBuiltInWideAngleCamera,
-        AVCaptureDeviceTypeExternal,
-        AVCaptureDeviceTypeContinuityCamera,
     )
 
     # Lists available camera indices up to a maximum number for MacOS
@@ -19,8 +17,6 @@ if MACOS:
         devices = AVCaptureDeviceDiscoverySession.discoverySessionWithDeviceTypes_mediaType_position_(
             [
                 AVCaptureDeviceTypeBuiltInWideAngleCamera,
-                AVCaptureDeviceTypeExternal,
-                AVCaptureDeviceTypeContinuityCamera,
             ],
             None,
             0,
