@@ -129,7 +129,7 @@ class Counters:
                 annotator.box_label(d.xyxy[0], label, color=(0, 225, 27))
 
         annotator.text_label(
-            (1140, 690, 1920, 1080),
+            (1780, 150, 1920, 1080),
             datetime.datetime.fromtimestamp(cam_ts).strftime("%H:%M:%S"),
             color=(0, 0, 0),
         )
