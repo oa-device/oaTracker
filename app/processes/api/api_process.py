@@ -1,19 +1,15 @@
 import asyncio
-from contextlib import asynccontextmanager
-import gzip
 import json
-import os
-import signal
 import time
 from typing import Callable
 import uuid
 from fastapi import APIRouter, FastAPI, Request, Response
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import functools
-import psutil
+import yaml
 from sse_starlette import EventSourceResponse
 import uvicorn
 from app.parse_args import Args
@@ -24,10 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.utils.stop_detection import stop_detection
 from app.utils.logger import get_logger
-
 import duckdb
-import pyarrow as pa
-from duckdb.typing import *
 
 
 duckdb_con = duckdb.connect()
@@ -120,9 +113,6 @@ def online():
     return not server_stopped.is_set()
 
 
-import yaml
-
-
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html.jinja", {"request": request, "dashboard_data": {}})  # type: ignore
@@ -144,11 +134,11 @@ async def get_config(request: Request):
 async def post_config(request: Request):
     with open("./config.yaml", "w") as file:
         data = await request.json()
-        
+
         print(data)
-        
+
         yaml.dump(data, file)
-        
+
         stop_detection("reload_config", {}, True)
         return json.dumps({"ok": True})
     print(request)
@@ -357,20 +347,24 @@ def video_feed():
 from multiprocessing.synchronize import Event as EventClass
 
 args: Args = None  # type:ignore
-server_stopped: EventClass = None # type:ignore
+server_stopped: EventClass = None  # type:ignore
+
+
 class ApiProcess:
     def __init__(self, _args: Args, _server_stopped: EventClass):
         global args, server_stopped
 
         args = _args
         server_stopped = _server_stopped
-        
+
     async def close(self):
         self.server.should_exit = True
         self.server.force_exit = True
         # await self.server.shutdown()
 
     def start(self):
-        config = uvicorn.Config(app, host="0.0.0.0", port=8080, log_level="info", loop="asyncio")
+        config = uvicorn.Config(
+            app, host="0.0.0.0", port=8080, log_level="info", loop="asyncio"
+        )
         self.server = uvicorn.Server(config=config)
         self.server.run()

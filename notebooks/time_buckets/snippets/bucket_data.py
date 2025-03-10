@@ -16,4 +16,3 @@ GROUP BY
 ORDER BY 
   time_bucket,
   zone_name;"""
-

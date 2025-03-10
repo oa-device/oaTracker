@@ -1,8 +1,3 @@
-
-
-
-
-
 from typing import Any, List, Literal, TypedDict
 import torch
 import yaml
@@ -16,20 +11,22 @@ IMG_HEIGHT = 720
 TORCH_DEVICE = (
     0
     if hasattr(torch.backends, "cuda") and torch.backends.cuda.is_built()
-    else "mps"
-    if hasattr(torch.backends, "mps") and torch.backends.mps.is_built()
-    else "cpu"
+    else (
+        "mps"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_built()
+        else "cpu"
+    )
 )
 
 # Disabled Google Analytics tracking from Yolov8
-settings.update({
-    "sync": False
-})
+settings.update({"sync": False})
+
 
 class Cors(TypedDict):
     allowed_origins: List[str]
-    allowed_methods: List[Literal['OPTIONS', 'GET']]
+    allowed_methods: List[Literal["OPTIONS", "GET"]]
     allowed_headers: List[str]
+
 
 class Config(TypedDict):
     default_yolo_source: int | str
@@ -38,11 +35,11 @@ class Config(TypedDict):
     cors: Cors
     cam_id: str | None
     counters: list[dict[str, Any]]
-    
+
 
 def get_config() -> Config:
     with open("config.yaml", "r") as config_file:
-        config = Config(yaml.safe_load(config_file)) # type: ignore
+        config = Config(yaml.safe_load(config_file))  # type: ignore
         return config
-    
-    raise ValueError('Config error')
+
+    raise ValueError("Config error")

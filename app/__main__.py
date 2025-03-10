@@ -1,7 +1,6 @@
 import asyncio
 import json
 import signal
-import sys
 from threading import Thread
 import time
 
@@ -22,8 +21,10 @@ from app.utils.stop_detection import stop_detection
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn")
 
+
 def handler(signum, frame):
     pass
+
 
 signal.signal(signal.SIGINT, handler)
 
@@ -33,11 +34,11 @@ def main():
     args = parse_args()
     logger = get_logger(__name__)
     logger.info("Starting communication")
-    
-    server_stopped=multiprocessing.Event()
-    
-    api_process = ApiProcess(args, server_stopped) # type: ignore
-    thread = Thread(target=wait_for_reset, args=(server_stopped,api_process))
+
+    server_stopped = multiprocessing.Event()
+
+    api_process = ApiProcess(args, server_stopped)  # type: ignore
+    thread = Thread(target=wait_for_reset, args=(server_stopped, api_process))
     thread.daemon = True
     thread.start()
 
@@ -50,13 +51,13 @@ def main():
     counter_process.start()
 
     def stop_server(*args):
-        stop_detection('CTRL+C', {}, True)
+        stop_detection("CTRL+C", {}, True)
+
     signal.signal(signal.SIGUSR2, stop_server)
 
     logger.info("Spawning API process")
     api_process.start()
-    
-    
+
     thread.join()
     logger.info("counter_process join")
     counter_process.join(3)
@@ -68,6 +69,7 @@ def main():
     sync_process.terminate()
     logger.info("Bye !")
     os.kill(os.getpid(), signal.SIGKILL)
+
 
 import os
 
@@ -89,10 +91,8 @@ def wait_for_reset(server_stopped, api_process):
                     stop_detection = json.loads(
                         stop_detection_bytes.decode(encoding="utf-8")
                     )
-                    
-                    mmap_write(
-                        shared_memory_stop_detection, 512000, bytes([])
-                    )
+
+                    mmap_write(shared_memory_stop_detection, 512000, bytes([]))
 
                     server_stopped.set()
                     print(json.dumps(stop_detection, indent=4))
@@ -107,7 +107,7 @@ def wait_for_reset(server_stopped, api_process):
                         asyncio.run(api_process.close())
                     except:
                         pass
-                    
+
                     return
 
             except Exception as a:

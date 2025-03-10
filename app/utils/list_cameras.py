@@ -17,24 +17,39 @@ if MACOS:
     # Lists available camera indices up to a maximum number for MacOS
     def list_available_cameras():
         devices = AVCaptureDeviceDiscoverySession.discoverySessionWithDeviceTypes_mediaType_position_(
-            [AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureDeviceTypeExternal, AVCaptureDeviceTypeContinuityCamera], None, 0
+            [
+                AVCaptureDeviceTypeBuiltInWideAngleCamera,
+                AVCaptureDeviceTypeExternal,
+                AVCaptureDeviceTypeContinuityCamera,
+            ],
+            None,
+            0,
         ).devices()
 
         available_cameras = []
         for index, device in enumerate(devices):
-            available_cameras.append({"index": index, "id": device.uniqueID(), "name": device.localizedName()})
+            available_cameras.append(
+                {
+                    "index": index,
+                    "id": device.uniqueID(),
+                    "name": device.localizedName(),
+                }
+            )
         return available_cameras
+
 else:
     # Lists available camera indices up to a maximum number for other systems
     def list_available_cameras():
-        level=os.environ.get("OPENCV_LOG_LEVEL")
-        os.environ["OPENCV_LOG_LEVEL"]="SILENT"
+        level = os.environ.get("OPENCV_LOG_LEVEL")
+        os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
         print(os.environ["OPENCV_LOG_LEVEL"])
         available_cameras = []
         for index in range(10):  # Adjust the range as needed
             cap = cv2.VideoCapture(index)
             if cap.isOpened():
-                available_cameras.append({"index": index, "id": index, "name": f"Camera {index}"})
+                available_cameras.append(
+                    {"index": index, "id": index, "name": f"Camera {index}"}
+                )
                 cap.release()
         if not level:
             del os.environ["OPENCV_LOG_LEVEL"]

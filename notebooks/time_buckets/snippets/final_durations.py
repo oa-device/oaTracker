@@ -1,6 +1,3 @@
-
-
-
 def get_final_durations_snippet():
     return """  SELECT 
         track_id,

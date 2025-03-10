@@ -1,4 +1,3 @@
-
 def get_base_events_snippet(source: str, bucket_size_minutes: int):
     return f"""
 SELECT

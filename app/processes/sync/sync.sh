@@ -20,7 +20,6 @@ aws s3 sync "$SOURCE" "$DEST" \
 
 # CREATE SECRET s3 (
 #     TYPE S3,
-#     KEY_ID 'AKIAR4AJGDH6TKNFPY5P',
-#     SECRET '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',
+
 #     REGION 'ca-central-1'
 # );

@@ -20,7 +20,8 @@ dark_theme_colors = [
     (0.80, 0.40, 0.00),  # Dark Orange
 ]
 
-from bokeh.models import HoverTool, WheelZoomTool
+from bokeh.models import HoverTool
+
 
 def plot2(data, zones, name, bucket_size_minutes):
 
@@ -33,34 +34,50 @@ def plot2(data, zones, name, bucket_size_minutes):
     dates = np.array(df["time_bucket"], dtype=np.datetime64)
 
     # Main plot
-    hover = HoverTool(tooltips=[
-        ("value", "@data")
-    ])
-    
-    p = figure(title=f'{name} per {bucket_size_minutes} minutes',height=250, width=1200, tools=[hover, "xpan", "wheel_zoom"], toolbar_location=None,
-            x_axis_type="datetime",
-            background_fill_color="#efefef", 
-            x_range=(dates[0], dates[-1]), x_axis_location="below")
+    hover = HoverTool(tooltips=[("value", "@data")])
+
+    p = figure(
+        title=f"{name} per {bucket_size_minutes} minutes",
+        height=250,
+        width=1200,
+        tools=[hover, "xpan", "wheel_zoom"],
+        toolbar_location=None,
+        x_axis_type="datetime",
+        background_fill_color="#efefef",
+        x_range=(dates[0], dates[-1]),
+        x_axis_location="below",
+    )
 
     sources: list[ColumnDataSource] = []
     # Plot the categories of visits
     i = 0
     for zone in zones:
-        source = ColumnDataSource(data=dict(date=dates, data=df[f'{zone}_{name}']))
-        (r,g,b) = dark_theme_colors[i]
-        color=RGB(r*255,g*255,b*255)
-        p.line('date', 'data', source=source, color=color, legend_label=f'{zone} {name}')
-        p.scatter('date', 'data', source=source, fill_color="white", size=8, color=color)
+        source = ColumnDataSource(data=dict(date=dates, data=df[f"{zone}_{name}"]))
+        (r, g, b) = dark_theme_colors[i]
+        color = RGB(r * 255, g * 255, b * 255)
+        p.line(
+            "date", "data", source=source, color=color, legend_label=f"{zone} {name}"
+        )
+        p.scatter(
+            "date", "data", source=source, fill_color="white", size=8, color=color
+        )
         sources.append(source)
-        i+=1
+        i += 1
 
     p.yaxis.axis_label = name
 
     # Range selector
-    select = figure(title="Drag the middle and edges of the selection box to change the range above",
-                    height=80, width=1200, y_range=p.y_range,
-                    x_axis_type="datetime", y_axis_type=None,
-                    tools="", toolbar_location=None, background_fill_color="#efefef")
+    select = figure(
+        title="Drag the middle and edges of the selection box to change the range above",
+        height=80,
+        width=1200,
+        y_range=p.y_range,
+        x_axis_type="datetime",
+        y_axis_type=None,
+        tools="",
+        toolbar_location=None,
+        background_fill_color="#efefef",
+    )
 
     range_tool = RangeTool(x_range=p.x_range)
     range_tool.overlay.fill_color = "navy"
@@ -80,7 +97,7 @@ def plot2(data, zones, name, bucket_size_minutes):
         hours="%Y-%m-%d %H:%M:%S",
         days="%Y-%m-%d %H:%M:%S",
         months="%Y-%m-%d %H:%M:%S",
-        years="%Y-%m-%d %H:%M:%S"
+        years="%Y-%m-%d %H:%M:%S",
     )
 
     # Adjust the range selector similarly
@@ -91,7 +108,7 @@ def plot2(data, zones, name, bucket_size_minutes):
         hours="%Y-%m-%d %H:%M:%S",
         days="%Y-%m-%d %H:%M:%S",
         months="%Y-%m-%d %H:%M:%S",
-        years="%Y-%m-%d %H:%M:%S"
+        years="%Y-%m-%d %H:%M:%S",
     )
 
     # Rotate labels to prevent overlap

@@ -111,6 +111,14 @@
 #         try:
 #             if hasattr(self, '__cap') and self.__cap is not None:
 #                 self.__cap.release()
+    # def isOpened(self):
+    #     return self.__cap.isOpened() if self.__cap is not None else False
+
+    # def __set_cap(self) -> None:
+    #     """Initializes OpenCV's video capture"""
+    #     try:
+    #         if hasattr(self, '__cap') and self.__cap is not None:
+    #             self.__cap.release()
             
 #             self.__cap = cv2.VideoCapture(0)
 #             self.__cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.__width)

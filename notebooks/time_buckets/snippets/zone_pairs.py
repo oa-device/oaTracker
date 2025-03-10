@@ -16,5 +16,3 @@ def get_zone_pairs_snippet():
     e.track_id,
     e.zone_name,
     e.event_ts"""
-
-

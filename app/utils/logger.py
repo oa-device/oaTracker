@@ -23,7 +23,7 @@ class CloudCompatibleFormatter(logging.Formatter):
         if record.exc_info:
             log_data["exception"] = self.formatException(record.exc_info)
 
-        return maybe_json_color(json.dumps(log_data), hasattr(self, 'colors'))
+        return maybe_json_color(json.dumps(log_data), hasattr(self, "colors"))
 
     def setColors(self):
         self.colors = True
@@ -39,11 +39,13 @@ class CloudCompatibleFormatter(logging.Formatter):
         else:
             return {"text": str(record.msg)}
 
+
 def maybe_json_color(json: str, color: bool):
     if not color:
         return json
-    
+
     return highlight(json, lexers.JsonLexer(), formatters.TerminalFormatter()).rstrip()
+
 
 def setup_logger(log_dir="logs", level=logging.INFO, file_only=False):
     log_dir = Path(log_dir)
@@ -56,7 +58,9 @@ def setup_logger(log_dir="logs", level=logging.INFO, file_only=False):
         logger.removeHandler(handler)
 
     log_file = log_dir / f"{datetime.now().strftime('%Y-%m-%d')}.log"
-    file_handler = TimedRotatingFileHandler(log_file, when="midnight", interval=1, backupCount=30)
+    file_handler = TimedRotatingFileHandler(
+        log_file, when="midnight", interval=1, backupCount=30
+    )
 
     file_handler_formatter = CloudCompatibleFormatter()
     file_handler.setFormatter(file_handler_formatter)

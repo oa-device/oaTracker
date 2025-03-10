@@ -41,7 +41,7 @@ class ZoneCounterTrack(dict):
         track_names: tuple[str, str, str],
         track_class: int,
         track_id: bytes,
-        cam_id: bytes
+        cam_id: bytes,
     ):
         self.id = id
         self.track_names = track_names
@@ -92,7 +92,7 @@ class ZoneCounterTrack(dict):
                         "track_conf": self.conf,
                         "track_class": self.track_class,
                         "track_id": self.track_id,
-                        "cam_id":self.cam_id,
+                        "cam_id": self.cam_id,
                     }
                     self.done_rows.append(
                         {
@@ -122,7 +122,7 @@ class ZoneCounterTrack(dict):
 
     def get_rows(self, last_update):
         _done_rows = self.done_rows.copy()
-        self.done_rows=[]
+        self.done_rows = []
         # print('self.live_row', self.live_row)
         live_rows = []
         if self.live_row is not None and self.live_row["event_ts"] < last_update:
@@ -130,10 +130,10 @@ class ZoneCounterTrack(dict):
             self.live_row = None
         elif self.live_row is not None:
             live_rows.append(self.live_row)
-        
+
         return {"live": live_rows, "done": _done_rows}
 
-        
+
 schema = pa.schema(
     [
         pa.field("event_ts", pa.timestamp("us"), nullable=False),
@@ -145,29 +145,27 @@ schema = pa.schema(
         pa.field("cam_id", pa.binary(16), nullable=False),
     ]
 )
-        
+
 
 def write_files(q: Queue, boot_int: int):
-          
 
-    
     while True:
-        from_queue=q.get()
+        from_queue = q.get()
         begin = time.monotonic()
         # print('from_queue', from_queue)
         live_row = from_queue[0]
         done_rows = from_queue[1]
         done_int = from_queue[2]
 
-        
         # print("writes", (time.monotonic() - begin) * 1000, 'live', live_rows_arrow.num_rows, 'done', done_rows_arrow.num_rows, 'update_done', update_done)
+
 
 class ZoneCounter(Counter):
 
     name = "zone_counter"
 
     def __init__(self, args) -> None:
-        self.classes = [0,2,3,5]
+        self.classes = [0, 2, 3, 5]
         super().__init__(args, ZoneCounter.name)
 
         self.setup()
@@ -190,22 +188,19 @@ class ZoneCounter(Counter):
         self.done_int = self.args.boot_int
         self.done_rows_arrow = schema.empty_table()
         self.last_done_int = self.args.boot_int
-        
-        
 
         self.cam_id_bytes = uuid.UUID(args.camId).bytes
         self.cam_id_hex = str(uuid.UUID(args.camId).hex).upper()
-            
-        
-        self.write_thread_queue: Queue[dict[str, Any]] = Queue()
 
+        self.write_thread_queue: Queue[dict[str, Any]] = Queue()
 
         # , list[list[Union[int, float, bytes]]]
 
     def update(
         self,
         now: float,
-        boxes: ultralytics.engine.results.Boxes, removed_stracks: list[Any]
+        boxes: ultralytics.engine.results.Boxes,
+        removed_stracks: list[Any],
     ) -> None:
         try:
             self.last_update = now
@@ -245,7 +240,7 @@ class ZoneCounter(Counter):
                         self.zones_name,
                         track_class,
                         cam_id=self.cam_id_bytes,
-                        track_id=uuid
+                        track_id=uuid,
                     )
 
                 self.data[id].update_present(now, x, y, current_zone, conf)
@@ -256,7 +251,6 @@ class ZoneCounter(Counter):
             # ]
             # for track_not_in_frame in tracks_not_in_frame:
             #     print("not in frame", track_not_in_frame.id)
-                
 
             # cleanup
             # to_write = []
@@ -282,20 +276,24 @@ class ZoneCounter(Counter):
             print(e)
 
     def update_db(self):
-        begin=time.time()
+        begin = time.time()
         rows_deleted_tracks_live = self.rows_deleted_tracks_live
         rows_deleted_tracks_done = self.rows_deleted_tracks_done
         self.rows_deleted_tracks_live = []
         self.rows_deleted_tracks_done = []
-        
+
         last_db_update_ms = self.last_db_update * 1000000
-        
+
         rows = [data.get_rows(last_db_update_ms) for data in self.data.values()]
-        done_rows = [row for _rows in rows for row in _rows["done"]] + rows_deleted_tracks_done
-        live_rows = [row for _rows in rows for row in _rows["live"]] + rows_deleted_tracks_live
+        done_rows = [
+            row for _rows in rows for row in _rows["done"]
+        ] + rows_deleted_tracks_done
+        live_rows = [
+            row for _rows in rows for row in _rows["live"]
+        ] + rows_deleted_tracks_live
 
         live_rows = [row for row in live_rows if row["event_ts"] > last_db_update_ms]
-                
+
         schema = pa.schema(
             [
                 pa.field("event_ts", pa.timestamp("us"), nullable=False),
@@ -307,35 +305,44 @@ class ZoneCounter(Counter):
                 pa.field("cam_id", pa.binary(16), nullable=False),
             ]
         )
-        
-        
-        update_live=len(live_rows) != 0
-        update_done=len(done_rows) != 0
-        
+
+        update_live = len(live_rows) != 0
+        update_done = len(done_rows) != 0
+
         if update_live:
             live_rows_arrow = pa.Table.from_pylist(live_rows, schema=schema)
-            pq.write_table(live_rows_arrow, "/tmp/live.parquet.tmp", compression="snappy")
-        
-        
+            pq.write_table(
+                live_rows_arrow, "/tmp/live.parquet.tmp", compression="snappy"
+            )
+
         hive_path = f"year={datetime.datetime.now(datetime.timezone.utc).year}/month={datetime.datetime.now(datetime.timezone.utc).month}/cam_id_hex={self.cam_id_hex}"
 
         from pathlib import Path
+
         Path(f"/tmp/warehouse_oa/{hive_path}").mkdir(parents=True, exist_ok=True)
         if update_done:
-            self.done_rows_arrow = pa.concat_tables([pa.Table.from_pylist(done_rows, schema=schema), self.done_rows_arrow ])
-            pq.write_table(self.done_rows_arrow, "/tmp/done.parquet.tmp", compression="snappy")
-            os.replace("/tmp/done.parquet.tmp", f"/tmp/warehouse_oa/{hive_path}/done-{self.args.boot_int}-{self.done_int}.parquet")
+            self.done_rows_arrow = pa.concat_tables(
+                [pa.Table.from_pylist(done_rows, schema=schema), self.done_rows_arrow]
+            )
+            pq.write_table(
+                self.done_rows_arrow, "/tmp/done.parquet.tmp", compression="snappy"
+            )
+            os.replace(
+                "/tmp/done.parquet.tmp",
+                f"/tmp/warehouse_oa/{hive_path}/done-{self.args.boot_int}-{self.done_int}.parquet",
+            )
             split = len(self.done_rows_arrow) > 10_000
             if split:
                 self.done_int = time_int()
                 self.done_rows_arrow = schema.empty_table()
-            
+
         if update_live:
-            os.replace("/tmp/live.parquet.tmp", f"/tmp/warehouse_oa/{hive_path}/live-{self.args.boot_int}.parquet")
-        
+            os.replace(
+                "/tmp/live.parquet.tmp",
+                f"/tmp/warehouse_oa/{hive_path}/live-{self.args.boot_int}.parquet",
+            )
+
         # print('update', (time.time() - begin)*1000, 'LIVE', live_count, 'done', done_count)
-
-
 
     def setup(self):
         zones_coords = []

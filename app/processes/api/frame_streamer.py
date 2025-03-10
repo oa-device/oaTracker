@@ -8,17 +8,23 @@ import time
 from typing import Mapping, Union
 from fastapi import BackgroundTasks
 from fastapi.responses import StreamingResponse
+import logging
 
 from app.utils.mmap import mmap_context, mmap_read_nonblocking
+from app.utils.mmap import pathname_img, mmap_context
+
 
 loading_cam_filepath = os.path.normpath(Path(__file__).parent / "loading_cam.jpg")
+logger = logging.getLogger(__name__)
+
+
 class FrameStreamer:
     """The FrameStreamer class allows you to send frames and visualize them as a stream"""
 
     def __init__(self):
         self.running = True
         with open(loading_cam_filepath, "rb") as loading_cam_file:
-            self.img=loading_cam_file.read()
+            self.img = loading_cam_file.read()
         self.__thread = threading.Thread(
             name=f"Read_img_on_disk",
             target=self.__update,
@@ -27,31 +33,26 @@ class FrameStreamer:
         self.__thread.daemon = True
         self.__thread.start()
 
-        
     def __update(self):
-        directory = "/dev/shm"
-        pathname_img = f"{directory}/cam.shm"
-        
+
         with open(loading_cam_filepath, "rb") as loading_cam_file:
-            loading_cam=loading_cam_file.read()
-        
+            loading_cam = loading_cam_file.read()
+
         with mmap_context(pathname_img, 512000) as shared_memory_img:
             while self.running:
                 try:
                     img = mmap_read_nonblocking(shared_memory_img)
                     if img is None:
-                        img=loading_cam
-                        
-                    self.img=img
+                        img = loading_cam
+
+                    self.img = img
                 except Exception as a:
                     print(1)
                     pass
-                
+
                 time.sleep(1 / 33)
-                
 
     async def _start_stream(self):
-        
         """Continuous loop to stream the frame to html image/webp format
         Yields:
             bytes: HTML containing the bytes to plot the stream
@@ -59,13 +60,15 @@ class FrameStreamer:
         while self.running:
             try:
                 yield (
-                    b"--frame\r\n" b"Content-Type: image/webp\r\n\r\n" + self.img + b"\r\n"
+                    b"--frame\r\n"
+                    b"Content-Type: image/webp\r\n\r\n" + self.img + b"\r\n"
                 )
             except Exception as a:
                 pass
-            
+
             await asyncio.sleep(1 / 15)
 
+            await asyncio.sleep(0.003)
 
     def get_stream(
         self,
