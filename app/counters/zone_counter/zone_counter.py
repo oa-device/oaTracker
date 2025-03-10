@@ -205,8 +205,6 @@ class ZoneCounter(Counter):
         try:
             self.last_update = now
 
-            print(boxes)
-
             # start with tracks that were in the frame
             box_ids = []
             for box in boxes:
@@ -244,6 +242,8 @@ class ZoneCounter(Counter):
                         cam_id=self.cam_id_bytes,
                         track_id=uuid,
                     )
+                    
+                print((now, x, y, current_zone, conf))
 
                 self.data[id].update_present(now, x, y, current_zone, conf)
 

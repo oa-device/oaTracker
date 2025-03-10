@@ -129,9 +129,6 @@ class CounterLoop:
                         if self.maybe_close():
                             return
 
-
-                        print(r)
-                        
                         # handle results
                         self.handle_results(r, now)
                         self.log_visualization(r, now, shared_memory_img)
