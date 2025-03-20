@@ -9,10 +9,12 @@ from ultralytics.utils.plotting import Annotator
 import datetime
 from typing import Any
 from uuid import uuid4
+import cv2
 
 from app.parse_args import Args
 
 database_folder_path = str(os.path.normpath(Path(__file__).parent / "../../db/"))
+
 
 class Counter(ABC):
     def __init__(self, args: Args, name: str) -> None:
@@ -56,11 +58,7 @@ class Counters:
         classes = []
         active_counters_name = args.counters_config.keys()
         for active_counter_name in active_counters_name:
-            configs = [
-                _counter
-                for _counter in all_counters
-                if active_counter_name == _counter.name
-            ]
+            configs = [_counter for _counter in all_counters if active_counter_name == _counter.name]
             if len(configs) != 0:
                 counter = configs[0](args)
                 counter.init(self.track_uuids)
@@ -121,18 +119,12 @@ class Counters:
 
                 box_labels = self.get_labels(id)
                 name = "" if id is None else f"id:{id} {labels[cls]}"
-                label = (
-                    f"{box_labels if len(box_labels) != 0 else ""} {int(conf * 100)}%"
-                    if conf
-                    else name
-                )
+                label = f"{box_labels if len(box_labels) != 0 else ""} {int(conf * 100)}%" if conf else name
                 annotator.box_label(d.xyxy[0], label, color=(0, 225, 27))
 
-        annotator.text_label(
-            (1780, 150, 1920, 1080),
-            datetime.datetime.fromtimestamp(cam_ts).strftime("%H:%M:%S"),
-            color=(0, 0, 0),
-        )
+        # Add timestamp using cv2 instead of text_label
+        timestamp = datetime.datetime.fromtimestamp(cam_ts).strftime("%H:%M:%S")
+        cv2.putText(annotator.result(), timestamp, (1780, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
 
         return annotator.result()
 
