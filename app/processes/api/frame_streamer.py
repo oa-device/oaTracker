@@ -68,8 +68,6 @@ class FrameStreamer:
 
             await asyncio.sleep(1 / 15)
 
-            await asyncio.sleep(0.003)
-
     def get_stream(
         self,
         status_code: int = 206,

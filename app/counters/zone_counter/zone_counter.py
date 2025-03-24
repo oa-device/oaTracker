@@ -350,7 +350,7 @@ class ZoneCounter(Counter):
         for zone in self.counter_config["zones"]:
             coords = []
             for points in zone["points"]:
-                coords.append((int(points[0] * 19.2), int(points[1] * 10.8)))
+                coords.append((int(points[0] * 6.4), int(points[1] * 3.6)))
             zones_coords.append(coords)
         self.zones_coords = tuple(zones_coords)
 
