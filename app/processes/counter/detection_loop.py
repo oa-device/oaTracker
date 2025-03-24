@@ -134,7 +134,7 @@ class CounterLoop:
 
                         # handle results
                         self.handle_results(r, now)
-                        self.log_visualization(r, frame, now, shared_memory_img)
+                        self.log_visualization(frame, r, now, shared_memory_img)
 
                         if self.maybe_close():
                             return
