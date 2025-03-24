@@ -113,7 +113,7 @@ class CounterLoop:
 
             for device in uvc.device_list():
 
-                print(1111, uvc.device_list())
+                print(1111, uvc.device_list(), device["uid"])
 
                 cap = uvc.Capture(device["uid"])
 
