@@ -80,7 +80,7 @@ class SyncLoops:
                 try:
                     time.sleep(0.1)
 
-                    if time.monotonic() - last_check_mono < 10:
+                    if time.monotonic() - last_check_mono < 2.5:
                         continue
 
                     # print("Files and Directories in '% s':" % warehouse_path)

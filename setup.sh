@@ -72,7 +72,7 @@ install_uv() {
         echo "uv could not be found"
         curl -LsSf https://astral.sh/uv/install.sh | sh
     else
-        uv self update
+        curl -LsSf https://astral.sh/uv/install.sh | sh
     fi
 }
 
@@ -167,6 +167,11 @@ install_python
 
 # # Set up virtual environment and install dependencies
 setup_venv
+
+sudo rm -rf vidformer || true;
+git clone https://github.com/ixlab/vidformer
+cd vidformer
+docker build -t igni -f Dockerfile .
 
 # Deactivate the virtual environment
 deactivate

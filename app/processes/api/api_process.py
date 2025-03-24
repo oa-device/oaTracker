@@ -145,8 +145,6 @@ async def post_config(request: Request):
 
 
 client_last_presence = 0
-
-
 @app.get("/dashboard/sse")
 async def message_stream(start: str = "entrance", end: str = "exit"):
     async def event_generator():

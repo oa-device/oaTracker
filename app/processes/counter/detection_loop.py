@@ -20,7 +20,6 @@ from ultralytics import YOLO
 
 from app.utils.mmap import mmap_context, mmap_write, pathname_img
 from app.utils.stop_detection import major_error
-
 logger = get_logger(__name__)
 
 
@@ -102,29 +101,32 @@ class CounterLoop:
 
             if self.maybe_close():
                 return
-
-            batch = 30
-
-            generator = self.model.track(
-                tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
-                source=self.args.yolo_source,
-                stream=True,
-                persist=True,
-                batch=batch,
-                imgsz=1280,
-                conf=0.001,
-                vid_stride=1,
-                classes=self.classes,
-                iou=0.4,
-                augment=False,
-                verbose=False,
-                device="mps",
-            )
+            
+            cap = cv2.VideoCapture(self.args.yolo_source)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
             try:
-                for r in generator:
+                while True:
                     try:
                         now = time.time()
+                        ret, frame = cap.read()
+                        if not ret:
+                            time.sleep(0.05)
+                            continue
+                        
+                        r = self.model.track(
+                            frame,
+                            tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
+                            persist=True,
+                            conf=0.001,
+                            vid_stride=1,
+                            classes=self.classes,
+                            iou=0.4,
+                            augment=False,
+                            verbose=False,
+                            device="mps",
+                        )[0]
 
                         if self.maybe_close():
                             return
