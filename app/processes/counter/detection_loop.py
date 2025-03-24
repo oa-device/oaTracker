@@ -117,6 +117,7 @@ class CounterLoop:
 
                 cap = uvc.Capture(device["uid"])
 
+                print(2222, cap)
                 for mode in cap.available_modes:
                     print(f"{cap.name} running at {mode}")
                     try:
