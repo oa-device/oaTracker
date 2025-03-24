@@ -115,7 +115,7 @@ class CounterLoop:
                             continue
                         
                         r = self.model.track(
-                            resize(frame, (640, 480)),
+                            frame,
                             imgsz=640,
                             tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
                             persist=True,
