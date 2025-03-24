@@ -16,6 +16,7 @@ dependencies = [
     "duckdb",
     "boto3",
     "pyarrow",
+    "pupil-labs-uvc",
     "pylint",
     "uvicorn",
     "lap>=0.5.12",
@@ -30,5 +31,5 @@ dependencies = [
     "bokeh",
     "jupyter_bokeh",
     "ipywidgets_bokeh",
-    'pyobjc ; platform_system == "Darwin"'
+    'pyobjc ; platform_system == "Darwin"',
 ]

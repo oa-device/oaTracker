@@ -104,7 +104,36 @@ class CounterLoop:
             
             cap = cv2.VideoCapture(self.args.yolo_source)
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 736)
+            
+            
+            import uvc
+            
+            print(uvc.device_list())
+
+            for device in uvc.device_list():
+
+                print(1111, uvc.device_list())
+
+                cap = uvc.Capture(device["uid"])
+
+                for mode in cap.available_modes:
+                    print(f"{cap.name} running at {mode}")
+                    try:
+                        cap.frame_mode = mode
+                    except uvc.InitError as err:
+                        print(f"{cap.name} mode selection - {err}")
+                        continue
+                    try:
+                        for x in range(10):
+                            frame = cap.get_frame_robust()
+                            print("frame gray mean", frame.gray.mean())
+                        # print(frame.img.mean())
+                    except uvc.InitError as err:
+                        print(f"{cap.name} getting frames - {err}")
+
+                cap.close()
+            
 
             try:
                 while True:
@@ -115,9 +144,11 @@ class CounterLoop:
                             time.sleep(0.05)
                             continue
                         
+                        
+                        
                         r = self.model.track(
                             frame,
-                            imgsz=720,
+                            imgsz=736,
                             tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
                             persist=True,
                             conf=0.001,
