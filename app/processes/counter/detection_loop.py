@@ -102,8 +102,8 @@ class CounterLoop:
                 return
             
             cap = cv2.VideoCapture(self.args.yolo_source)
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 
             try:
                 while True:
@@ -115,7 +115,7 @@ class CounterLoop:
                             continue
                         
                         r = self.model.track(
-                            frame,
+                            resize(frame, (640, 480)),
                             tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
                             persist=True,
                             conf=0.001,
