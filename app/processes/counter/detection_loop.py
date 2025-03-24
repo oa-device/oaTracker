@@ -103,8 +103,8 @@ class CounterLoop:
                 return
             
             cap = cv2.VideoCapture(self.args.yolo_source)
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 2560)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1440)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
 
             try:
                 while True:
