@@ -167,11 +167,6 @@ install_python
 # # Set up virtual environment and install dependencies
 setup_venv
 
-sudo rm -rf vidformer || true;
-git clone https://github.com/ixlab/vidformer
-cd vidformer
-docker build -t igni -f Dockerfile .
-
 # Deactivate the virtual environment
 deactivate
 

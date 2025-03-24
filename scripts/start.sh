@@ -13,11 +13,6 @@ trap '' USR2
 
 export PYTORCH_ENABLE_MPS_FALLBACK=1
 
-export VF_IGNI_ENDPOINT=http://localhost:8080
-export VF_IGNI_API_KEY=local
-
-docker compose -f vidformer/vidformer-igni/docker-compose-local.yaml up -d
-
 TWICE=0
 function ctrl_c() {
     if [ $TWICE -eq 1 ]
