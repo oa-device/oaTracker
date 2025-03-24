@@ -55,9 +55,7 @@ def numberToBase(n, b):
     return digits[::-1]
 
 
-urlsafe_66_alphabet = (
-    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_-.~"
-)
+urlsafe_66_alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_-.~"
 
 
 @functools.lru_cache(maxsize=128)
@@ -116,6 +114,11 @@ def online():
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html.jinja", {"request": request, "dashboard_data": {}})  # type: ignore
+
+
+@app.get("/stats", response_class=HTMLResponse)
+async def minute_statistics_page(request: Request):
+    return templates.TemplateResponse("minute_statistics.html.jinja", {"request": request})
 
 
 @app.get("/edit_config", response_class=HTMLResponse)
@@ -207,10 +210,7 @@ def api_zone_last_15(cur):
         ).fetchall()
     except:
         return []
-    return [
-        (bytes_to_uuid(x[0]), str(x[1]), str(x[2]), str(x[3]), str(x[4]))
-        for x in result
-    ]
+    return [(bytes_to_uuid(x[0]), str(x[1]), str(x[2]), str(x[3]), str(x[4])) for x in result]
 
 
 def api_last_seen_from(cur):
@@ -337,6 +337,85 @@ def api_presence_last_15_seconds(cur):
     return result
 
 
+def api_minute_statistics(cur, minutes=1):
+    """Get detection statistics for the last N minutes"""
+    try:
+        # First check if we have data in the parquet files
+        check_result = cur.sql(
+            """SELECT COUNT(*) FROM read_parquet('/tmp/warehouse_oa/*/*/*/*.parquet', 
+                hive_partitioning = true, 
+                hive_types = {'year': SMALLINT, 'month': TINYINT}) LIMIT 1;"""
+        ).fetchall()
+
+        has_data = check_result and check_result[0][0] > 0
+
+        if not has_data:
+            print("No data found in parquet files")
+            # Try another way to get the data - directly from the live tracking
+            return {
+                "timestamp": time.time(),
+                "total_people": cur.sql("SELECT COUNT(*) FROM (SELECT DISTINCT track_id FROM events)").fetchone()[0],
+                "total_detections": cur.sql("SELECT COUNT(*) FROM events").fetchone()[0],
+                "first_seen": cur.sql("SELECT MIN(ts) FROM events").fetchone()[0],
+                "last_seen": cur.sql("SELECT MAX(ts) FROM events").fetchone()[0],
+            }
+
+        # Continue with the regular query if we have parquet data
+        result = cur.sql(
+            f"""
+            WITH MinuteDetections AS (
+                SELECT 
+                    track_id,
+                    COUNT(*) as detection_count,
+                    MIN(event_ts) as first_seen,
+                    MAX(event_ts) as last_seen
+                FROM read_parquet('/tmp/warehouse_oa/*/*/*/*.parquet', 
+                    hive_partitioning = true, 
+                    hive_types = {{'year': SMALLINT, 'month': TINYINT}})
+                WHERE event_ts AT TIME ZONE 'UTC' > current_timestamp - INTERVAL '{minutes} minutes'
+                GROUP BY track_id
+            )
+            SELECT 
+                COUNT(DISTINCT track_id) as total_people,
+                SUM(detection_count) as total_detections,
+                strftime(MIN(first_seen), '%Y-%m-%dT%H:%M:%S.%g+00:00') as first_seen,
+                strftime(MAX(last_seen), '%Y-%m-%dT%H:%M:%S.%g+00:00') as last_seen
+            FROM MinuteDetections;
+        """
+        ).fetchall()[0]
+
+        return {
+            "timestamp": time.time(),
+            "total_people": result[0] if result[0] is not None else 0,
+            "total_detections": result[1] if result[1] is not None else 0,
+            "first_seen": result[2],
+            "last_seen": result[3],
+        }
+    except Exception as e:
+        print(f"Error getting minute statistics: {e}")
+        try:
+            # Fallback to events table if parquet reading fails
+            return {
+                "timestamp": time.time(),
+                "total_people": cur.sql("SELECT COUNT(*) FROM (SELECT DISTINCT track_id FROM events)").fetchone()[0],
+                "total_detections": cur.sql("SELECT COUNT(*) FROM events").fetchone()[0],
+                "first_seen": cur.sql("SELECT MIN(ts) FROM events").fetchone()[0],
+                "last_seen": cur.sql("SELECT MAX(ts) FROM events").fetchone()[0],
+            }
+        except Exception as inner_e:
+            print(f"Error in fallback for minute statistics: {inner_e}")
+            return {"timestamp": time.time(), "total_people": 0, "total_detections": 0, "first_seen": None, "last_seen": None, "error": str(e)}
+
+
+@app.get("/api/stats")
+async def minute_statistics(minutes: int = 1):
+    """Endpoint to get detection statistics for the last N minutes"""
+    cur = duckdb_con.cursor()
+    result = api_minute_statistics(cur, minutes)
+    cur.close()
+    return result
+
+
 @app.get("/cam.jpg")
 def video_feed():
     return fs.get_stream()  # type: ignore
@@ -361,8 +440,6 @@ class ApiProcess:
         # await self.server.shutdown()
 
     def start(self):
-        config = uvicorn.Config(
-            app, host="0.0.0.0", port=8080, log_level="info", loop="asyncio"
-        )
+        config = uvicorn.Config(app, host="0.0.0.0", port=8080, log_level="info", loop="asyncio")
         self.server = uvicorn.Server(config=config)
         self.server.run()

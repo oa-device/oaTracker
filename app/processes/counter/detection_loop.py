@@ -80,8 +80,7 @@ class CounterLoop:
             cam_ts=cam_ts,
             labels=self.model.names,
         )
-        im = resize(frame, (640, 360))
-        _, img = imencode(".webp", im, [int(cv2.IMWRITE_WEBP_QUALITY), 20])
+        _, img = imencode(".webp", frame, [int(cv2.IMWRITE_WEBP_QUALITY), 20])
         if _:
             mmap_write(shared_memory_img, 512000, img.tobytes())
 

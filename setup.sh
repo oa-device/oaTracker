@@ -63,12 +63,11 @@ install_ubuntu_dependencies() {
     echo "Installing build dependencies..."
     sudo apt-get install -y make build-essential libssl-dev zlib1g-dev libbz2-dev \
         libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev \
-        xz-utils tk-dev libffi-dev liblzma-dev python3-opencv;
+        xz-utils tk-dev libffi-dev liblzma-dev python3-opencv
 }
 
 install_uv() {
-    if ! command -v uv 2>&1 >/dev/null
-    then
+    if ! command -v uv 2>&1 >/dev/null; then
         echo "uv could not be found"
         curl -LsSf https://astral.sh/uv/install.sh | sh
     else
@@ -87,7 +86,7 @@ install_macos_dependencies() {
     fi
     echo "Checking and installing build dependencies..."
 
-    for pkg in openssl@3 readline sqlite xz zlib; do
+    for pkg in openssl@3 readline sqlite xz zlib util-linux; do
         if brew list --versions $pkg >/dev/null; then
             echo "$pkg is already installed"
         else
