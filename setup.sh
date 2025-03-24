@@ -108,7 +108,7 @@ setup_venv() {
     source .venv/bin/activate
 
     echo "Installing required packages..."
-    uv pip install -r pyproject.toml
+    uv pip install -r pyproject.toml --prerelease=allow
 }
 
 # Function to clean up previous installations
