@@ -70,12 +70,13 @@ class CounterLoop:
 
     def log_visualization(
         self,
+        frame,
         result: ultralytics.engine.results.Results,
         cam_ts: float,
         shared_memory_img: mmap.mmap,
     ) -> None:
         frame = self.counters.plot(
-            img=result.orig_img,
+            img=frame,
             boxes=result.boxes,
             cam_ts=cam_ts,
             labels=self.model.names,
@@ -133,7 +134,7 @@ class CounterLoop:
 
                         # handle results
                         self.handle_results(r, now)
-                        self.log_visualization(r, now, shared_memory_img)
+                        self.log_visualization(r, frame, now, shared_memory_img)
 
                         if self.maybe_close():
                             return
