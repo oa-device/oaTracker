@@ -109,7 +109,6 @@ class CounterLoop:
             
             import uvc
             
-            print(uvc.device_list())
 
             for device in uvc.device_list():
 

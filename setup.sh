@@ -3,7 +3,7 @@
 set -e
 
 # Desired Python version
-PYTHON_VERSION="3.12.8"
+PYTHON_VERSION="3.11.11"
 
 # Function to display usage information
 display_usage() {
@@ -108,7 +108,7 @@ setup_venv() {
     source .venv/bin/activate
 
     echo "Installing required packages..."
-    uv pip install -r pyproject.toml --prerelease=allow
+    uv pip install -r pyproject.toml
 }
 
 # Function to clean up previous installations
