@@ -22,6 +22,7 @@ dependencies = [
     "jupysql",
     "duckdb-engine",
     "rich",
+    "pyusb",
     "ipykernel",
     "matplotlib",
     "notebook",
