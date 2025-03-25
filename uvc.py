@@ -1,313 +1,342 @@
-import usb.core
-import usb.util
-import array
-import sys
+import Foundation
+import AVFoundation
+import Quartz
+import time
 
-# Your specific camera details from the error message
-CAMERA_VID = 0x291a  # Vendor ID from your output
-CAMERA_PID = 0x3369  # Product ID from your output
+def list_cameras():
+    """List all available cameras using AVFoundation"""
+    print("Available Cameras:")
+    print("-----------------")
+    
+    # Get all video devices
+    discovery_session = AVCaptureDeviceDiscoverySession.discoverySessionWithDeviceTypes_mediaType_position_(
+        [AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureDeviceTypeExternalUnknown],
+        AVMediaTypeVideo,
+        AVCaptureDevicePositionUnspecified
+    )
+    
+    devices = discovery_session.devices()
+    
+    if not devices or len(devices) == 0:
+        print("No cameras found.")
+        return []
+    
+    camera_list = []
+    
+    for i, device in enumerate(devices):
+        # Get device information
+        name = device.localizedName()
+        model = device.modelID()
+        manufacturer = "Apple" if device.manufacturer() is None else device.manufacturer()
+        
+        print(f"{i+1}. {name}")
+        print(f"   Manufacturer: {manufacturer}")
+        print(f"   Model: {model}")
+        print(f"   Unique ID: {device.uniqueID()}")
+        
+        # Check which properties are supported
+        print(f"   Supported Properties:")
+        
+        supports = []
+        
+        if device.isExposureModeSupported_(AVCaptureExposureModeContinuousAutoExposure):
+            supports.append("Auto Exposure")
+        if device.isExposureModeSupported_(AVCaptureExposureModeCustom):
+            supports.append("Manual Exposure")
+        if device.isWhiteBalanceModeSupported_(AVCaptureWhiteBalanceModeContinuousAutoWhiteBalance):
+            supports.append("Auto White Balance")
+        if device.isWhiteBalanceModeSupported_(AVCaptureWhiteBalanceModeCustom):
+            supports.append("Manual White Balance")
+        if device.isFocusModeSupported_(AVCaptureModeContinuousAutoFocus):
+            supports.append("Auto Focus")
+        if device.isFocusModeSupported_(AVCaptureModeAutoFocus):
+            supports.append("Single Auto Focus")
+        if device.isFocusModeSupported_(AVCaptureModeManual):
+            supports.append("Manual Focus")
+        
+        print(f"     - {', '.join(supports)}")
+        
+        # Check for adjustable properties
+        props = []
+        
+        if device.isAdjustingExposure():
+            props.append("Exposure")
+        if device.isAdjustingFocus():
+            props.append("Focus")
+        if device.isAdjustingWhiteBalance():
+            props.append("White Balance")
+        
+        if props:
+            print(f"   Currently Adjusting: {', '.join(props)}")
+        
+        print()
+        
+        camera_list.append(device)
+    
+    return camera_list
 
-def test_direct_controls():
-    """Test UVC controls directly on your specific camera"""
-    print(f"Looking for camera with VID=0x{CAMERA_VID:04x}, PID=0x{CAMERA_PID:04x}...")
+def setup_camera_session(device):
+    """Set up an AVCaptureSession for the selected camera"""
+    # Create capture session
+    session = AVCaptureSession.alloc().init()
+    session.beginConfiguration()
     
-    # Find your camera directly
-    dev = usb.core.find(idVendor=CAMERA_VID, idProduct=CAMERA_PID)
+    # Set session preset
+    session.setSessionPreset_(AVCaptureSessionPresetHigh)
     
-    if not dev:
-        print("Camera not found. Make sure it's connected and you're running with sudo.")
+    # Add device input
+    device_input = AVCaptureDeviceInput.deviceInputWithDevice_error_(device, None)[0]
+    if not device_input:
+        print("Error creating device input")
+        return None
+    
+    if session.canAddInput_(device_input):
+        session.addInput_(device_input)
+    else:
+        print("Could not add device input to session")
+        return None
+    
+    # Add video output
+    video_output = AVCaptureVideoDataOutput.alloc().init()
+    
+    if session.canAddOutput_(video_output):
+        session.addOutput_(video_output)
+    else:
+        print("Could not add video output to session")
+        return None
+    
+    # Commit configuration
+    session.commitConfiguration()
+    
+    return {
+        'session': session,
+        'device': device,
+        'device_input': device_input,
+        'video_output': video_output
+    }
+
+def control_camera(device):
+    """Control camera properties using AVFoundation"""
+    print(f"Controlling camera: {device.localizedName()}")
+    print("--------------------------------")
+    
+    try:
+        # Lock the device for configuration
+        if not device.lockForConfiguration_(None)[0]:
+            print("Could not lock device for configuration")
+            return
+        
+        # Show current values
+        print("Current Settings:")
+        
+        if device.isExposureModeSupported_(AVCaptureExposureModeContinuousAutoExposure):
+            mode = "Auto" if device.exposureMode() == AVCaptureExposureModeContinuousAutoExposure else "Manual"
+            print(f"- Exposure Mode: {mode}")
+            
+            if hasattr(device, 'exposureDuration'):
+                duration = device.exposureDuration()
+                seconds = duration.seconds + (duration.timescale / float(duration.value))
+                print(f"- Exposure Duration: {seconds:.6f} seconds")
+            
+            if hasattr(device, 'ISO'):
+                print(f"- ISO: {device.ISO()}")
+        
+        if device.isWhiteBalanceModeSupported_(AVCaptureWhiteBalanceModeContinuousAutoWhiteBalance):
+            mode = "Auto" if device.whiteBalanceMode() == AVCaptureWhiteBalanceModeContinuousAutoWhiteBalance else "Manual"
+            print(f"- White Balance Mode: {mode}")
+            
+            if hasattr(device, 'deviceWhiteBalanceGains'):
+                gains = device.deviceWhiteBalanceGains()
+                print(f"- White Balance Gains: R={gains.redGain}, G={gains.greenGain}, B={gains.blueGain}")
+        
+        if device.isFocusModeSupported_(AVCaptureModeContinuousAutoFocus):
+            if device.focusMode() == AVCaptureModeContinuousAutoFocus:
+                mode = "Continuous Auto"
+            elif device.focusMode() == AVCaptureModeAutoFocus:
+                mode = "Single Auto"
+            else:
+                mode = "Manual"
+                
+            print(f"- Focus Mode: {mode}")
+            
+            if hasattr(device, 'lensPosition'):
+                print(f"- Focus Position: {device.lensPosition()}")
+        
+        print("\nControl Options:")
+        print("1. Toggle Auto/Manual Exposure")
+        print("2. Set ISO (Manual Exposure)")
+        print("3. Set Exposure Duration (Manual Exposure)")
+        print("4. Toggle Auto/Manual Focus")
+        print("5. Set Focus Position (Manual Focus)")
+        print("6. Toggle Auto/Manual White Balance")
+        print("0. Exit")
+        
+        while True:
+            choice = input("\nEnter option number (0 to exit): ")
+            
+            if choice == "0":
+                break
+            
+            elif choice == "1":
+                # Toggle exposure mode
+                if device.isExposureModeSupported_(AVCaptureExposureModeContinuousAutoExposure) and \
+                   device.isExposureModeSupported_(AVCaptureExposureModeCustom):
+                    if device.exposureMode() == AVCaptureExposureModeContinuousAutoExposure:
+                        print("Switching to Manual Exposure")
+                        device.setExposureMode_(AVCaptureExposureModeCustom)
+                    else:
+                        print("Switching to Auto Exposure")
+                        device.setExposureMode_(AVCaptureExposureModeContinuousAutoExposure)
+                else:
+                    print("Camera does not support toggling exposure mode")
+            
+            elif choice == "2":
+                # Set ISO
+                if device.exposureMode() == AVCaptureExposureModeCustom:
+                    min_iso = device.activeFormat().minISO()
+                    max_iso = device.activeFormat().maxISO()
+                    current_iso = device.ISO()
+                    
+                    print(f"Current ISO: {current_iso}")
+                    print(f"Valid range: {min_iso} - {max_iso}")
+                    
+                    try:
+                        new_iso = float(input("Enter new ISO value: "))
+                        if min_iso <= new_iso <= max_iso:
+                            device.setExposureModeCustomWithDuration_ISO_completionHandler_(
+                                device.exposureDuration(),
+                                new_iso,
+                                None
+                            )
+                            print(f"ISO set to {new_iso}")
+                        else:
+                            print(f"ISO must be between {min_iso} and {max_iso}")
+                    except ValueError:
+                        print("Invalid input. Please enter a number.")
+                else:
+                    print("Camera must be in Manual Exposure mode first")
+            
+            elif choice == "3":
+                # Set exposure duration
+                if device.exposureMode() == AVCaptureExposureModeCustom:
+                    min_duration = device.activeFormat().minExposureDuration()
+                    max_duration = device.activeFormat().maxExposureDuration()
+                    current = device.exposureDuration()
+                    
+                    min_seconds = min_duration.value / float(min_duration.timescale)
+                    max_seconds = max_duration.value / float(max_duration.timescale)
+                    current_seconds = current.value / float(current.timescale)
+                    
+                    print(f"Current Exposure: {current_seconds:.6f} seconds")
+                    print(f"Valid range: {min_seconds:.6f} - {max_seconds:.6f} seconds")
+                    
+                    try:
+                        new_seconds = float(input("Enter new exposure duration in seconds: "))
+                        if min_seconds <= new_seconds <= max_seconds:
+                            # Convert to CMTime
+                            timescale = 1000000  # Use microsecond precision
+                            value = int(new_seconds * timescale)
+                            new_duration = CMTimeMake(value, timescale)
+                            
+                            device.setExposureModeCustomWithDuration_ISO_completionHandler_(
+                                new_duration,
+                                device.ISO(),
+                                None
+                            )
+                            print(f"Exposure duration set to {new_seconds:.6f} seconds")
+                        else:
+                            print(f"Duration must be between {min_seconds:.6f} and {max_seconds:.6f} seconds")
+                    except ValueError:
+                        print("Invalid input. Please enter a number.")
+                else:
+                    print("Camera must be in Manual Exposure mode first")
+            
+            elif choice == "4":
+                # Toggle focus mode
+                if device.isFocusModeSupported_(AVCaptureModeContinuousAutoFocus) and \
+                   device.isFocusModeSupported_(AVCaptureModeManual):
+                    if device.focusMode() == AVCaptureModeContinuousAutoFocus:
+                        print("Switching to Manual Focus")
+                        device.setFocusMode_(AVCaptureModeManual)
+                    else:
+                        print("Switching to Auto Focus")
+                        device.setFocusMode_(AVCaptureModeContinuousAutoFocus)
+                else:
+                    print("Camera does not support toggling focus mode")
+            
+            elif choice == "5":
+                # Set focus position
+                if device.focusMode() == AVCaptureModeManual:
+                    current = device.lensPosition()
+                    print(f"Current Focus Position: {current}")
+                    print("Valid range: 0.0 (far) - 1.0 (near)")
+                    
+                    try:
+                        new_position = float(input("Enter new focus position (0.0-1.0): "))
+                        if 0.0 <= new_position <= 1.0:
+                            device.setFocusModeLockedWithLensPosition_completionHandler_(
+                                new_position, 
+                                None
+                            )
+                            print(f"Focus position set to {new_position}")
+                        else:
+                            print("Position must be between 0.0 and 1.0")
+                    except ValueError:
+                        print("Invalid input. Please enter a number.")
+                else:
+                    print("Camera must be in Manual Focus mode first")
+            
+            elif choice == "6":
+                # Toggle white balance mode
+                if device.isWhiteBalanceModeSupported_(AVCaptureWhiteBalanceModeContinuousAutoWhiteBalance) and \
+                   device.isWhiteBalanceModeSupported_(AVCaptureWhiteBalanceModeCustom):
+                    if device.whiteBalanceMode() == AVCaptureWhiteBalanceModeContinuousAutoWhiteBalance:
+                        print("Switching to Manual White Balance")
+                        device.setWhiteBalanceMode_(AVCaptureWhiteBalanceModeCustom)
+                    else:
+                        print("Switching to Auto White Balance")
+                        device.setWhiteBalanceMode_(AVCaptureWhiteBalanceModeContinuousAutoWhiteBalance)
+                else:
+                    print("Camera does not support toggling white balance mode")
+            
+            else:
+                print("Invalid option")
+    
+    except Exception as e:
+        print(f"Error controlling camera: {e}")
+    
+    finally:
+        # Unlock device
+        device.unlockForConfiguration()
+
+def main():
+    print("macOS Camera Control with AVFoundation")
+    print("=====================================")
+    
+    # List available cameras
+    cameras = list_cameras()
+    
+    if not cameras:
+        print("No cameras available.")
         return
     
-    print("Camera found!")
+    # Select camera
+    selected_camera = cameras[0]
     
-    # Try to set configuration (may fail, that's ok)
-    try:
-        dev.set_configuration()
-    except:
-        pass
-    
-    # Common UVC interface numbers
-    interfaces_to_try = [0, 1, 2, 3]
-    
-    # Common UVC unit IDs
-    camera_terminal_ids = [1, 2, 3]     # Camera Terminal is usually 1
-    processing_unit_ids = [2, 3, 4, 5]  # Processing Unit is usually 2
-    
-    # Common UVC controls to test
-    controls = [
-        {"name": "Brightness", "selector": 0x02, "length": 2},
-        {"name": "Contrast", "selector": 0x03, "length": 2},
-        {"name": "Saturation", "selector": 0x07, "length": 2},
-        {"name": "Sharpness", "selector": 0x08, "length": 2},
-        {"name": "Auto White Balance", "selector": 0x11, "length": 1},
-        {"name": "Auto Exposure", "selector": 0x02, "length": 1},
-        {"name": "Focus", "selector": 0x06, "length": 2},
-        {"name": "Auto Focus", "selector": 0x12, "length": 1},
-        {"name": "Zoom", "selector": 0x0A, "length": 2},
-    ]
-    
-    # Test each combination
-    successful_controls = []
-    
-    for interface_num in interfaces_to_try:
-        print(f"\nTrying interface {interface_num}...")
-        
-        # Test processing unit controls (brightness, contrast, etc.)
-        for unit_id in processing_unit_ids:
-            print(f"  Testing Processing Unit ID {unit_id}...")
-            
-            # Try each control
-            for control in controls:
-                try:
-                    print(f"    Testing {control['name']}...")
-                    
-                    # GET_CUR request
-                    bmRequestType = 0xA1  # Direction: IN, Type: Class, Recipient: Interface
-                    bRequest = 0x81       # GET_CUR
-                    wValue = (control['selector'] << 8)
-                    wIndex = (unit_id << 8) | interface_num
-                    wLength = control['length']
-                    
-                    buffer = array.array('B', [0] * wLength)
-                    
-                    # Send request with short timeout
-                    result = dev.ctrl_transfer(bmRequestType, bRequest, wValue, wIndex, buffer, timeout=200)
-                    
-                    if result:
-                        # Parse value
-                        if wLength == 1:
-                            value = result[0]
-                        elif wLength == 2:
-                            value = result[0] | (result[1] << 8)
-                        else:
-                            value = result
-                        
-                        print(f"      ✓ Success! Current value: {value}")
-                        
-                        # Record success
-                        successful_controls.append({
-                            "name": control['name'],
-                            "unit_id": unit_id,
-                            "interface": interface_num,
-                            "selector": control['selector'],
-                            "length": control['length']
-                        })
-                    else:
-                        print(f"      ✗ No data returned")
-                
-                except usb.core.USBError as e:
-                    if "timeout" in str(e).lower():
-                        print(f"      ✗ Timeout")
-                    else:
-                        print(f"      ✗ USB Error: {e}")
-                except Exception as e:
-                    print(f"      ✗ Error: {e}")
-        
-        # Test camera terminal controls (focus, zoom, etc.)
-        for unit_id in camera_terminal_ids:
-            print(f"  Testing Camera Terminal ID {unit_id}...")
-            
-            # Test only camera-related controls
-            camera_controls = [c for c in controls if c['name'] in 
-                              ["Auto Exposure", "Focus", "Auto Focus", "Zoom"]]
-            
-            for control in camera_controls:
-                try:
-                    print(f"    Testing {control['name']}...")
-                    
-                    # GET_CUR request
-                    bmRequestType = 0xA1
-                    bRequest = 0x81
-                    wValue = (control['selector'] << 8)
-                    wIndex = (unit_id << 8) | interface_num
-                    wLength = control['length']
-                    
-                    buffer = array.array('B', [0] * wLength)
-                    
-                    # Send request with short timeout
-                    result = dev.ctrl_transfer(bmRequestType, bRequest, wValue, wIndex, buffer, timeout=200)
-                    
-                    if result:
-                        # Parse value
-                        if wLength == 1:
-                            value = result[0]
-                        elif wLength == 2:
-                            value = result[0] | (result[1] << 8)
-                        else:
-                            value = result
-                        
-                        print(f"      ✓ Success! Current value: {value}")
-                        
-                        # Record success
-                        successful_controls.append({
-                            "name": control['name'],
-                            "unit_id": unit_id,
-                            "interface": interface_num,
-                            "selector": control['selector'],
-                            "length": control['length']
-                        })
-                    else:
-                        print(f"      ✗ No data returned")
-                
-                except usb.core.USBError as e:
-                    if "timeout" in str(e).lower():
-                        print(f"      ✗ Timeout")
-                    else:
-                        print(f"      ✗ USB Error: {e}")
-                except Exception as e:
-                    print(f"      ✗ Error: {e}")
-    
-    # Print results
-    print("\n\nRESULTS:")
-    print("========")
-    
-    if successful_controls:
-        print(f"Found {len(successful_controls)} working controls:")
-        
-        # Group by interface/unit
-        controls_by_interface = {}
-        
-        for ctrl in successful_controls:
-            key = f"Interface {ctrl['interface']}, Unit {ctrl['unit_id']}"
-            if key not in controls_by_interface:
-                controls_by_interface[key] = []
-            controls_by_interface[key].append(ctrl)
-        
-        for key, ctrls in controls_by_interface.items():
-            print(f"\n{key}:")
-            for ctrl in ctrls:
-                print(f"  - {ctrl['name']} (Selector: 0x{ctrl['selector']:02x})")
-        
-        # Generate sample code for the interface with most controls
-        best_interface = max(controls_by_interface.items(), key=lambda x: len(x[1]))
-        interface_num = best_interface[1][0]['interface']
-        
-        print("\n\nSample Python code for your camera:")
-        print("=================================")
-        print("import usb.core")
-        print("import usb.util")
-        print("import array")
-        print("")
-        print("class UVCCamera:")
-        print("    def __init__(self):")
-        print(f"        self.dev = usb.core.find(idVendor=0x{CAMERA_VID:04x}, idProduct=0x{CAMERA_PID:04x})")
-        print("        if not self.dev:")
-        print("            raise ValueError(\"Camera not found\")")
-        print(f"        self.interface = {interface_num}")
-        print("")
-        
-        # Add unit constants
-        units = set(ctrl['unit_id'] for ctrl in best_interface[1])
-        for unit in units:
-            print(f"        self.UNIT_{unit} = {unit}")
-        
-        print("")
-        print("    def get_control(self, unit, selector, length):")
-        print("        try:")
-        print("            bmRequestType = 0xA1")
-        print("            bRequest = 0x81")
-        print("            wValue = (selector << 8)")
-        print("            wIndex = (unit << 8) | self.interface")
-        print("            buffer = array.array('B', [0] * length)")
-        print("            ")
-        print("            result = self.dev.ctrl_transfer(")
-        print("                bmRequestType, bRequest, wValue, wIndex, buffer, timeout=1000)")
-        print("            ")
-        print("            if not result:")
-        print("                return None")
-        print("                ")
-        print("            if length == 1:")
-        print("                return result[0]")
-        print("            elif length == 2:")
-        print("                return result[0] | (result[1] << 8)")
-        print("            else:")
-        print("                return result")
-        print("        except Exception as e:")
-        print("            print(f\"Error reading control: {e}\")")
-        print("            return None")
-        print("")
-        
-        print("    def set_control(self, unit, selector, value, length):")
-        print("        try:")
-        print("            bmRequestType = 0x21")
-        print("            bRequest = 0x01")
-        print("            wValue = (selector << 8)")
-        print("            wIndex = (unit << 8) | self.interface")
-        print("            ")
-        print("            data = array.array('B')")
-        print("            if length == 1:")
-        print("                data.append(value & 0xFF)")
-        print("            elif length == 2:")
-        print("                data.append(value & 0xFF)")
-        print("                data.append((value >> 8) & 0xFF)")
-        print("            elif length == 4:")
-        print("                data.append(value & 0xFF)")
-        print("                data.append((value >> 8) & 0xFF)")
-        print("                data.append((value >> 16) & 0xFF)")
-        print("                data.append((value >> 24) & 0xFF)")
-        print("            ")
-        print("            result = self.dev.ctrl_transfer(")
-        print("                bmRequestType, bRequest, wValue, wIndex, data, timeout=1000)")
-        print("            return result is not None")
-        print("        except Exception as e:")
-        print("            print(f\"Error setting control: {e}\")")
-        print("            return False")
-        print("")
-        
-        # Add control methods
-        for ctrl in best_interface[1]:
-            name = ctrl['name'].lower().replace(' ', '_')
-            unit = ctrl['unit_id']
-            selector = ctrl['selector']
-            length = ctrl['length']
-            
-            print(f"    def get_{name}(self):")
-            print(f"        return self.get_control(self.UNIT_{unit}, 0x{selector:02x}, {length})")
-            print("")
-            
-            if name.startswith('auto'):
-                print(f"    def set_{name}(self, enabled):")
-                print(f"        return self.set_control(self.UNIT_{unit}, 0x{selector:02x}, 1 if enabled else 0, {length})")
+    if len(cameras) > 1:
+        try:
+            choice = int(input("\nSelect camera (number): ")) - 1
+            if 0 <= choice < len(cameras):
+                selected_camera = cameras[choice]
             else:
-                print(f"    def set_{name}(self, value):")
-                print(f"        return self.set_control(self.UNIT_{unit}, 0x{selector:02x}, value, {length})")
-            print("")
-        
-        print("    def close(self):")
-        print("        usb.util.dispose_resources(self.dev)")
-        print("")
-        print("# Example usage")
-        print("if __name__ == \"__main__\":")
-        print("    try:")
-        print("        camera = UVCCamera()")
-        print("        print(\"Connected to camera!\")")
-        print("")
-        
-        # Add example for first control
-        if best_interface[1]:
-            ctrl = best_interface[1][0]
-            name = ctrl['name'].lower().replace(' ', '_')
-            print(f"        value = camera.get_{name}()")
-            print(f"        print(f\"{ctrl['name']}: {value}\")")
-            print("")
-            
-            if name.startswith('auto'):
-                print(f"        # Toggle auto mode")
-                print(f"        camera.set_{name}(not value)")
-            else:
-                print(f"        # Set to middle value")
-                print(f"        camera.set_{name}(128)")
-            
-            print("")
-            print("        camera.close()")
-            print("    except Exception as e:")
-            print("        print(f\"Error: {e}\")")
-    else:
-        print("No working UVC controls found on this camera.")
-        print("\nTry these troubleshooting steps:")
-        print("1. Make sure you're running the script with sudo")
-        print("2. Try using a different USB port")
-        print("3. If on macOS, there may be system restrictions on camera access")
+                print("Invalid selection. Using the first camera.")
+        except ValueError:
+            print("Invalid input. Using the first camera.")
+    
+    # Control camera
+    control_camera(selected_camera)
+    
+    print("\nCamera control session ended.")
 
 if __name__ == "__main__":
-    test_direct_controls()
+    main()
