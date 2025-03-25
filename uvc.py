@@ -1,21 +1,16 @@
-import Foundation
-import AVFoundation
-import Quartz
+from Foundation import *
+from AVFoundation import *
+from Quartz import *
 import time
+import objc
 
 def list_cameras():
     """List all available cameras using AVFoundation"""
     print("Available Cameras:")
     print("-----------------")
     
-    # Get all video devices
-    discovery_session = AVCaptureDeviceDiscoverySession.discoverySessionWithDeviceTypes_mediaType_position_(
-        [AVCaptureDeviceTypeBuiltInWideAngleCamera, AVCaptureDeviceTypeExternalUnknown],
-        AVMediaTypeVideo,
-        AVCaptureDevicePositionUnspecified
-    )
-    
-    devices = discovery_session.devices()
+    # Get all video devices - using the older API that's more compatible
+    devices = AVCaptureDevice.devicesWithMediaType_(AVMediaTypeVideo)
     
     if not devices or len(devices) == 0:
         print("No cameras found.")
@@ -26,12 +21,14 @@ def list_cameras():
     for i, device in enumerate(devices):
         # Get device information
         name = device.localizedName()
-        model = device.modelID()
-        manufacturer = "Apple" if device.manufacturer() is None else device.manufacturer()
+        model_id = device.modelID() if hasattr(device, 'modelID') else "Unknown"
+        manufacturer = "Unknown"
+        if hasattr(device, 'manufacturer'):
+            if device.manufacturer():
+                manufacturer = device.manufacturer()
         
         print(f"{i+1}. {name}")
-        print(f"   Manufacturer: {manufacturer}")
-        print(f"   Model: {model}")
+        print(f"   Model ID: {model_id}")
         print(f"   Unique ID: {device.uniqueID()}")
         
         # Check which properties are supported
@@ -47,14 +44,17 @@ def list_cameras():
             supports.append("Auto White Balance")
         if device.isWhiteBalanceModeSupported_(AVCaptureWhiteBalanceModeCustom):
             supports.append("Manual White Balance")
-        if device.isFocusModeSupported_(AVCaptureModeContinuousAutoFocus):
+        if device.isFocusModeSupported_(AVCaptureFocusModeContinuousAutoFocus):
             supports.append("Auto Focus")
-        if device.isFocusModeSupported_(AVCaptureModeAutoFocus):
+        if device.isFocusModeSupported_(AVCaptureFocusModeAutoFocus):
             supports.append("Single Auto Focus")
-        if device.isFocusModeSupported_(AVCaptureModeManual):
+        if device.isFocusModeSupported_(AVCaptureFocusModeManual):
             supports.append("Manual Focus")
         
-        print(f"     - {', '.join(supports)}")
+        if supports:
+            print(f"     - {', '.join(supports)}")
+        else:
+            print("     - None detected")
         
         # Check for adjustable properties
         props = []
@@ -75,46 +75,6 @@ def list_cameras():
     
     return camera_list
 
-def setup_camera_session(device):
-    """Set up an AVCaptureSession for the selected camera"""
-    # Create capture session
-    session = AVCaptureSession.alloc().init()
-    session.beginConfiguration()
-    
-    # Set session preset
-    session.setSessionPreset_(AVCaptureSessionPresetHigh)
-    
-    # Add device input
-    device_input = AVCaptureDeviceInput.deviceInputWithDevice_error_(device, None)[0]
-    if not device_input:
-        print("Error creating device input")
-        return None
-    
-    if session.canAddInput_(device_input):
-        session.addInput_(device_input)
-    else:
-        print("Could not add device input to session")
-        return None
-    
-    # Add video output
-    video_output = AVCaptureVideoDataOutput.alloc().init()
-    
-    if session.canAddOutput_(video_output):
-        session.addOutput_(video_output)
-    else:
-        print("Could not add video output to session")
-        return None
-    
-    # Commit configuration
-    session.commitConfiguration()
-    
-    return {
-        'session': session,
-        'device': device,
-        'device_input': device_input,
-        'video_output': video_output
-    }
-
 def control_camera(device):
     """Control camera properties using AVFoundation"""
     print(f"Controlling camera: {device.localizedName()}")
@@ -122,8 +82,9 @@ def control_camera(device):
     
     try:
         # Lock the device for configuration
-        if not device.lockForConfiguration_(None)[0]:
-            print("Could not lock device for configuration")
+        success, error = device.lockForConfiguration_(None)
+        if not success:
+            print(f"Could not lock device for configuration: {error}")
             return
         
         # Show current values
@@ -135,7 +96,8 @@ def control_camera(device):
             
             if hasattr(device, 'exposureDuration'):
                 duration = device.exposureDuration()
-                seconds = duration.seconds + (duration.timescale / float(duration.value))
+                # Handle CMTime structure
+                seconds = duration.value / float(duration.timescale) if duration.timescale != 0 else 0
                 print(f"- Exposure Duration: {seconds:.6f} seconds")
             
             if hasattr(device, 'ISO'):
@@ -147,12 +109,14 @@ def control_camera(device):
             
             if hasattr(device, 'deviceWhiteBalanceGains'):
                 gains = device.deviceWhiteBalanceGains()
-                print(f"- White Balance Gains: R={gains.redGain}, G={gains.greenGain}, B={gains.blueGain}")
+                # AVCaptureWhiteBalanceGains is a struct, access may vary
+                if hasattr(gains, 'redGain'):
+                    print(f"- White Balance Gains: R={gains.redGain}, G={gains.greenGain}, B={gains.blueGain}")
         
-        if device.isFocusModeSupported_(AVCaptureModeContinuousAutoFocus):
-            if device.focusMode() == AVCaptureModeContinuousAutoFocus:
+        if device.isFocusModeSupported_(AVCaptureFocusModeContinuousAutoFocus):
+            if device.focusMode() == AVCaptureFocusModeContinuousAutoFocus:
                 mode = "Continuous Auto"
-            elif device.focusMode() == AVCaptureModeAutoFocus:
+            elif device.focusMode() == AVCaptureFocusModeAutoFocus:
                 mode = "Single Auto"
             else:
                 mode = "Manual"
@@ -193,80 +157,88 @@ def control_camera(device):
             elif choice == "2":
                 # Set ISO
                 if device.exposureMode() == AVCaptureExposureModeCustom:
-                    min_iso = device.activeFormat().minISO()
-                    max_iso = device.activeFormat().maxISO()
-                    current_iso = device.ISO()
-                    
-                    print(f"Current ISO: {current_iso}")
-                    print(f"Valid range: {min_iso} - {max_iso}")
-                    
-                    try:
-                        new_iso = float(input("Enter new ISO value: "))
-                        if min_iso <= new_iso <= max_iso:
-                            device.setExposureModeCustomWithDuration_ISO_completionHandler_(
-                                device.exposureDuration(),
-                                new_iso,
-                                None
-                            )
-                            print(f"ISO set to {new_iso}")
-                        else:
-                            print(f"ISO must be between {min_iso} and {max_iso}")
-                    except ValueError:
-                        print("Invalid input. Please enter a number.")
+                    if hasattr(device.activeFormat(), 'minISO') and hasattr(device.activeFormat(), 'maxISO'):
+                        min_iso = device.activeFormat().minISO()
+                        max_iso = device.activeFormat().maxISO()
+                        current_iso = device.ISO()
+                        
+                        print(f"Current ISO: {current_iso}")
+                        print(f"Valid range: {min_iso} - {max_iso}")
+                        
+                        try:
+                            new_iso = float(input("Enter new ISO value: "))
+                            if min_iso <= new_iso <= max_iso:
+                                # Use the correct method name
+                                device.setExposureModeCustomWithDuration_ISO_completionHandler_(
+                                    device.exposureDuration(),
+                                    new_iso,
+                                    None
+                                )
+                                print(f"ISO set to {new_iso}")
+                            else:
+                                print(f"ISO must be between {min_iso} and {max_iso}")
+                        except ValueError:
+                            print("Invalid input. Please enter a number.")
+                    else:
+                        print("Camera does not support ISO adjustment")
                 else:
                     print("Camera must be in Manual Exposure mode first")
             
             elif choice == "3":
                 # Set exposure duration
                 if device.exposureMode() == AVCaptureExposureModeCustom:
-                    min_duration = device.activeFormat().minExposureDuration()
-                    max_duration = device.activeFormat().maxExposureDuration()
-                    current = device.exposureDuration()
-                    
-                    min_seconds = min_duration.value / float(min_duration.timescale)
-                    max_seconds = max_duration.value / float(max_duration.timescale)
-                    current_seconds = current.value / float(current.timescale)
-                    
-                    print(f"Current Exposure: {current_seconds:.6f} seconds")
-                    print(f"Valid range: {min_seconds:.6f} - {max_seconds:.6f} seconds")
-                    
-                    try:
-                        new_seconds = float(input("Enter new exposure duration in seconds: "))
-                        if min_seconds <= new_seconds <= max_seconds:
-                            # Convert to CMTime
-                            timescale = 1000000  # Use microsecond precision
-                            value = int(new_seconds * timescale)
-                            new_duration = CMTimeMake(value, timescale)
-                            
-                            device.setExposureModeCustomWithDuration_ISO_completionHandler_(
-                                new_duration,
-                                device.ISO(),
-                                None
-                            )
-                            print(f"Exposure duration set to {new_seconds:.6f} seconds")
-                        else:
-                            print(f"Duration must be between {min_seconds:.6f} and {max_seconds:.6f} seconds")
-                    except ValueError:
-                        print("Invalid input. Please enter a number.")
+                    if hasattr(device.activeFormat(), 'minExposureDuration') and hasattr(device.activeFormat(), 'maxExposureDuration'):
+                        min_duration = device.activeFormat().minExposureDuration()
+                        max_duration = device.activeFormat().maxExposureDuration()
+                        current = device.exposureDuration()
+                        
+                        # Handle CMTime structure
+                        min_seconds = min_duration.value / float(min_duration.timescale) if min_duration.timescale != 0 else 0
+                        max_seconds = max_duration.value / float(max_duration.timescale) if max_duration.timescale != 0 else 0
+                        current_seconds = current.value / float(current.timescale) if current.timescale != 0 else 0
+                        
+                        print(f"Current Exposure: {current_seconds:.6f} seconds")
+                        print(f"Valid range: {min_seconds:.6f} - {max_seconds:.6f} seconds")
+                        
+                        try:
+                            new_seconds = float(input("Enter new exposure duration in seconds: "))
+                            if min_seconds <= new_seconds <= max_seconds:
+                                # Convert to CMTime
+                                timescale = 1000000  # Use microsecond precision
+                                value = int(new_seconds * timescale)
+                                new_duration = CMTimeMake(value, timescale)
+                                
+                                device.setExposureModeCustomWithDuration_ISO_completionHandler_(
+                                    new_duration,
+                                    device.ISO(),
+                                    None
+                                )
+                                print(f"Exposure duration set to {new_seconds:.6f} seconds")
+                            else:
+                                print(f"Duration must be between {min_seconds:.6f} and {max_seconds:.6f} seconds")
+                        except ValueError:
+                            print("Invalid input. Please enter a number.")
+                    else:
+                        print("Camera does not support exposure duration adjustment")
                 else:
                     print("Camera must be in Manual Exposure mode first")
             
             elif choice == "4":
                 # Toggle focus mode
-                if device.isFocusModeSupported_(AVCaptureModeContinuousAutoFocus) and \
-                   device.isFocusModeSupported_(AVCaptureModeManual):
-                    if device.focusMode() == AVCaptureModeContinuousAutoFocus:
+                if device.isFocusModeSupported_(AVCaptureFocusModeContinuousAutoFocus) and \
+                   device.isFocusModeSupported_(AVCaptureFocusModeManual):
+                    if device.focusMode() == AVCaptureFocusModeContinuousAutoFocus:
                         print("Switching to Manual Focus")
-                        device.setFocusMode_(AVCaptureModeManual)
+                        device.setFocusMode_(AVCaptureFocusModeManual)
                     else:
                         print("Switching to Auto Focus")
-                        device.setFocusMode_(AVCaptureModeContinuousAutoFocus)
+                        device.setFocusMode_(AVCaptureFocusModeContinuousAutoFocus)
                 else:
                     print("Camera does not support toggling focus mode")
             
             elif choice == "5":
                 # Set focus position
-                if device.focusMode() == AVCaptureModeManual:
+                if device.focusMode() == AVCaptureFocusModeManual:
                     current = device.lensPosition()
                     print(f"Current Focus Position: {current}")
                     print("Valid range: 0.0 (far) - 1.0 (near)")
