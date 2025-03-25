@@ -2,6 +2,8 @@ import usb.core
 import usb.util
 import time
 import array
+import platform
+import subprocess
 from enum import Enum
 
 class UVCRequest(Enum):
@@ -63,28 +65,85 @@ class UVCInterface:
             vendor_id: The USB vendor ID (optional)
             product_id: The USB product ID (optional)
         """
+        self.is_macos = platform.system() == 'Darwin'
+        
+        # For macOS on M1, try to identify UVC devices first
+        if self.is_macos and not (vendor_id and product_id):
+            try:
+                # Use system_profiler to get USB device information
+                cmd = ['system_profiler', 'SPUSBDataType', '-json']
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                
+                import json
+                usb_info = json.loads(result.stdout)
+                
+                # Find webcams/UVC devices in the USB tree
+                webcams = []
+                
+                def traverse_usb_tree(node):
+                    if isinstance(node, list):
+                        for item in node:
+                            traverse_usb_tree(item)
+                    elif isinstance(node, dict):
+                        # Look for camera-related keywords or UVC in the product name
+                        if '_name' in node and any(keyword in node['_name'].lower() 
+                                                for keyword in ['camera', 'webcam', 'facetime', 'uvc']):
+                            if 'vendor_id' in node and 'product_id' in node:
+                                try:
+                                    vid = int(node['vendor_id'].replace('0x', ''), 16)
+                                    pid = int(node['product_id'].replace('0x', ''), 16)
+                                    webcams.append((vid, pid))
+                                except ValueError:
+                                    pass
+                        
+                        for key, value in node.items():
+                            if isinstance(value, (list, dict)):
+                                traverse_usb_tree(value)
+                
+                traverse_usb_tree(usb_info.get('SPUSBDataType', []))
+                
+                if webcams and not (vendor_id and product_id):
+                    print(f"Found potential camera devices: {webcams}")
+                    vendor_id, product_id = webcams[0]  # Use the first found camera
+                    print(f"Using device with VID=0x{vendor_id:04x}, PID=0x{product_id:04x}")
+            
+            except Exception as e:
+                print(f"Failed to enumerate webcams using system_profiler: {e}")
+                # Continue with regular enumeration
+        
         # Find a UVC device
         if vendor_id and product_id:
             self.dev = usb.core.find(idVendor=vendor_id, idProduct=product_id)
         else:
-            # Try to find any UVC device - this is a simplification
-            # In a real implementation, you'd need to check the device class/subclass
+            # Try to find any UVC device
             self.dev = usb.core.find(find_all=True)
-            print(self.dev)
-            # Filter for UVC devices (class 14, subclass 1 or 2)
-            self.dev = next((d for d in self.dev if d.bDeviceClass == 239 and 
-                             any(c.bInterfaceClass == 14 and c.bInterfaceSubClass in (1, 2) 
-                                 for c in d for c in d.configurations())), None)
+            if self.dev:
+                # First pass: check for proper UVC devices 
+                uvc_dev = next((d for d in self.dev if d.bDeviceClass == 239 and 
+                               any(c.bInterfaceClass == 14 and c.bInterfaceSubClass in (1, 2) 
+                                   for c in d for c in d.configurations())), None)
+                
+                # Second pass: look for common webcam vendors if no UVC device was found
+                if not uvc_dev:
+                    common_webcam_vendors = [0x046d, 0x0ac8, 0x041e, 0x0c45, 0x13d3, 0x05a9]  # Logitech, Apple, etc.
+                    self.dev = next((d for d in self.dev if d.idVendor in common_webcam_vendors), None)
+                else:
+                    self.dev = uvc_dev
         
         if self.dev is None:
             raise ValueError("UVC device not found")
         
-        # Detach kernel driver if active
-        try:
-            if self.dev.is_kernel_driver_active(0):
-                self.dev.detach_kernel_driver(0)
-        except Exception as e:
-            print(f"Warning: {e}")
+        # Detach kernel driver if active (not necessary on macOS)
+        if not self.is_macos:
+            try:
+                if self.dev.is_kernel_driver_active(0):
+                    self.dev.detach_kernel_driver(0)
+            except Exception as e:
+                print(f"Warning: {e}")
+        else:
+            # On macOS, we need to use IOKit to communicate with the camera
+            # For now, we'll just print a message about this limitation
+            print("Note: On macOS, direct USB control of cameras may be limited due to system protections.")
         
         # Set the active configuration
         self.dev.set_configuration()
@@ -278,31 +337,122 @@ class UVCInterface:
         usb.util.dispose_resources(self.dev)
 
 
+# Alternative for macOS: using AVFoundation via PyObjC
+def get_macos_cameras():
+    """
+    Get a list of cameras on macOS using AVFoundation.
+    This requires PyObjC to be installed: pip install pyobjc-framework-AVFoundation
+    
+    Returns:
+        A list of available camera devices
+    """
+    try:
+        # Import PyObjC frameworks
+        from AVFoundation import AVCaptureDevice
+        from Foundation import NSObject
+        
+        # Get all video devices
+        devices = AVCaptureDevice.devicesWithMediaType_('vide')
+        
+        camera_list = []
+        for device in devices:
+            camera_list.append({
+                'name': device.localizedName(),
+                'model_id': device.modelID(),
+                'unique_id': device.uniqueID(),
+                'manufacturer': device.manufacturer() if hasattr(device, 'manufacturer') else 'Unknown'
+            })
+        
+        return camera_list
+    except ImportError:
+        print("PyObjC and AVFoundation frameworks not installed.")
+        print("Install with: pip install pyobjc-framework-AVFoundation")
+        return []
+    except Exception as e:
+        print(f"Error getting macOS cameras: {e}")
+        return []
+
+
 # Example usage
 if __name__ == "__main__":
     try:
-        # Connect to a UVC device (you can specify vendor_id and product_id)
-        # For example: uvc = UVCInterface(vendor_id=0x046d, product_id=0x082d)  # Logitech C270
+        # For macOS, list available webcams first
+        if platform.system() == 'Darwin':
+            print("Scanning for webcams on macOS...")
+            try:
+                cmd = ['system_profiler', 'SPUSBDataType']
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                output_lines = result.stdout.split('\n')
+                
+                in_camera_section = False
+                camera_info = []
+                
+                for line in output_lines:
+                    if 'Camera' in line or 'FaceTime' in line or 'Webcam' in line:
+                        in_camera_section = True
+                        camera_info.append(line.strip())
+                    elif in_camera_section and line.strip() and not line.startswith(' ' * 10):
+                        in_camera_section = False
+                    elif in_camera_section and line.strip():
+                        camera_info.append(line.strip())
+                
+                if camera_info:
+                    print("Found camera device(s):")
+                    for info in camera_info:
+                        print(f"  {info}")
+                    print("\nYou can use these identifiers to initialize UVCInterface with specific vendor_id and product_id")
+                else:
+                    print("No camera devices found in system_profiler output")
+            except Exception as e:
+                print(f"Error scanning for cameras: {e}")
+        
+        # Connect to a UVC device
+        # Common camera vendor IDs:
+        # - 0x046d: Logitech
+        # - 0x05ac: Apple
+        # - 0x045e: Microsoft
+        # - 0x0c45: Microdia (many generic webcams)
+        
+        # On macOS you likely need to specify the IDs explicitly
+        # For example:
+        # uvc = UVCInterface(vendor_id=0x05ac, product_id=0x8514)  # FaceTime HD Camera
+        
+        print("Attempting to connect to UVC device...")
         uvc = UVCInterface()
         
-        # Get current values
-        brightness = uvc.get_brightness()
-        contrast = uvc.get_contrast()
+        if uvc.dev is None:
+            print("No UVC device found. Please specify vendor_id and product_id.")
+            print("Example: uvc = UVCInterface(vendor_id=0x05ac, product_id=0x8514)")
+            exit(1)
         
-        print(f"Current brightness: {brightness}")
-        print(f"Current contrast: {contrast}")
+        print(f"Connected to device: {uvc.dev.idVendor:04x}:{uvc.dev.idProduct:04x}")
         
-        # Set new values
-        uvc.set_brightness(128)  # Set to middle value
-        uvc.set_contrast(128)    # Set to middle value
-        
-        # Auto focus control
-        auto_focus = uvc.get_auto_focus()
-        print(f"Auto focus: {'Enabled' if auto_focus else 'Disabled'}")
-        
-        # Disable auto focus and set manual focus
-        uvc.set_auto_focus(False)
-        uvc.set_focus(100)  # Set to some value
+        # Try getting camera info - this may fail on macOS
+        try:
+            brightness = uvc.get_brightness()
+            print(f"Current brightness: {brightness}")
+            
+            contrast = uvc.get_contrast()
+            print(f"Current contrast: {contrast}")
+            
+            # Set new values (may not work on macOS)
+            success = uvc.set_brightness(128)
+            print(f"Set brightness: {'Success' if success else 'Failed'}")
+            
+            success = uvc.set_contrast(128)
+            print(f"Set contrast: {'Success' if success else 'Failed'}")
+            
+            # Auto focus control
+            auto_focus = uvc.get_auto_focus()
+            print(f"Auto focus: {'Enabled' if auto_focus else 'Disabled'}")
+            
+            # Try to set auto focus
+            success = uvc.set_auto_focus(False)
+            print(f"Disable auto focus: {'Success' if success else 'Failed'}")
+        except Exception as e:
+            print(f"Error accessing camera controls: {e}")
+            print("This is expected on macOS due to its restrictive camera access policies.")
+            print("On macOS, consider using alternative approaches like AVFoundation bindings.")
         
         # Close the connection
         uvc.close()
