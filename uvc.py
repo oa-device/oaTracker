@@ -3,242 +3,230 @@ from AVFoundation import *
 import time
 import objc
 
-def list_cameras():
-    """List all available cameras"""
-    print("Available Cameras:")
-    print("-----------------")
+def control_anker_camera():
+    """Control Anker PowerConf C200 camera zoom and pan"""
+    print("Anker PowerConf C200 Control Tool")
+    print("===============================")
     
-    # Get all video devices
+    # Find the Anker camera
     devices = AVCaptureDevice.devicesWithMediaType_(AVMediaTypeVideo)
     
-    if not devices or len(devices) == 0:
-        print("No cameras found.")
-        return []
+    anker_camera = None
+    for device in devices:
+        if "Anker" in device.localizedName():
+            anker_camera = device
+            break
     
-    camera_list = []
+    if not anker_camera:
+        print("Anker PowerConf C200 camera not found!")
+        return
     
-    for i, device in enumerate(devices):
-        # Get device information
-        name = device.localizedName()
-        model_id = "Unknown"
-        if hasattr(device, 'modelID'):
-            model_id = device.modelID()
-        
-        unique_id = device.uniqueID()
-        
-        print(f"{i+1}. {name}")
-        print(f"   Model ID: {model_id}")
-        print(f"   Unique ID: {unique_id}")
-        
-        # Check supported features in a safer way
-        features = []
-        
-        # Focus
-        if hasattr(device, 'isFocusModeSupported_'):
-            # Mode 0 = Locked, 1 = Auto, 2 = Continuous Auto
-            if device.isFocusModeSupported_(0):
-                features.append("Manual Focus")
-            if device.isFocusModeSupported_(1):
-                features.append("Auto Focus")
-            if device.isFocusModeSupported_(2):
-                features.append("Continuous Auto Focus")
-        
-        # Exposure
-        if hasattr(device, 'isExposureModeSupported_'):
-            # Mode 0 = Locked, 1 = Auto, 2 = Continuous Auto, 3 = Custom
-            if device.isExposureModeSupported_(0):
-                features.append("Locked Exposure")
-            if device.isExposureModeSupported_(3):
-                features.append("Manual Exposure")
-            if device.isExposureModeSupported_(2):
-                features.append("Auto Exposure")
-        
-        if features:
-            print(f"   Supported Features: {', '.join(features)}")
-        else:
-            print("   No detectable features")
-        
-        print()
-        camera_list.append(device)
+    print(f"Found camera: {anker_camera.localizedName()}")
+    print(f"Model: {anker_camera.modelID()}")
+    print(f"Unique ID: {anker_camera.uniqueID()}")
     
-    return camera_list
-
-def control_camera(device):
-    """Control camera properties"""
-    print(f"\nControlling camera: {device.localizedName()}")
-    print("--------------------------------")
+    # Try to lock for configuration
+    success, error = anker_camera.lockForConfiguration_(None)
+    if not success:
+        print(f"Could not lock camera for configuration: {error}")
+        return
     
-    # Try to get current settings
     try:
-        # Lock device configuration
-        success, error = device.lockForConfiguration_(None)
-        if not success:
-            print(f"Could not lock device for configuration: {error}")
-            return
+        # Check supported features
+        print("\nChecking camera capabilities...")
         
-        # Get current settings
-        print("Current Settings:")
-        
-        # Focus
-        if hasattr(device, 'focusMode'):
-            focus_mode = device.focusMode()
-            mode_str = "Unknown"
-            if focus_mode == 0:
-                mode_str = "Locked"
-            elif focus_mode == 1:
-                mode_str = "Auto"
-            elif focus_mode == 2:
-                mode_str = "Continuous Auto"
-            print(f"- Focus Mode: {mode_str}")
+        # Check for zoom
+        zoom_supported = False
+        if hasattr(anker_camera, 'videoZoomFactor'):
+            zoom_supported = True
+            current_zoom = anker_camera.videoZoomFactor()
+            print(f"Digital Zoom: Supported (Current: {current_zoom:.2f}x)")
             
-            if hasattr(device, 'lensPosition'):
-                position = device.lensPosition()
-                print(f"- Focus Position: {position:.2f} (0=far, 1=near)")
+            if hasattr(anker_camera, 'activeFormat') and hasattr(anker_camera.activeFormat(), 'videoMaxZoomFactor'):
+                max_zoom = anker_camera.activeFormat().videoMaxZoomFactor()
+                print(f"Max Zoom: {max_zoom:.2f}x")
+            else:
+                print("Max Zoom: Unknown")
+        else:
+            print("Digital Zoom: Not supported")
         
-        # Exposure
-        if hasattr(device, 'exposureMode'):
-            exposure_mode = device.exposureMode()
-            mode_str = "Unknown"
-            if exposure_mode == 0:
-                mode_str = "Locked"
-            elif exposure_mode == 1:
-                mode_str = "Auto"
-            elif exposure_mode == 2:
-                mode_str = "Continuous Auto"
-            elif exposure_mode == 3:
-                mode_str = "Custom"
-            print(f"- Exposure Mode: {mode_str}")
-            
-            if hasattr(device, 'ISO'):
-                iso = device.ISO()
-                print(f"- ISO: {iso}")
+        # Check for pan/tilt
+        pan_tilt_supported = False
+        if hasattr(anker_camera, 'centerPoint'):
+            pan_tilt_supported = True
+            center = anker_camera.centerPoint()
+            print(f"Pan/Tilt: Supported (Current: X={center.x:.2f}, Y={center.y:.2f})")
+        else:
+            print("Pan/Tilt: Not supported")
         
-        # Options menu
+        # Check for focus
+        focus_supported = False
+        if hasattr(anker_camera, 'focusPointOfInterest'):
+            focus_supported = True
+            focus_point = anker_camera.focusPointOfInterest()
+            print(f"Focus Point: Supported (Current: X={focus_point.x:.2f}, Y={focus_point.y:.2f})")
+        else:
+            print("Focus Point: Not supported")
+        
+        if hasattr(anker_camera, 'lensPosition'):
+            print(f"Focus Position: Supported (Current: {anker_camera.lensPosition():.2f})")
+        else:
+            print("Focus Position: Not supported")
+        
+        # Menu options
         print("\nControl Options:")
-        print("1. Toggle Auto/Manual Focus")
-        print("2. Set Focus Position")
-        print("3. Toggle Auto/Manual Exposure")
-        print("4. Set ISO")
+        print("1. Set Digital Zoom")
+        print("2. Set Pan/Tilt (Center Point)")
+        print("3. Set Focus Position")
+        print("4. Set Focus Point")
+        print("5. Toggle Auto/Manual Focus")
         print("0. Exit")
         
         while True:
-            choice = input("\nEnter option (0-4): ")
+            choice = input("\nEnter option (0-5): ")
             
             if choice == "0":
                 break
-                
-            elif choice == "1":
-                # Toggle focus mode
-                if hasattr(device, 'focusMode') and hasattr(device, 'setFocusMode_'):
-                    current_mode = device.focusMode()
-                    
-                    if current_mode == 2:  # Continuous Auto
-                        print("Switching to Manual Focus")
-                        device.setFocusMode_(0)  # Locked
-                    else:
-                        print("Switching to Auto Focus")
-                        device.setFocusMode_(2)  # Continuous Auto
-                else:
-                    print("Focus mode control not supported")
             
-            elif choice == "2":
-                # Set focus position
-                if hasattr(device, 'setFocusModeLockedWithLensPosition_completionHandler_'):
+            elif choice == "1" and zoom_supported:
+                try:
+                    # Get max zoom
+                    max_zoom = 5.0  # Default if we can't get actual max
+                    if hasattr(anker_camera.activeFormat(), 'videoMaxZoomFactor'):
+                        max_zoom = anker_camera.activeFormat().videoMaxZoomFactor()
+                    
+                    current_zoom = anker_camera.videoZoomFactor()
+                    print(f"Current zoom: {current_zoom:.2f}x")
+                    print(f"Valid range: 1.0 - {max_zoom:.2f}")
+                    
+                    # Get new zoom factor
+                    new_zoom_str = input(f"Enter new zoom (1.0-{max_zoom:.2f}): ")
+                    new_zoom = float(new_zoom_str.replace(',', '.'))  # Handle both comma and period as decimal
+                    
+                    if 1.0 <= new_zoom <= max_zoom:
+                        anker_camera.setVideoZoomFactor_(new_zoom)
+                        print(f"Zoom set to {new_zoom:.2f}x")
+                    else:
+                        print(f"Zoom must be between 1.0 and {max_zoom:.2f}")
+                except ValueError:
+                    print("Invalid input, must be a number")
+                except Exception as e:
+                    print(f"Error setting zoom: {e}")
+            
+            elif choice == "2" and pan_tilt_supported:
+                try:
+                    current = anker_camera.centerPoint()
+                    print(f"Current center point: X={current.x:.2f}, Y={current.y:.2f}")
+                    print("Valid range: 0.0 - 1.0 for both X and Y")
+                    print("(0,0) = top-left, (1,1) = bottom-right")
+                    
+                    x_str = input("Enter X position (0.0-1.0): ")
+                    y_str = input("Enter Y position (0.0-1.0): ")
+                    
+                    x = float(x_str.replace(',', '.'))
+                    y = float(y_str.replace(',', '.'))
+                    
+                    if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0:
+                        # Create an NSPoint
+                        point = NSMakePoint(x, y)
+                        anker_camera.setCenterPoint_(point)
+                        print(f"Center point set to X={x:.2f}, Y={y:.2f}")
+                    else:
+                        print("Position values must be between 0.0 and 1.0")
+                except ValueError:
+                    print("Invalid input, must be a number")
+                except Exception as e:
+                    print(f"Error setting center point: {e}")
+            
+            elif choice == "3":
+                if hasattr(anker_camera, 'lensPosition') and hasattr(anker_camera, 'setFocusModeLockedWithLensPosition_completionHandler_'):
                     try:
-                        position = float(input("Enter focus position (0.0-1.0): "))
-                        if 0 <= position <= 1:
-                            # Set focus mode to locked and set position
-                            device.setFocusModeLockedWithLensPosition_completionHandler_(
-                                position, None)
-                            print(f"Focus position set to {position:.2f}")
+                        current = anker_camera.lensPosition()
+                        print(f"Current focus position: {current:.2f}")
+                        print("Valid range: 0.0 (far) - 1.0 (near)")
+                        
+                        pos_str = input("Enter focus position (0.0-1.0): ")
+                        pos = float(pos_str.replace(',', '.'))
+                        
+                        if 0.0 <= pos <= 1.0:
+                            # Set focus mode to locked and update position
+                            anker_camera.setFocusModeLockedWithLensPosition_completionHandler_(pos, None)
+                            print(f"Focus position set to {pos:.2f}")
                         else:
-                            print("Position must be between 0 and 1")
+                            print("Position must be between 0.0 and 1.0")
                     except ValueError:
                         print("Invalid input, must be a number")
+                    except Exception as e:
+                        print(f"Error setting focus position: {e}")
                 else:
                     print("Focus position control not supported")
             
-            elif choice == "3":
-                # Toggle exposure mode
-                if hasattr(device, 'exposureMode') and hasattr(device, 'setExposureMode_'):
-                    current_mode = device.exposureMode()
+            elif choice == "4" and focus_supported:
+                try:
+                    current = anker_camera.focusPointOfInterest()
+                    print(f"Current focus point: X={current.x:.2f}, Y={current.y:.2f}")
+                    print("Valid range: 0.0 - 1.0 for both X and Y")
+                    print("(0,0) = top-left, (1,1) = bottom-right")
                     
-                    if current_mode == 2:  # Continuous Auto
-                        print("Switching to Manual Exposure")
-                        device.setExposureMode_(3)  # Custom
-                    else:
-                        print("Switching to Auto Exposure")
-                        device.setExposureMode_(2)  # Continuous Auto
-                else:
-                    print("Exposure mode control not supported")
-            
-            elif choice == "4":
-                # Set ISO
-                if hasattr(device, 'setExposureModeCustomWithDuration_ISO_completionHandler_'):
-                    # Try to get valid ISO range
-                    min_iso = 50
-                    max_iso = 1600
+                    x_str = input("Enter X position (0.0-1.0): ")
+                    y_str = input("Enter Y position (0.0-1.0): ")
                     
-                    if hasattr(device.activeFormat(), 'minISO') and hasattr(device.activeFormat(), 'maxISO'):
-                        min_iso = device.activeFormat().minISO()
-                        max_iso = device.activeFormat().maxISO()
+                    x = float(x_str.replace(',', '.'))
+                    y = float(y_str.replace(',', '.'))
                     
-                    current_iso = device.ISO()
-                    print(f"Current ISO: {current_iso}")
-                    print(f"Valid range: {min_iso} - {max_iso}")
-                    
-                    try:
-                        new_iso = float(input(f"Enter new ISO value ({min_iso}-{max_iso}): "))
-                        if min_iso <= new_iso <= max_iso:
-                            # Keep current exposure duration
-                            device.setExposureModeCustomWithDuration_ISO_completionHandler_(
-                                device.exposureDuration(), new_iso, None)
-                            print(f"ISO set to {new_iso}")
+                    if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0:
+                        # Create an NSPoint
+                        point = NSMakePoint(x, y)
+                        
+                        # Set focus mode to point of interest
+                        if anker_camera.isFocusPointOfInterestSupported():
+                            anker_camera.setFocusPointOfInterest_(point)
+                            print(f"Focus point set to X={x:.2f}, Y={y:.2f}")
                         else:
-                            print(f"ISO must be between {min_iso} and {max_iso}")
-                    except ValueError:
-                        print("Invalid input, must be a number")
+                            print("Camera does not support focus point of interest")
+                    else:
+                        print("Position values must be between 0.0 and 1.0")
+                except ValueError:
+                    print("Invalid input, must be a number")
+                except Exception as e:
+                    print(f"Error setting focus point: {e}")
+            
+            elif choice == "5":
+                if hasattr(anker_camera, 'focusMode') and hasattr(anker_camera, 'setFocusMode_'):
+                    try:
+                        current_mode = anker_camera.focusMode()
+                        mode_str = "Unknown"
+                        if current_mode == 0:
+                            mode_str = "Locked"
+                        elif current_mode == 1:
+                            mode_str = "Auto"
+                        elif current_mode == 2:
+                            mode_str = "Continuous Auto"
+                        
+                        print(f"Current focus mode: {mode_str}")
+                        
+                        if current_mode == 2:  # If in auto mode
+                            print("Switching to Manual Focus")
+                            anker_camera.setFocusMode_(0)  # 0 = Locked
+                        else:  # If in manual or other mode
+                            print("Switching to Auto Focus")
+                            anker_camera.setFocusMode_(2)  # 2 = Continuous Auto
+                            
+                    except Exception as e:
+                        print(f"Error toggling focus mode: {e}")
                 else:
-                    print("ISO control not supported")
+                    print("Focus mode control not supported")
             
             else:
-                print("Invalid option")
+                print("Invalid option or feature not supported")
     
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error controlling camera: {e}")
     
     finally:
-        # Unlock device
-        if hasattr(device, 'unlockForConfiguration'):
-            device.unlockForConfiguration()
-
-def main():
-    print("Simple macOS Camera Control")
-    print("==========================")
-    
-    # List cameras
-    cameras = list_cameras()
-    
-    if not cameras:
-        return
-    
-    # Select camera
-    selected = cameras[0]
-    
-    if len(cameras) > 1:
-        try:
-            choice = int(input("\nSelect camera number: ")) - 1
-            if 0 <= choice < len(cameras):
-                selected = cameras[choice]
-            else:
-                print("Invalid selection, using first camera")
-        except ValueError:
-            print("Invalid input, using first camera")
-    
-    # Control camera
-    control_camera(selected)
-    
-    print("\nCamera control ended")
+        # Unlock configuration
+        anker_camera.unlockForConfiguration()
+        print("\nCamera control ended")
 
 if __name__ == "__main__":
-    main()
+    control_anker_camera()
