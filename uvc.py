@@ -70,6 +70,7 @@ class UVCInterface:
             # Try to find any UVC device - this is a simplification
             # In a real implementation, you'd need to check the device class/subclass
             self.dev = usb.core.find(find_all=True)
+            print(self.dev)
             # Filter for UVC devices (class 14, subclass 1 or 2)
             self.dev = next((d for d in self.dev if d.bDeviceClass == 239 and 
                              any(c.bInterfaceClass == 14 and c.bInterfaceSubClass in (1, 2) 
