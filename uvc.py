@@ -1,302 +1,314 @@
 import usb.core
 import usb.util
 import array
-import subprocess
-import json
 import time
+import sys
 
-def find_macos_cameras():
-    """Find USB cameras on macOS using both system_profiler and direct USB enumeration"""
-    cameras = []
+def find_anker_camera():
+    """Find the Anker PowerConf C200 camera specifically"""
+    # Common Anker vendor ID
+    anker_vid = 0x2516  # This is a common Anker vendor ID
     
-    # First, try using pyusb to enumerate all USB devices
-    try:
-        print("Searching for USB devices...")
-        all_devices = usb.core.find(find_all=True)
-        
-        if all_devices:
-            # Common webcam vendor IDs
-            webcam_vendors = {
-                0x046d: "Logitech",
-                0x05ac: "Apple",
-                0x041e: "Creative",
-                0x0c45: "Microdia",
-                0x13d3: "IMC Networks / Integrated Camera",
-                0x045e: "Microsoft",
-                0x0bda: "Realtek",
-                0x1871: "Aveo",
-                0x0ac8: "Z-Star Microelectronics",
-                0x0402: "ALi Corp"
-            }
-            
-            for device in all_devices:
-                try:
-                    device_info = {}
-                    vendor_id = device.idVendor
-                    product_id = device.idProduct
-                    
-                    # Check if this is likely a camera
-                    is_likely_camera = False
-                    
-                    # Check if it's a known webcam vendor
-                    if vendor_id in webcam_vendors:
-                        is_likely_camera = True
-                        device_info["name"] = f"{webcam_vendors[vendor_id]} Camera"
-                    else:
-                        # Try to check device class
-                        try:
-                            if device.bDeviceClass == 239:  # Miscellaneous Device Class (often used for cameras)
-                                is_likely_camera = True
-                                device_info["name"] = "USB Camera"
-                            else:
-                                # Look at interfaces
-                                for cfg in device:
-                                    for intf in cfg:
-                                        if intf.bInterfaceClass == 14:  # Video class
-                                            is_likely_camera = True
-                                            device_info["name"] = "USB Video Device"
-                                            break
-                                    if is_likely_camera:
-                                        break
-                        except:
-                            pass
-                    
-                    if is_likely_camera:
-                        try:
-                            # Try to get a better name
-                            try:
-                                mfg = usb.util.get_string(device, device.iManufacturer)
-                                product = usb.util.get_string(device, device.iProduct)
-                                if mfg and product:
-                                    device_info["name"] = f"{mfg} {product}"
-                                elif product:
-                                    device_info["name"] = product
-                            except:
-                                pass
-                            
-                            device_info["vendor_id"] = vendor_id
-                            device_info["product_id"] = product_id
-                            cameras.append(device_info)
-                        except:
-                            pass
-                except Exception as e:
-                    print(f"Error processing device: {e}")
-    except Exception as e:
-        print(f"Error during USB enumeration: {e}")
+    # First try with the known Anker vendor ID
+    print(f"Looking for Anker camera with vendor ID 0x{anker_vid:04x}...")
+    devices = list(usb.core.find(find_all=True, idVendor=anker_vid))
     
-    # If we found cameras, return them
-    if cameras:
-        return cameras
-    
-    # As a fallback, try system_profiler
-    try:
-        print("No cameras found via USB enumeration, trying system_profiler...")
-        cmd = ['system_profiler', 'SPUSBDataType', '-json']
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        usb_info = json.loads(result.stdout)
-        
-        def traverse_usb_tree(node):
-            if isinstance(node, list):
-                for item in node:
-                    traverse_usb_tree(item)
-            elif isinstance(node, dict):
-                # Look for camera-related keywords
-                if '_name' in node and any(keyword in node['_name'].lower() 
-                                        for keyword in ['camera', 'webcam', 'facetime', 'uvc']):
-                    if 'vendor_id' in node and 'product_id' in node:
-                        try:
-                            vid = int(node['vendor_id'].replace('0x', ''), 16)
-                            pid = int(node['product_id'].replace('0x', ''), 16)
-                            cameras.append({
-                                'name': node['_name'],
-                                'vendor_id': vid,
-                                'product_id': pid
-                            })
-                        except ValueError:
-                            pass
-                
-                for key, value in node.items():
-                    if isinstance(value, (list, dict)):
-                        traverse_usb_tree(value)
-        
-        traverse_usb_tree(usb_info.get('SPUSBDataType', []))
-    
-    except Exception as e:
-        print(f"Error with system_profiler: {e}")
-    
-    # If still no cameras found, add fallback options for common camera IDs
-    if not cameras:
-        print("No cameras found via automatic detection, adding common camera types...")
-        cameras.extend([
-            {'name': 'Apple FaceTime HD Camera', 'vendor_id': 0x05ac, 'product_id': 0x8514},
-            {'name': 'Logitech Webcam C270', 'vendor_id': 0x046d, 'product_id': 0x082d},
-            {'name': 'Generic USB Camera', 'vendor_id': 0x0c45, 'product_id': 0x6366}
-        ])
-    
-    return cameras
-
-def main():
-    # Find cameras
-    cameras = find_macos_cameras()
-    
-    if not cameras:
-        print("No cameras found. This is highly unusual as we include fallbacks.")
-        return
-    
-    print("\nAvailable cameras:")
-    for i, camera in enumerate(cameras):
-        print(f"{i+1}. {camera['name']} (VID: 0x{camera['vendor_id']:04x}, PID: 0x{camera['product_id']:04x})")
-    
-    # Get camera selection
-    selection = 0
-    if len(cameras) > 1:
-        try:
-            selection = int(input("\nSelect camera (number): ")) - 1
-            if selection < 0 or selection >= len(cameras):
-                print("Invalid selection, using the first camera")
-                selection = 0
-        except ValueError:
-            print("Invalid input, using the first camera")
-            selection = 0
-    
-    # Connect to the selected camera
-    camera = cameras[selection]
-    print(f"Connecting to {camera['name']}...")
-    
-    try:
-        # Find the device
-        dev = usb.core.find(idVendor=camera['vendor_id'], idProduct=camera['product_id'])
-        
-        if dev is None:
-            print("Device not found. You may need to run this with sudo")
-            return
-        
-        print(f"Device found: {dev}")
-        
-        # Try to get control interface
-        interface = None
-        
-        try:
-            # Get active configuration
-            cfg = dev.get_active_configuration()
-            
-            # Find video control interface
-            for i in range(cfg.bNumInterfaces):
-                try:
-                    intf = cfg[(i, 0)]
-                    if intf.bInterfaceClass == 14 and intf.bInterfaceSubClass == 1:  # Video, Control
-                        interface = intf
-                        print(f"Found Video Control interface: {i}")
-                        break
-                except:
-                    continue
-        except Exception as e:
-            print(f"Error getting configuration: {e}")
-        
-        # Set simple default values for control units
-        camera_terminal_id = 1
-        processing_unit_id = 2
-        interface_number = getattr(interface, 'bInterfaceNumber', 0) if interface else 0
-        
-        # Try brightness control as an example
-        print("Attempting to get brightness...")
-        
-        try:
-            # Try common controls
-        controls = [
-            {"name": "Brightness", "unit": processing_unit_id, "selector": 0x02, "length": 2},
-            {"name": "Contrast", "unit": processing_unit_id, "selector": 0x03, "length": 2},
-            {"name": "Auto Focus", "unit": camera_terminal_id, "selector": 0x12, "length": 1},
-            {"name": "Focus", "unit": camera_terminal_id, "selector": 0x06, "length": 2},
-            {"name": "Auto Exposure", "unit": camera_terminal_id, "selector": 0x02, "length": 1},
-            {"name": "Exposure Time", "unit": camera_terminal_id, "selector": 0x04, "length": 4},
-            {"name": "Zoom", "unit": camera_terminal_id, "selector": 0x0A, "length": 2}
-        ]
-        
-        print("\nAttempting to read camera controls...")
-        successful_controls = 0
-        
-        for control in controls:
+    if devices:
+        for device in devices:
             try:
-                print(f"\nTrying to get {control['name']}...")
-                
-                # UVC GET_CUR request
-                bmRequestType = 0xA1  # Direction: IN, Type: Class, Recipient: Interface
-                bRequest = 0x81      # GET_CUR
-                wValue = (control['selector'] << 8)  # Control selector in high byte
-                wIndex = (control['unit'] << 8) | interface_number
-                wLength = control['length']
-                
-                # Create a buffer for the response
-                buffer = array.array('B', [0] * wLength)
-                
-                # Send control transfer
-                result = dev.ctrl_transfer(bmRequestType, bRequest, wValue, wIndex, buffer)
-                
-                if result:
-                    if wLength == 1:
-                        value = result[0]
-                    elif wLength == 2:
-                        value = result[0] | (result[1] << 8)
-                    elif wLength == 4:
-                        value = result[0] | (result[1] << 8) | (result[2] << 16) | (result[3] << 24)
-                    else:
-                        value = result
-                    
-                    print(f"✓ Success! Current {control['name']}: {value}")
-                    successful_controls += 1
-                    
-                    # If we succeeded, try setting a value (only for non-boolean controls)
-                    if control['length'] > 1:
-                        print(f"  Setting {control['name']} to a test value...")
-                        
-                        # UVC SET_CUR request
-                        bmRequestType = 0x21  # Direction: OUT, Type: Class, Recipient: Interface
-                        bRequest = 0x01      # SET_CUR
-                        
-                        # Create data buffer with test value
-                        if control['length'] == 2:
-                            test_value = 128  # Middle value for most 2-byte controls
-                            data = array.array('B', [test_value & 0xFF, (test_value >> 8) & 0xFF])
-                        elif control['length'] == 4:
-                            test_value = 1000  # Reasonable value for 4-byte controls
-                            data = array.array('B', [
-                                test_value & 0xFF, 
-                                (test_value >> 8) & 0xFF,
-                                (test_value >> 16) & 0xFF,
-                                (test_value >> 24) & 0xFF
-                            ])
-                        
-                        result = dev.ctrl_transfer(bmRequestType, bRequest, wValue, wIndex, data)
-                        if result is not None:
-                            print(f"  ✓ Value set successfully! ({result})")
-                        else:
-                            print(f"  ✗ Failed to set value")
-                else:
-                    print(f"✗ Failed to get {control['name']}")
-            
-            except usb.core.USBError as e:
-                print(f"✗ USB Error for {control['name']}: {e}")
-            except Exception as e:
-                print(f"✗ Error for {control['name']}: {e}")
+                product = usb.util.get_string(device, device.iProduct)
+                if "PowerConf C200" in product or "Anker" in product:
+                    print(f"Found Anker PowerConf C200: {product}")
+                    return device
+            except:
+                pass
         
-        print(f"\nSummary: Successfully accessed {successful_controls} out of {len(controls)} controls")
+        # If we found Anker devices but none matched, return the first one
+        print(f"Found an Anker device (might be PowerConf C200): VID=0x{devices[0].idVendor:04x}, PID=0x{devices[0].idProduct:04x}")
+        return devices[0]
+    
+    # If no Anker VID found, search all USB devices for "Anker" or "PowerConf" in the product name
+    print("Searching all USB devices for Anker camera...")
+    all_devices = usb.core.find(find_all=True)
+    
+    for device in all_devices:
+        try:
+            product = usb.util.get_string(device, device.iProduct)
+            if product and ("PowerConf" in product or "Anker" in product or "C200" in product):
+                print(f"Found Anker camera: {product}")
+                print(f"VID=0x{device.idVendor:04x}, PID=0x{device.idProduct:04x}")
+                return device
+        except:
+            pass
+    
+    # If still not found, search for camera class devices (might be Anker but we can't read the name)
+    print("Looking for any video class device (may be Anker camera)...")
+    for device in all_devices:
+        try:
+            for cfg in device:
+                for intf in cfg:
+                    if intf.bInterfaceClass == 14:  # Video class
+                        print(f"Found a Video device (might be Anker): VID=0x{device.idVendor:04x}, PID=0x{device.idProduct:04x}")
+                        return device
+        except:
+            pass
+    
+    return None
+
+def find_video_control_interface(device):
+    """Find the Video Control interface in the device"""
+    try:
+        # Get active configuration
+        cfg = device.get_active_configuration()
+        
+        # Find video control interface
+        for i in range(cfg.bNumInterfaces):
+            try:
+                intf = cfg[(i, 0)]
+                if intf.bInterfaceClass == 14 and intf.bInterfaceSubClass == 1:  # Video, Control
+                    print(f"Found Video Control interface: {i}")
+                    return intf
+            except Exception as e:
+                print(f"Error checking interface {i}: {e}")
+    except Exception as e:
+        print(f"Error getting configuration: {e}")
+        
+        # Alternative method - iterate through all interfaces
+        try:
+            for cfg in device:
+                for intf in cfg:
+                    if intf.bInterfaceClass == 14 and intf.bInterfaceSubClass == 1:  # Video, Control
+                        print(f"Found Video Control interface through alternative method")
+                        return intf
+        except Exception as e2:
+            print(f"Alternative method also failed: {e2}")
+    
+    # If we can't find the right interface, return a mock interface for the first one
+    class MockInterface:
+        def __init__(self):
+            self.bInterfaceNumber = 0
+    
+    print("Warning: Couldn't find Video Control interface, using interface 0")
+    return MockInterface()
+
+def test_uvc_controls(device, interface):
+    """Test UVC controls for the Anker PowerConf C200"""
+    # Default terminal and unit IDs (typical for most UVC cameras)
+    camera_terminal_id = 1
+    processing_unit_id = 2
+    
+    # Get interface number
+    interface_number = getattr(interface, 'bInterfaceNumber', 0)
+    
+    # List of controls to test - specific to Anker PowerConf C200
+    # Based on common UVC controls that webcams typically support
+    controls = [
+        {"name": "Brightness", "unit": processing_unit_id, "selector": 0x02, "length": 2},
+        {"name": "Contrast", "unit": processing_unit_id, "selector": 0x03, "length": 2},
+        {"name": "Saturation", "unit": processing_unit_id, "selector": 0x07, "length": 2},
+        {"name": "Sharpness", "unit": processing_unit_id, "selector": 0x08, "length": 2},
+        {"name": "White Balance", "unit": processing_unit_id, "selector": 0x0A, "length": 2},
+        {"name": "Auto White Balance", "unit": processing_unit_id, "selector": 0x11, "length": 1},
+        {"name": "Auto Exposure Mode", "unit": camera_terminal_id, "selector": 0x02, "length": 1},
+        {"name": "Exposure Time", "unit": camera_terminal_id, "selector": 0x04, "length": 4},
+        {"name": "Focus", "unit": camera_terminal_id, "selector": 0x06, "length": 2},
+        {"name": "Auto Focus", "unit": camera_terminal_id, "selector": 0x12, "length": 1},
+        {"name": "Zoom", "unit": camera_terminal_id, "selector": 0x0A, "length": 2}
+    ]
+    
+    successful_controls = []
+    
+    print("\nTesting UVC controls for Anker PowerConf C200:")
+    print("----------------------------------------------")
+    
+    for control in controls:
+        try:
+            print(f"Testing {control['name']}...")
+            
+            # GET_CUR request
+            bmRequestType = 0xA1  # Direction: IN, Type: Class, Recipient: Interface
+            bRequest = 0x81      # GET_CUR
+            wValue = (control['selector'] << 8)  # Control selector in high byte
+            wIndex = (control['unit'] << 8) | interface_number  # Unit ID in high byte, interface in low byte
+            wLength = control['length']
+            
+            # Create a buffer for the response
+            buffer = array.array('B', [0] * wLength)
+            
+            # Send control transfer with timeout
+            result = device.ctrl_transfer(bmRequestType, bRequest, wValue, wIndex, buffer, timeout=1000)
+            
+            if result:
+                # Parse value based on length
+                if wLength == 1:
+                    value = result[0]
+                elif wLength == 2:
+                    value = result[0] | (result[1] << 8)
+                elif wLength == 4:
+                    value = result[0] | (result[1] << 8) | (result[2] << 16) | (result[3] << 24)
+                else:
+                    value = result
+                
+                print(f"  ✓ Success! Current {control['name']}: {value}")
+                successful_controls.append(control)
+                
+                # Try SET_CUR for this control
+                try:
+                    print(f"  Testing SET_CUR for {control['name']}...")
+                    
+                    # SET_CUR request
+                    bmRequestType = 0x21  # Direction: OUT, Type: Class, Recipient: Interface
+                    bRequest = 0x01      # SET_CUR
+                    
+                    # Prepare test value and data
+                    if wLength == 1:
+                        # For boolean controls, toggle the current value
+                        test_value = 0 if value > 0 else 1
+                        data = array.array('B', [test_value])
+                    elif wLength == 2:
+                        # For 2-byte controls, use middle value
+                        test_value = 128
+                        data = array.array('B', [test_value & 0xFF, (test_value >> 8) & 0xFF])
+                    elif wLength == 4:
+                        # For 4-byte controls (like exposure), use a reasonable value
+                        test_value = 1000
+                        data = array.array('B', [
+                            test_value & 0xFF, 
+                            (test_value >> 8) & 0xFF,
+                            (test_value >> 16) & 0xFF,
+                            (test_value >> 24) & 0xFF
+                        ])
+                    
+                    # Send SET_CUR control transfer
+                    set_result = device.ctrl_transfer(bmRequestType, bRequest, wValue, wIndex, data, timeout=1000)
+                    
+                    if set_result is not None:
+                        print(f"  ✓ SET_CUR successful ({set_result})")
+                        
+                        # Wait a moment for the change to take effect
+                        time.sleep(0.5)
+                        
+                        # Get the value again to see if it changed
+                        result = device.ctrl_transfer(bmRequestType=0xA1, bRequest=0x81, 
+                                                     wValue=wValue, wIndex=wIndex,
+                                                     data_or_wLength=buffer, timeout=1000)
+                        
+                        if result:
+                            if wLength == 1:
+                                new_value = result[0]
+                            elif wLength == 2:
+                                new_value = result[0] | (result[1] << 8)
+                            elif wLength == 4:
+                                new_value = result[0] | (result[1] << 8) | (result[2] << 16) | (result[3] << 24)
+                            
+                            if new_value != value:
+                                print(f"  ✓ Value changed: {value} -> {new_value}")
+                            else:
+                                print(f"  ⚠ Value did not change (may be restricted or auto mode)")
+                    else:
+                        print(f"  ✗ SET_CUR failed")
+                
+                except Exception as e:
+                    print(f"  ✗ Error setting value: {e}")
             else:
-                print("Failed to get brightness")
+                print(f"  ✗ Failed to get value")
         
         except usb.core.USBError as e:
-            print(f"USB Error: {e}")
-            if "Access denied" in str(e) or "Permission denied" in str(e):
-                print("You may need to run this script with sudo")
-            elif "No such device" in str(e):
-                print("Device disconnected or not responding")
+            if "timeout" in str(e).lower():
+                print(f"  ✗ Timeout error: device did not respond")
+            else:
+                print(f"  ✗ USB Error: {e}")
+        except Exception as e:
+            print(f"  ✗ Error: {e}")
         
-        finally:
-            # Release the device
-            usb.util.dispose_resources(dev)
+        # Add a separator line
+        print()
     
+    # Summary of findings
+    print("\nSUMMARY:")
+    print("--------")
+    print(f"Successfully read {len(successful_controls)} of {len(controls)} controls")
+    
+    if successful_controls:
+        print("\nWorking controls for your Anker PowerConf C200:")
+        for ctrl in successful_controls:
+            print(f"- {ctrl['name']} (Unit: {ctrl['unit']}, Selector: 0x{ctrl['selector']:02x})")
+    
+    # Create a sample function to adjust a specific control
+    if successful_controls:
+        # Pick the first working control as an example
+        sample_control = successful_controls[0]
+        
+        print("\nSample Python function to adjust", sample_control['name'])
+        print("-" * 50)
+        print(f"""
+def set_{sample_control['name'].lower().replace(' ', '_')}(device, value):
+    \"\"\"Set {sample_control['name']} to the specified value\"\"\"
+    interface_number = {interface_number}  # Your camera's interface number
+    unit_id = {sample_control['unit']}
+    control_selector = 0x{sample_control['selector']:02x}
+    
+    # SET_CUR request
+    bmRequestType = 0x21  # Direction: OUT, Type: Class, Recipient: Interface
+    bRequest = 0x01      # SET_CUR
+    wValue = (control_selector << 8)
+    wIndex = (unit_id << 8) | interface_number
+    
+    # Prepare data buffer
+    data = array.array('B', [0] * {sample_control['length']})
+    """)
+        
+        if sample_control['length'] == 1:
+            print("""    # For 1-byte control
+    data[0] = value & 0xFF  # Ensure value is between 0-255
+    """)
+        elif sample_control['length'] == 2:
+            print("""    # For 2-byte control
+    data[0] = value & 0xFF           # Low byte
+    data[1] = (value >> 8) & 0xFF    # High byte
+    """)
+        elif sample_control['length'] == 4:
+            print("""    # For 4-byte control
+    data[0] = value & 0xFF
+    data[1] = (value >> 8) & 0xFF
+    data[2] = (value >> 16) & 0xFF
+    data[3] = (value >> 24) & 0xFF
+    """)
+        
+        print("""    # Send control transfer
+    result = device.ctrl_transfer(bmRequestType, bRequest, wValue, wIndex, data, timeout=1000)
+    return result is not None
+""")
+
+def main():
+    if not sys.platform.startswith('darwin'):
+        print("This script is designed for macOS.")
+        return
+        
+    print("Anker PowerConf C200 UVC Control Tool")
+    print("====================================")
+    
+    # Find the Anker camera
+    dev = find_anker_camera()
+    
+    if not dev:
+        print("\nError: Could not find Anker PowerConf C200 camera.")
+        print("Make sure the camera is connected and you're running with sudo.")
+        return
+    
+    try:
+        # Find the video control interface
+        interface = find_video_control_interface(dev)
+        
+        # Test UVC controls
+        test_uvc_controls(dev, interface)
+        
     except Exception as e:
         print(f"Error: {e}")
+    finally:
+        # Release the device
+        usb.util.dispose_resources(dev)
+        print("\nDevice resources released.")
 
 if __name__ == "__main__":
     main()
