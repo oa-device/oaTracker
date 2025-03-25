@@ -16,7 +16,6 @@ dependencies = [
     "duckdb",
     "boto3",
     "pyarrow",
-    "pupil-labs-uvc",
     "pylint",
     "uvicorn",
     "lap>=0.5.12",
