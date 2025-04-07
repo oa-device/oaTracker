@@ -119,7 +119,14 @@ class Counters:
 
                 box_labels = self.get_labels(id)
                 name = "" if id is None else f"id:{id} {labels[cls]}"
-                label = f"{box_labels if len(box_labels) != 0 else ""} {int(conf * 100)}%" if conf else name
+                
+                label = name
+                
+                if conf:
+                    box_label = box_labels if len(box_labels) != 0 else ""
+                    con = int(conf * 100)
+                    label = f"{box_label} {con}"
+                
                 annotator.box_label(d.xyxy[0], label, color=(0, 225, 27))
 
         # Add timestamp using cv2 instead of text_label
