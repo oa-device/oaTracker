@@ -4,7 +4,7 @@ import signal
 from threading import Thread
 import time
 
-from app.processes import ApiProcess, CounterProcess, SyncProcess
+from app.processes import ApiProcess, CounterProcess, DbProcess
 
 import multiprocessing
 from app.config import TORCH_DEVICE
@@ -43,9 +43,9 @@ def main():
     thread.start()
 
     logger.info("Spawning sync process")
-    sync_process = SyncProcess(args, server_stopped)
-    sync_process.start()
-
+    db_process = DbProcess(args, server_stopped)
+    db_process.start()
+    
     logger.info("Spawning counter process")
     counter_process = CounterProcess(args, server_stopped)
     counter_process.start()
@@ -59,14 +59,15 @@ def main():
     api_process.start()
 
     thread.join()
+    
     logger.info("counter_process join")
     counter_process.join(3)
-    logger.info("sync_process join")
-    sync_process.join(5)
+    logger.info("db_process join")
+    db_process.join(10)
     logger.info("counter_process terminate")
     counter_process.terminate()
-    logger.info("sync_process terminate")
-    sync_process.terminate()
+    logger.info("db_process terminate")
+    db_process.terminate()
     logger.info("Bye !")
     os.kill(os.getpid(), signal.SIGKILL)
 

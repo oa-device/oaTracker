@@ -1,164 +1,63 @@
-import datetime
-import os
-from queue import Queue
+import json
+import threading
 import time
-from typing import Any, TypedDict, Union
+import traceback
+from typing import Any
 from uuid import uuid4
 import uuid
 import cv2
 from shapely import Point, Polygon
+import torch
 import ultralytics.engine.results
-import ultralytics.trackers.bot_sort
-
+import pyarrow.flight as flight
 from app.counters import Counter
-from app.utils.time_int import time_int
-
+from shapely.prepared import prep
+from queue import Queue
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 
-class ZoneCounterPoint(TypedDict):
-    x: float
-    y: float
-    current_zone: int
-
-
-class ZoneCounterZone(TypedDict):
-    first_seen: float
-    last_seen: float
-    enter_event_id: bytes
-    leave_event_id: bytes
-
-
-class ZoneCounterTrack(dict):
-    def __init__(
-        self,
-        id: int,
-        x: float,
-        y: float,
-        current_zone: int,
-        track_names: tuple[str, str, str],
-        track_class: int,
-        track_id: bytes,
-        cam_id: bytes,
-    ):
-        self.id = id
-        self.track_names = track_names
-
-        self.conf = 0
-        self.track_id = track_id
-        self.cam_id = cam_id
-
-        self.track_class = track_class
-        self.point = ZoneCounterPoint(x=x, y=y, current_zone=current_zone)
-        self.zones = [
-            ZoneCounterZone(
-                first_seen=0.0,
-                last_seen=0.0,
-                enter_event_id=uuid4().bytes,
-                leave_event_id=uuid4().bytes,
-            )
-            for _ in range(len(track_names))
-        ]
-        self.live_row: Union[dict[str, Any], None] = None
-        self.done_rows: list[dict[str, Any]] = []
-
-    def update_present(
-        self, now: float, x: float, y: float, current_zone: int, conf: int
-    ):
-        i = -1
-        # print("update present", now, x, y, current_zone)
-        last_zone = int(self.point["current_zone"])
-        self.point.update({"x": x, "y": y, "current_zone": current_zone})
-
-        self.conf = max(conf, self.conf)
-
-        zone_changed = last_zone != current_zone
-
-        if zone_changed and self.live_row:
-            self.done_rows.append(self.live_row)
-
-        for zone in self.zones:
-            i += 1
-
-            if current_zone == i:
-                if zone["last_seen"] == 0.0:
-                    # newly in frame
-                    self.live_row = {
-                        "event_ts": 0.0,
-                        "event_id": zone["leave_event_id"],
-                        "event_name": f"leave_zone_{self.track_names[i]}",
-                        "track_conf": self.conf,
-                        "track_class": self.track_class,
-                        "track_id": self.track_id,
-                        "cam_id": self.cam_id,
-                    }
-                    self.done_rows.append(
-                        {
-                            "event_ts": now * 1000000,
-                            "event_id": zone["enter_event_id"],
-                            "event_name": f"enter_zone_{self.track_names[i]}",
-                            "track_conf": self.conf,
-                            "track_class": self.track_class,
-                            "track_id": self.track_id,
-                            "cam_id": self.cam_id,
-                        }
-                    )
-
-                if self.live_row is not None:
-                    self.live_row["event_ts"] = now * 1000000
-
-                zone["first_seen"] = (
-                    zone["first_seen"] if zone["first_seen"] != 0.0 else now
+def connect_with_retry(remote=False, max_attempts=5):
+    for attempt in range(max_attempts):
+        try:
+            client = flight.connect(f"grpc://{'localhost' if not remote else 'detectiondb.orangead.ca' }:8815")
+            return client
+        except flight.FlightUnavailableError:
+            if attempt < max_attempts - 1:
+                print(
+                    f"Connection attempt {attempt + 1} failed, retrying in 1 second..."
                 )
-                zone["last_seen"] = now
-
-            elif zone["last_seen"] != 0.0:
-                zone["first_seen"] = 0.0
-                zone["last_seen"] = 0.0
-                zone["enter_event_id"] = uuid4().bytes
-                zone["leave_event_id"] = uuid4().bytes
-
-    def get_rows(self, last_update):
-        _done_rows = self.done_rows.copy()
-        self.done_rows = []
-        # print('self.live_row', self.live_row)
-        live_rows = []
-        if self.live_row is not None and self.live_row["event_ts"] < last_update:
-            _done_rows.append(self.live_row)
-            self.live_row = None
-        elif self.live_row is not None:
-            live_rows.append(self.live_row)
-
-        return {"live": live_rows, "done": _done_rows}
+                time.sleep(1)
+            else:
+                raise
 
 
-schema = pa.schema(
-    [
-        pa.field("event_ts", pa.timestamp("us"), nullable=False),
-        pa.field("event_id", pa.binary(16), nullable=False),
-        pa.field("event_name", pa.string(), nullable=False),
-        pa.field("track_conf", pa.int8(), nullable=False),
-        pa.field("track_class", pa.int8(), nullable=False),
-        pa.field("track_id", pa.binary(16), nullable=False),
-        pa.field("cam_id", pa.binary(16), nullable=False),
-    ]
-)
-
-
-def write_files(q: Queue, boot_int: int):
-
+def db_thread(q, remote=False):
+    client = connect_with_retry(remote)
     while True:
-        from_queue = q.get()
-        begin = time.monotonic()
-        # print('from_queue', from_queue)
-        live_row = from_queue[0]
-        done_rows = from_queue[1]
-        done_int = from_queue[2]
-
-        # print("writes", (time.monotonic() - begin) * 1000, 'live', live_rows_arrow.num_rows, 'done', done_rows_arrow.num_rows, 'update_done', update_done)
-
+        try:
+            try:
+                item = q.get(timeout=0.01)
+            except:
+                continue
+            if item is None:
+                continue
+            print(remote, 10)
+            client.wait_for_available(timeout=10)
+            print(remote, 20)
+            writer, _ = client.do_put(item[0], item[1].schema)
+            writer.write_table(item[1])
+            writer.close()
+        except Exception as e:
+            tbe = traceback.TracebackException.from_exception(e)
+            stack_frames = traceback.extract_stack()
+            tbe.stack.extend(stack_frames)
+            formatted_traceback = "".join(tbe.format())
+            print(f"Formatted Traceback:\n{formatted_traceback}")
+            print(e)
+            time.sleep(0.01)
+            pass
 
 class ZoneCounter(Counter):
 
@@ -167,182 +66,218 @@ class ZoneCounter(Counter):
     def __init__(self, args) -> None:
         self.classes = [0, 2, 3, 5]
         super().__init__(args, ZoneCounter.name)
-
         self.setup()
 
-        self.data: dict[int, ZoneCounterTrack] = dict({})
+        self.data: dict[int, list[list]] = dict({})
+        self.pos: dict[int, list[int]] = dict({})
 
-        self.data_by_trackid: dict[
-            bytes,
-            tuple[
-                int,
-                bytes,
-                list[Union[tuple[float, float], int, float]],
-                list[list[Union[bool, bytes, float]]],
-            ],
-        ] = dict({})
-        self.deleted: list[int] = []
         self.last_db_update = 0.0
-        self.rows_deleted_tracks_live = []
-        self.rows_deleted_tracks_done = []
-        self.done_int = self.args.boot_int
-        self.done_rows_arrow = schema.empty_table()
-        self.last_done_int = self.args.boot_int
+        self.boot_int = self.args.boot_int
 
-        self.cam_id_bytes = uuid.UUID(args.camId).bytes
-        self.cam_id_hex = str(uuid.UUID(args.camId).hex).upper()
+        self.cam_id = args.camId
 
-        self.write_thread_queue: Queue[dict[str, Any]] = Queue()
-
-        # , list[list[Union[int, float, bytes]]]
+        self.THREE_HOURS = 60 * 60 * 3
+        self.device = None
+        
+        self.local_queue = Queue(maxsize=0)
+        self.remote_queue = Queue(maxsize=0)
+        
+        self.local_thread = threading.Thread(target=db_thread, args=(self.local_queue,False))
+        self.remote_thread = threading.Thread(target=db_thread, args=(self.remote_queue,True))
+        self.local_thread.start()
+        self.remote_thread.start()
+    
 
     def update(
         self,
         now: float,
         boxes: ultralytics.engine.results.Boxes,
-        removed_stracks: list[Any],
+        _removed_stracks: list[Any],
     ) -> None:
         try:
-            self.last_update = now
+            valid_indices = [i for i, box in enumerate(boxes) if box.id is not None]
 
-            # start with tracks that were in the frame
-            box_ids = []
-            for box in boxes:
-                if box.id is None:
-                    continue
-                id = int(box.id)
-                box_ids.append(id)
-                center_x = float(box.xywh[0][0])
-                bottom_y = float(box.xyxy[0][3])
-                small_quarter_wh = min(float(box.xywh[0][2]), float(box.xywh[0][3])) / 6
-                x = center_x
-                y = float(bottom_y - small_quarter_wh)
-
-                uuid = self.track_uuids[id]
-                new_track = id not in self.data
-                conf = int(box.conf * 100)
-                track_class = int(box.cls)
-
-                current_zone = -1
-                i = -1
-                for zone_shape in self.zones_shape:
-                    i += 1
-                    contains = zone_shape.contains(Point(x, y))  # type: ignore
-                    if contains:
-                        current_zone = i
-
-                if new_track:
-                    self.data[id] = ZoneCounterTrack(
-                        id,
-                        x,
-                        y,
-                        current_zone,
-                        self.zones_name,
-                        track_class,
-                        cam_id=self.cam_id_bytes,
-                        track_id=uuid,
+            if not valid_indices:
+                if now - self.last_db_update > 1:
+                    self.update_db(
+                        now, set(int(strack_id.idx) for strack_id in _removed_stracks)
                     )
-                    
-                self.data[id].update_present(now, x, y, current_zone, conf)
+                    self.last_db_update = now
+                return
 
-            # update tracks not in frame
-            # tracks_not_in_frame = [
-            #     track for id, track in self.data.items() if not id in box_ids
-            # ]
-            # for track_not_in_frame in tracks_not_in_frame:
-            #     print("not in frame", track_not_in_frame.id)
+            valid_boxes = [boxes[i] for i in valid_indices]
 
-            # cleanup
-            # to_write = []
-            # for not_deleted in [
-            #     x.track_id
-            #     for x in removed_stracks
-            #     if x.track_id not in self.deleted
-            # ]:
-            #     if not_deleted in self.data:
-            #         rows = self.data[not_deleted].get_rows()
-            #         self.rows_deleted_tracks_live.append(rows["live"])
-            #         self.rows_deleted_tracks_done += rows["done"]
-            #         del self.data[not_deleted]
+            if self.device is None:
+                dev = boxes[0].xywh.get_device()
+                self.device = "cpu" if dev < 0 else dev
 
-            # self.deleted = self.deleted + sorted(
-            #     set([x.track_id for x in removed_stracks]) - set(self.deleted)
-            # )
+            ids = [int(box.id.item()) for box in valid_boxes]
+
+            xywh_data = torch.stack([box.xywh[0] for box in valid_boxes]).to(
+                self.device
+            )
+            xyxy_data = torch.stack([box.xyxy[0] for box in valid_boxes]).to(
+                self.device
+            )
+
+            center_x = xywh_data[:, 0]
+            bottom_y = xyxy_data[:, 3]
+
+            widths = xywh_data[:, 2]
+            heights = xywh_data[:, 3]
+            small_quarter_wh = torch.minimum(widths, heights) / 6
+
+            x_points = center_x
+            y_points = bottom_y - small_quarter_wh
+
+            conf_values = torch.stack([box.conf for box in valid_boxes]) * 100
+            conf_values = conf_values.to(torch.int32)
+            track_classes = torch.stack([box.cls for box in valid_boxes]).to(
+                torch.int32
+            )
+
+            for i, id_val in enumerate(ids):
+                track_uuid = self.track_uuids[id_val]
+                known_track = id_val in self.data
+                conf = conf_values[i].item()
+                track_class = track_classes[i].item()
+
+                x, y = x_points[i].item(), y_points[i].item()
+                current_zone = -1
+                point = Point(x, y)
+                for zone_idx, prepared_zone in enumerate(self.prepared_zones):
+                    if prepared_zone.contains(point):
+                        current_zone = zone_idx
+                        break
+
+                if id_val not in self.pos:
+                    self.pos[id_val] = [x, y, current_zone]
+                else:
+                    self.pos[id_val][0] = x
+                    self.pos[id_val][1] = y
+                    if self.pos[id_val][2] != current_zone:
+                        self.pos[id_val][2] = current_zone
+
+                zone_name = self.zones_name[current_zone]
+
+                if not known_track:
+                    self.data[id_val] = []
+
+                if (
+                    known_track
+                    and len(self.data[id_val]) != 0
+                    and self.data[id_val][0][2] == f"zone_leave_{zone_name}"
+                ):
+                    self.data[id_val][0][0] = now * 1000000
+                    if self.data[id_val][0][3] < conf:
+                        self.data[id_val][0][3] = conf
+                    self.data[id_val][0][6] = False
+                else:
+                    track_uuid_obj = uuid.UUID(bytes=track_uuid, version=4)
+                    self.data[id_val].insert(
+                        0,
+                        [
+                            now * 1000000,
+                            uuid4(),
+                            f"zone_enter_{zone_name}",
+                            conf,
+                            track_class,
+                            track_uuid_obj,
+                            False,
+                        ],
+                    )
+
+                    self.data[id_val].insert(
+                        0,
+                        [
+                            now * 1000000 + 5000,  # add 5ms
+                            uuid4(),
+                            f"zone_leave_{zone_name}",
+                            conf,
+                            track_class,
+                            track_uuid_obj,
+                            False,
+                        ],
+                    )
 
             if now - self.last_db_update > 1:
-                self.update_db()
+                self.update_db(
+                    now, set(int(strack_id.idx) for strack_id in _removed_stracks)
+                )
                 self.last_db_update = now
         except Exception as e:
+            tbe = traceback.TracebackException.from_exception(e)
+            stack_frames = traceback.extract_stack()
+            tbe.stack.extend(stack_frames)
+            formatted_traceback = "".join(tbe.format())
+            print(f"Formatted Traceback:\n{formatted_traceback}")
             print(e)
 
-    def update_db(self):
-        begin = time.time()
-        rows_deleted_tracks_live = self.rows_deleted_tracks_live
-        rows_deleted_tracks_done = self.rows_deleted_tracks_done
-        self.rows_deleted_tracks_live = []
-        self.rows_deleted_tracks_done = []
+    def update_db(self, now: float, removed_stracks: set[int]):
+        to_delete_old = [
+            id for id in self.data if self.data[id][0][0] + (1000000.0 * 60) < now * 1000000
+        ]
+        to_delete_untracked = [id for id in removed_stracks if id in self.data]
+        to_delete = set(to_delete_old + to_delete_untracked)
 
-        last_db_update_ms = self.last_db_update * 1000000
+        # cleanup before saving
+        for id in to_delete:
+            del self.data[id]
 
-        rows = [data.get_rows(last_db_update_ms) for data in self.data.values()]
-        done_rows = [
-            row for _rows in rows for row in _rows["done"]
-        ] + rows_deleted_tracks_done
-        live_rows = [
-            row for _rows in rows for row in _rows["live"]
-        ] + rows_deleted_tracks_live
+        updated_rows = [row for id in self.data for row in self.data[id] if not row[6]]
 
-        live_rows = [row for row in live_rows if row["event_ts"] > last_db_update_ms]
+        if len(updated_rows) == 0:
+            return
 
         schema = pa.schema(
             [
                 pa.field("event_ts", pa.timestamp("us"), nullable=False),
-                pa.field("event_id", pa.binary(16), nullable=False),
+                pa.field("event_id", pa.uuid(), nullable=False),
                 pa.field("event_name", pa.string(), nullable=False),
                 pa.field("track_conf", pa.int8(), nullable=False),
                 pa.field("track_class", pa.int8(), nullable=False),
-                pa.field("track_id", pa.binary(16), nullable=False),
-                pa.field("cam_id", pa.binary(16), nullable=False),
+                pa.field("track_id", pa.uuid(), nullable=False),
+                pa.field("cam_id", pa.uuid(), nullable=False),
             ]
         )
 
-        update_live = len(live_rows) != 0
-        update_done = len(done_rows) != 0
+        pylist = [
+            {
+                "event_ts": row[0],
+                "event_id": row[1].bytes,
+                "event_name": row[2],
+                "track_conf": row[3],
+                "track_class": row[4],
+                "track_id": row[5].bytes,
+                "cam_id": uuid.UUID(self.cam_id).bytes,
+            }
+            for row in updated_rows
+        ]
 
-        if update_live:
-            live_rows_arrow = pa.Table.from_pylist(live_rows, schema=schema)
-            pq.write_table(
-                live_rows_arrow, "/tmp/live.parquet.tmp", compression="snappy"
-            )
+        metadata = json.dumps(
+            {
+                "table": "zone_events",
+                "since": self.boot_int,
+                "batch_id": str(uuid.uuid4()),
+            }
+        ).encode("utf-8")
 
-        hive_path = f"year={datetime.datetime.now(datetime.timezone.utc).year}/month={datetime.datetime.now(datetime.timezone.utc).month}/cam_id_hex={self.cam_id_hex}"
+        descriptor = flight.FlightDescriptor.for_path(metadata)
 
-        from pathlib import Path
+        table = pa.Table.from_pylist(pylist, schema)
 
-        Path(f"/tmp/warehouse_oa/{hive_path}").mkdir(parents=True, exist_ok=True)
-        if update_done:
-            self.done_rows_arrow = pa.concat_tables(
-                [pa.Table.from_pylist(done_rows, schema=schema), self.done_rows_arrow]
-            )
-            pq.write_table(
-                self.done_rows_arrow, "/tmp/done.parquet.tmp", compression="snappy"
-            )
-            os.replace(
-                "/tmp/done.parquet.tmp",
-                f"/tmp/warehouse_oa/{hive_path}/done-{self.args.boot_int}-{self.done_int}.parquet",
-            )
-            split = len(self.done_rows_arrow) > 10_000
-            if split:
-                self.done_int = time_int()
-                self.done_rows_arrow = schema.empty_table()
+        # Upload the data
+        
+        self.do_put((descriptor, table))
+        
+        # cleanup post save
+        for id in self.data:
+            self.data[id][0][6] = True
+            self.data[id] = [self.data[id][0]]
 
-        if update_live:
-            os.replace(
-                "/tmp/live.parquet.tmp",
-                f"/tmp/warehouse_oa/{hive_path}/live-{self.args.boot_int}.parquet",
-            )
-
-        # print('update', (time.time() - begin)*1000, 'LIVE', live_count, 'done', done_count)
+    def do_put(self, data):
+        self.local_queue.put(data)
+        self.remote_queue.put(data)
 
     def setup(self):
         zones_coords = []
@@ -358,6 +293,8 @@ class ZoneCounter(Counter):
         for coords in self.zones_coords:
             zones_shape.append(Polygon(coords))
         self.zones_shape: tuple[Polygon] = tuple(zones_shape)  # type: ignore
+
+        self.prepared_zones = [prep(zone) for zone in zones_shape]
 
         background_small_zones_lines = []
         for zone_shape in self.zones_shape:
@@ -411,11 +348,11 @@ class ZoneCounter(Counter):
         for id in self.data:
             if id not in ids:
                 continue
-            point = self.data[id].point
+            [x, y, zone] = self.pos[id]
             img = cv2.circle(
                 img,  # type: ignore
-                center=(int(point["x"]), int(point["y"])),
-                color=(255, 255, 255) if point["current_zone"] == -1 else self.zones_color[point["current_zone"]],  # type: ignore
+                center=(int(x), int(y)),
+                color=(255, 255, 255) if zone == -1 else self.zones_color[zone],  # type: ignore
                 radius=6,
                 thickness=-1,
             )

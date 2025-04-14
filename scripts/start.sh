@@ -13,12 +13,17 @@ trap '' USR2
 
 export PYTORCH_ENABLE_MPS_FALLBACK=1
 
+# https://github.com/apache/arrow/issues/36301
+export ACERO_ALIGNMENT_HANDLING=ignore
+
 TWICE=0
 function ctrl_c() {
     if [ $TWICE -eq 1 ]
     then
     echo "** Trapped second CTRL-C, hard shutdown"
       kill -9 "$SETSID_PID"
+      echo "$SETSID_PID"
+      pkill -f "CoreMLPlayer/.venv/bin/python -c from multiprocessing.spawn"
       exit 1
     fi
     TWICE=1

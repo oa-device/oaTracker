@@ -47,7 +47,103 @@
 		}
 	});
 	window.colors = ["#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928"]
+	window.formatDuration = function formatDuration(milliseconds) {
+		var time = { a: 31536000000, j: 86400000, h: 3600000, m: 60000, s: 1000, ms: 1 },
+			res = [];
 
+		if (milliseconds === 0) return 'now';
+
+
+		for (var key in time) {
+			if (milliseconds >= time[key]) {
+				var val = Math.floor(milliseconds / time[key]);
+				res.push(val += val > 1 ? ' ' + key + '' : ' ' + key);
+				milliseconds = milliseconds % time[key];
+			}
+		}
+
+		cam_img.addEventListener("click", (event) => {
+
+		});
+
+		return res.length > 1 ? res.join(', ').replace(/,([^,]*)$/, ',' + '$1') : res[0]
+	}
+
+</script>
+</head>
+
+<body data-bs-theme="dark" style="overflow-x: hidden;">
+	<main class="container">
+		<div class="row">
+			<div class="col-sm-12">
+				<header class="navbar sticky-top bg-dark flex-md-nowrap p-0 shadow" data-bs-theme="dark">
+					<a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6 text-white" href="#"><img
+							style="height: 1.5rem;" src="/static/logo.webp"> People Counter
+						Dashboard</a>
+
+					<ul class="navbar-nav flex-row d-md-none">
+					</ul>
+				</header>
+			</div>
+			<div class="col-sm-12 col-md-6">
+				<div style="
+					height: 100%;
+					width: 100%;
+					display:flex;
+					align-items:center;
+					justify-content: center;
+				">
+					<div id="cam" style="width: 100%;">
+						<img id="cam_img" src="/cam.jpg" alt="Camera 0" style="max-width:100%;">
+						<div>
+							<div><span id="clock" style="float:right;"></span></div>
+
+
+							{# <div class="btn-group me-2" style="float:right">
+								<button type="button" class="btn btn-sm btn-outline-secondary"
+									onclick="fetch('/cam/pause')">⏸</button>
+								<button type="button" class="btn btn-sm btn-outline-secondary"
+									onclick="fetch('/cam/play')">▶</button>
+							</div>
+							<div class="btn-group me-2" style="float:right">
+								<button type="button" class="btn btn-sm btn-outline-secondary"
+									onclick="fetch('/cam/hide_overlay')">Hide overlay</button>
+								<button type="button" class="btn btn-sm btn-outline-secondary"
+									onclick="fetch('/cam/show_overlay')">Show overlay</button>
+							</div> #}
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="col-sm-12 col-md-6">
+				{% include 'components/charts/mean_dwell.html.jinja' %}
+			</div>
+			<div class="col-sm-12 col-md-6">
+				{% include 'components/charts/total_time_spent.html.jinja' %}
+			</div>
+			<div class="col-sm-12 col-md-6">
+				{% include 'components/charts/total_presence.html.jinja' %}
+			</div>
+			<div class="col-sm-12 col-md-6">
+				{% include 'components/charts/first_seen.html.jinja' %}
+			</div>
+			<div class="col-sm-12 col-md-6">
+				{% include 'components/charts/last_seen.html.jinja' %}
+			</div>
+			{% include 'components/charts/cols_pies.html.jinja' %}
+			<div class="col-12">Misc:<div> </span>Entrés dans le batiment par la porte de gauche: <span
+						id="enter_building_door_left_value"></span></div>
+				<div>Entrés dans le batiment par la porte de droite: <span id="enter_building_door_right_value"></span>
+				</div>
+				<div>Personnes présentes dans les dernières 15 secondes: <span id="last_15_seconds_presence"></span>
+				</div>
+			</div>
+		</div>
+		</div>
+</body>
+
+<script>
 
 	function throttle(cb, delay = 250) {
 		let shouldWait = false
@@ -165,102 +261,6 @@
 			}), 500)
 		}), 1500)
 	}*/
-	window.formatDuration = function formatDuration(milliseconds) {
-		var time = { a: 31536000000, j: 86400000, h: 3600000, m: 60000, s: 1000, ms: 1 },
-			res = [];
-
-		if (milliseconds === 0) return 'now';
-
-
-		for (var key in time) {
-			if (milliseconds >= time[key]) {
-				var val = Math.floor(milliseconds / time[key]);
-				res.push(val += val > 1 ? ' ' + key + '' : ' ' + key);
-				milliseconds = milliseconds % time[key];
-			}
-		}
-
-		cam_img.addEventListener("click", (event) => {
-
-		});
-
-		return res.length > 1 ? res.join(', ').replace(/,([^,]*)$/, ',' + '$1') : res[0]
-	}
-</script>
-</head>
-
-<body data-bs-theme="dark" style="overflow-x: hidden;">
-	<main class="container">
-		<div class="row">
-			<div class="col-sm-12">
-				<header class="navbar sticky-top bg-dark flex-md-nowrap p-0 shadow" data-bs-theme="dark">
-					<a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6 text-white" href="#"><img
-							style="height: 1.5rem;" src="/static/logo.webp"> People Counter
-						Dashboard</a>
-
-					<ul class="navbar-nav flex-row d-md-none">
-					</ul>
-				</header>
-			</div>
-			<div class="col-sm-12 col-md-6">
-				<div style="
-					height: 100%;
-					width: 100%;
-					display:flex;
-					align-items:center;
-					justify-content: center;
-				">
-					<div id="cam" style="width: 100%;">
-						<img id="cam_img" src="/cam.jpg" alt="Camera 0" style="max-width:100%;">
-						<div>
-							<div><span id="clock" style="float:right;"></span></div>
-
-
-							{# <div class="btn-group me-2" style="float:right">
-								<button type="button" class="btn btn-sm btn-outline-secondary"
-									onclick="fetch('/cam/pause')">⏸</button>
-								<button type="button" class="btn btn-sm btn-outline-secondary"
-									onclick="fetch('/cam/play')">▶</button>
-							</div>
-							<div class="btn-group me-2" style="float:right">
-								<button type="button" class="btn btn-sm btn-outline-secondary"
-									onclick="fetch('/cam/hide_overlay')">Hide overlay</button>
-								<button type="button" class="btn btn-sm btn-outline-secondary"
-									onclick="fetch('/cam/show_overlay')">Show overlay</button>
-							</div> #}
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<div class="col-sm-12 col-md-6">
-				{% include 'components/charts/mean_dwell.html.jinja' %}
-			</div>
-			<div class="col-sm-12 col-md-6">
-				{% include 'components/charts/total_time_spent.html.jinja' %}
-			</div>
-			<div class="col-sm-12 col-md-6">
-				{% include 'components/charts/total_presence.html.jinja' %}
-			</div>
-			<div class="col-sm-12 col-md-6">
-				{% include 'components/charts/first_seen.html.jinja' %}
-			</div>
-			<div class="col-sm-12 col-md-6">
-				{% include 'components/charts/last_seen.html.jinja' %}
-			</div>
-			{% include 'components/charts/cols_pies.html.jinja' %}
-			<div class="col-12">Misc:<div> </span>Entrés dans le batiment par la porte de gauche: <span
-						id="enter_building_door_left_value"></span></div>
-				<div>Entrés dans le batiment par la porte de droite: <span id="enter_building_door_right_value"></span>
-				</div>
-				<div>Personnes présentes dans les dernières 15 secondes: <span id="last_15_seconds_presence"></span>
-				</div>
-			</div>
-		</div>
-		</div>
-</body>
-
-<script>
 
 	Array.from(document.querySelectorAll('.col-sm-12')).map(x => {
 		x.addEventListener('click', function () {

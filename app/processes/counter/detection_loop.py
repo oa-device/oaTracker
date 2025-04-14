@@ -3,10 +3,7 @@ import os
 import time
 from typing import Any, NamedTuple
 
-import ultralytics.engine.model
-import ultralytics.engine.predictor
 import ultralytics.engine.results
-import ultralytics.trackers
 
 from app.counters import Counters
 from app.parse_args import Args
@@ -94,7 +91,6 @@ class CounterLoop:
             d for d in (r.boxes if r.boxes is not None else []) if d.is_track
         ]  # Boxes object for bbox outputs
         self.counters.update(now, boxes, self.model.predictor.trackers[0].removed_stracks)  # type: ignore
-        print(self.visualization_perf_mean)
 
     def start(self) -> Any:
         with mmap_context(pathname_img, 512000) as shared_memory_img:
@@ -105,35 +101,6 @@ class CounterLoop:
             cap = cv2.VideoCapture(self.args.yolo_source)
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 736)
-            
-            
-            import uvc
-            
-
-            for device in uvc.device_list():
-
-                print(1111, uvc.device_list(), device["uid"])
-
-                cap = uvc.Capture(device["uid"])
-
-                print(2222, cap)
-                for mode in cap.available_modes:
-                    print(f"{cap.name} running at {mode}")
-                    try:
-                        cap.frame_mode = mode
-                    except uvc.InitError as err:
-                        print(f"{cap.name} mode selection - {err}")
-                        continue
-                    try:
-                        for x in range(10):
-                            frame = cap.get_frame_robust()
-                            print("frame gray mean", frame.gray.mean())
-                        # print(frame.img.mean())
-                    except uvc.InitError as err:
-                        print(f"{cap.name} getting frames - {err}")
-
-                cap.close()
-            
 
             try:
                 while True:
@@ -143,9 +110,6 @@ class CounterLoop:
                         if not ret:
                             time.sleep(0.05)
                             continue
-                        
-                        
-                        
                         r = self.model.track(
                             frame,
                             imgsz=736,

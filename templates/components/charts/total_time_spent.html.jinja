@@ -72,6 +72,7 @@
             const now = Date.now();
             const limit = (now) - 120 * 60000;
             const data = m[5][1];
+            console.log(m)
             chartTotalTimeSpent.data.datasets[0].data.push([now, data])
             chartTotalTimeSpent.data.datasets[0].data = window.processBuckets(chartTotalTimeSpent.data.datasets[0].data.filter(x => x[0] > limit))
             chartTotalTimeSpentUpdate()

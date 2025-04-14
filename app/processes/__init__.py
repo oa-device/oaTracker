@@ -1,4 +1,4 @@
 from .api import ApiProcess
-from .sync import SyncProcess
+from .db import DbProcess
 from .counter import CounterProcess
 
