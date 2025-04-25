@@ -1,6 +1,7 @@
 import mmap
 import os
 import time
+import traceback
 from typing import Any, NamedTuple
 
 import ultralytics.engine.results
@@ -130,6 +131,12 @@ class CounterLoop:
                         if self.maybe_close():
                             return
                     except Exception as e:
+                        
+                        tbe = traceback.TracebackException.from_exception(e)
+                        stack_frames = traceback.extract_stack()
+                        tbe.stack.extend(stack_frames)
+                        formatted_traceback = "".join(tbe.format())
+                        print(f"Formatted Traceback:\n{formatted_traceback}")
                         print(111, e)
             except ConnectionError as e:
                 major_error("Camera connection error", e)
