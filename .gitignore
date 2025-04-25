@@ -64,3 +64,6 @@ db/*
 config.yaml
 
 uv.lock
+
+events.db
+events.db.wal

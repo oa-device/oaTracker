@@ -189,7 +189,6 @@ async def message_stream(start: str = "entrance", end: str = "exit"):
         while not server_stopped.is_set():
             try:
                 client_last_presence = time.time()
-                print(client_last_presence)
                 yield {
                     "id": str(client_last_presence),
                     "retry": 15000,
@@ -288,7 +287,6 @@ def api_last_seen_from():
 
 
 def api_first_seen_from():
-    print(111)
     try:
         result = execute_query(
             """
@@ -339,25 +337,6 @@ SELECT
     AVG(dwell_time_seconds) AS mean_dwell_time_seconds
 FROM DwellTimes;"""
         )[0]["mean_dwell_time_seconds"]
-        
-        print(result)
-        
-        print(execute_query("""WITH DwellTimes AS (
-    SELECT
-        track_id,
-        MIN(event_ts) AS start_time,
-        MAX(event_ts) AS end_time,
-        (EPOCH(MAX(event_ts)) - EPOCH(MIN(event_ts))) AS dwell_time_seconds
-    FROM zone_events
-    GROUP BY track_id
-)
-SELECT 
-    MIN(dwell_time_seconds) AS min_dwell,
-    MAX(dwell_time_seconds) AS max_dwell,
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY dwell_time_seconds) AS median_dwell,
-    COUNT(*) AS total_tracks,
-    COUNT(*) FILTER (WHERE dwell_time_seconds = 0) AS zero_dwell_count
-FROM DwellTimes;"""))
 
     except Exception as e:
         return 0
