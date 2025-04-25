@@ -45,7 +45,12 @@ class DuckDBFlightServer(flight.FlightServerBase):
         batches = result_table.to_batches(
             max_chunksize=1024
         )  # Use power of 2 for alignment
-        return flight.RecordBatchStream(pa.Table.from_batches(batches))
+
+        if len(batches) > 0:
+            return flight.RecordBatchStream(pa.Table.from_batches(batches))
+        else:
+            # If no results, return an empty table with the schema from the result_table
+            return flight.RecordBatchStream(pa.Table.from_batches([], schema=result_table.schema))
 
     def do_put(self, context, descriptor, reader, writer):
         """Handle 'PUT' requests to upload data to the DuckDB instance."""

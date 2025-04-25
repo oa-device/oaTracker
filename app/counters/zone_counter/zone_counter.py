@@ -43,9 +43,7 @@ def db_thread(q, remote=False):
                 continue
             if item is None:
                 continue
-            print(remote, 10)
             client.wait_for_available(timeout=10)
-            print(remote, 20)
             writer, _ = client.do_put(item[0], item[1].schema)
             writer.write_table(item[1])
             writer.close()
@@ -56,6 +54,7 @@ def db_thread(q, remote=False):
             formatted_traceback = "".join(tbe.format())
             print(f"Formatted Traceback:\n{formatted_traceback}")
             print(e)
+            client = connect_with_retry(remote)
             time.sleep(0.01)
             pass
 

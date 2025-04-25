@@ -7,6 +7,7 @@ import ultralytics.engine.results
 
 from app.counters import Counters
 from app.parse_args import Args
+from app.processes.counter.video_capture_threading import VideoCaptureThreading
 from app.utils.logger import get_logger
 from cv2 import imencode, resize
 import cv2
@@ -57,6 +58,8 @@ class CounterLoop:
 
         self.log: dict[str, Any] = {}
         self.server_stopped = server_stopped
+        self.cam_thread = VideoCaptureThreading()
+        self.cam_thread.start()
 
     def log_to_console(self) -> None:
         if time.time() - self.last_console_log < 5:
@@ -97,19 +100,12 @@ class CounterLoop:
 
             if self.maybe_close():
                 return
-            
-            cap = cv2.VideoCapture(self.args.yolo_source)
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 736)
 
             try:
                 while True:
                     try:
                         now = time.time()
-                        ret, frame = cap.read()
-                        if not ret:
-                            time.sleep(0.05)
-                            continue
+                        (_, frame) = self.cam_thread.read()
                         r = self.model.track(
                             frame,
                             imgsz=736,
@@ -143,6 +139,7 @@ class CounterLoop:
     def maybe_close(self):
         if self.server_stopped.is_set():
             try:
+                self.cam_thread.stop()
                 self.model.predictor.dataset.close()
             except:
                 pass
