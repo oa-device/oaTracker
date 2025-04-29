@@ -15,7 +15,7 @@ counters:
       - 0
       - 0
       - 200
-      name: everything
+      name: main
       points:
       - - 0
         - 0
