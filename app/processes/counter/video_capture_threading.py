@@ -55,7 +55,7 @@ class VideoCaptureThreading:
 
     """
 
-    def __init__(self, width=640, height=480) -> None:
+    def __init__(self, width=736, height=552) -> None:
         self.__width = width
         self.__height = height
         self.__cap: cv2.VideoCapture = None # type: ignore 
@@ -74,7 +74,7 @@ class VideoCaptureThreading:
             if time.monotonic() - start > 3:
                 raise Exception('Camera timed out')
 
-        self.__queue.append(cv2.resize(frame, (640, 480), interpolation=cv2.INTER_NEAREST)) # type: ignore
+        self.__queue.append(cv2.resize(frame, (width, height), interpolation=cv2.INTER_NEAREST)) # type: ignore
 
     def start(self) -> None:
         """Starts the thread"""
