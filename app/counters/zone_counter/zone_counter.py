@@ -44,6 +44,7 @@ def db_thread(q, remote=False):
             if item is None:
                 continue
             client.wait_for_available(timeout=10)
+            print(item[1])
             writer, _ = client.do_put(item[0], item[1].schema)
             writer.write_table(item[1])
             writer.close()

@@ -56,11 +56,13 @@ class CounterLoop:
 
         self.last_console_log = time.time() + 5
         self.errors = 0
+        self.freeze_frame_counter = 0
 
         self.log: dict[str, Any] = {}
         self.server_stopped = server_stopped
         self.cam_thread = VideoCaptureThreading()
         self.cam_thread.start()
+        self.last_frame = None
 
     def log_to_console(self) -> None:
         if time.time() - self.last_console_log < 5:
@@ -107,6 +109,10 @@ class CounterLoop:
                     try:
                         now = time.time()
                         (_, frame) = self.cam_thread.read()
+                        
+                        self.detect_bad_camera(frame)
+                        
+                        
                         r = self.model.track(
                             frame,
                             imgsz=736,
@@ -170,3 +176,24 @@ class CounterLoop:
 
     def maybe_crash(self):
         self.errors = self.errors + 1
+        
+    def detect_bad_camera(self, frame):
+        if self.last_frame is None:
+            self.last_frame = frame
+            return
+        
+        if fast_frame_comparison(frame, self.last_frame):
+            self.freeze_frame_counter += 1
+        
+        if self.freeze_frame_counter > 5:
+            major_error("Camera freeze error")
+            
+        self.last_frame = frame
+
+def fast_frame_comparison(img1, img2):
+    if img1.shape != img2.shape:
+        return False
+    
+    # For same shape, use efficient numpy operations
+    difference = np.maximum(img1, img2) - np.minimum(img1, img2)
+    return np.sum(difference) == 0
