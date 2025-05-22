@@ -10,7 +10,7 @@ from app.counters import Counters
 from app.parse_args import Args
 from app.processes.counter.video_capture_threading import VideoCaptureThreading
 from app.utils.logger import get_logger
-from cv2 import imencode, resize
+from cv2 import imencode
 import cv2
 import numpy as np
 
@@ -187,6 +187,7 @@ class CounterLoop:
         
         if self.freeze_frame_counter > 5:
             major_error("Camera freeze error")
+            return
             
         self.last_frame = frame
 

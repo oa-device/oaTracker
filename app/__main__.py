@@ -85,6 +85,7 @@ def wait_for_reset(server_stopped, api_process):
     ) as shared_memory_stop_detection:
         while True:
             try:
+                print(123)
                 stop_detection_bytes = mmap_read_nonblocking(
                     shared_memory_stop_detection
                 )
@@ -123,7 +124,7 @@ def motd():
     bold = "\x1b[37;1m"
     bold_red = "\x1b[31;1m"
     # fmt: off
-    print(f'                                                      ')
+    print('                                                      ')
     print(f'   {red}              ((##(              {bold_red}   OA Tracker')
     print(f'   {red}        ((((((((((##(((((        {reset}      ')
     print(f'   {red}     (((((             ##(((     {bold}       ')
@@ -137,8 +138,8 @@ def motd():
     print(f'   {red}     #(((#,           /#((((     {reset}      ')
     print(f'   {red}        #((((((###(((((((        {reset}      ')
     print(f'   {red}              *#(#,              {reset}      ')
-    print(f'                                                      ')
-    print(f'Dashboard available at http://127.0.0.1:8000/dashboard')
+    print('                                                      ')
+    print('Dashboard available at http://127.0.0.1:8000/dashboard')
     # fmt: on
 
 
