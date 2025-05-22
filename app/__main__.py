@@ -78,6 +78,7 @@ import os
 def wait_for_reset(server_stopped, api_process):
     try:
         os.remove("/tmp/stop_detection.json")
+        print("/tmp/stop_detection.json removed")
     except:
         pass
     with mmap_context(
