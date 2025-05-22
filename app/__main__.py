@@ -86,7 +86,6 @@ def wait_for_reset(server_stopped, api_process):
     ) as shared_memory_stop_detection:
         while True:
             try:
-                print(123)
                 stop_detection_bytes = mmap_read_nonblocking(
                     shared_memory_stop_detection
                 )

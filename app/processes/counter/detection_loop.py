@@ -182,8 +182,9 @@ class CounterLoop:
             self.last_frame = frame
             return
         
-        if fast_frame_comparison(frame, self.last_frame) or True:
+        if fast_frame_comparison(frame, self.last_frame):
             self.freeze_frame_counter += 1
+            print('Same frame !!!!')
         
         
         if self.freeze_frame_counter > 5:
