@@ -182,11 +182,12 @@ class CounterLoop:
             self.last_frame = frame
             return
         
-        if fast_frame_comparison(frame, self.last_frame):
+        if fast_frame_comparison(frame, self.last_frame) or True:
             self.freeze_frame_counter += 1
         
+        
         if self.freeze_frame_counter > 5:
-            major_error("Camera freeze error")
+            major_error("Camera freeze error", Exception("Camera freeze error"))
             return
             
         self.last_frame = frame
