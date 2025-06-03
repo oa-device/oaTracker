@@ -63,7 +63,15 @@ class CounterLoop:
         self.cam_thread = VideoCaptureThreading()
         self.cam_thread.start()
         self.last_frame = None
-
+        
+        self.crowd_counter_enabled = self.args.counters_config.get('crowd_counter').get('enabled')
+        self.zone_counter_enabled = self.args.counters_config.get('zone_counter').get('enabled')
+        
+        if not self.crowd_counter_enabled and not self.zone_counter_enabled:
+            major_error("No tracker selected", Exception("No tracker selected"))
+        if self.crowd_counter_enabled and self.zone_counter_enabled:
+            major_error("Only one tracker allowed", Exception("Only one tracker allowed"))
+            
     def log_to_console(self) -> None:
         if time.time() - self.last_console_log < 5:
             return
