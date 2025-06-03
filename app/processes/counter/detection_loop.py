@@ -64,8 +64,14 @@ class CounterLoop:
         self.cam_thread.start()
         self.last_frame = None
         
-        self.crowd_counter_enabled = self.args.counters_config.get('crowd_counter').get('enabled')
-        self.zone_counter_enabled = self.args.counters_config.get('zone_counter').get('enabled')
+        try:
+            self.crowd_counter_enabled = self.args.counters_config.get('crowd_counter').get('enabled', False)
+        except:
+            self.crowd_counter_enabled = False
+        try:
+            self.zone_counter_enabled = self.args.counters_config.get('zone_counter').get('enabled', False)
+        except:
+            self.crowd_counter_enabled = False
         
         if not self.crowd_counter_enabled and not self.zone_counter_enabled:
             major_error("No tracker selected", Exception("No tracker selected"))
