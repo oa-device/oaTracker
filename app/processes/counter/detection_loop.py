@@ -142,7 +142,7 @@ class CounterLoop:
                             conf=0.001,
                             vid_stride=1,
                             iou=0.4,
-                            stream=False,
+                            stream=True,
                             augment=False,
                             verbose=False,
                             device="mps",
