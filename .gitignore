@@ -69,4 +69,5 @@ events.db
 events.db.wal
 
 models/*
+!models/*-custom.pt
 mobileclip_blt.ts
