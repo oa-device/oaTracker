@@ -92,15 +92,18 @@ class CounterLoop:
         cam_ts: float,
         shared_memory_img: mmap.mmap,
     ) -> None:
-        frame = self.counters.plot(
-            img=frame,
-            boxes=result.boxes,
-            cam_ts=cam_ts,
-            labels=self.model.names,
-        )
-        _, img = imencode(".webp", frame, [int(cv2.IMWRITE_WEBP_QUALITY), 20])
-        if _:
-            mmap_write(shared_memory_img, 512000, img.tobytes())
+        try:
+            frame = self.counters.plot(
+                img=frame,
+                boxes=result.boxes,
+                cam_ts=cam_ts,
+                labels=self.model.names,
+            )
+            _, img = imencode(".webp", frame, [int(cv2.IMWRITE_WEBP_QUALITY), 20])
+            if _:
+                mmap_write(shared_memory_img, 512000, img.tobytes())
+        except:
+            print('logging viz error')
 
     def handle_results(self, r: ultralytics.engine.results.Results, now: float):
         # print(now, r.speed)
@@ -161,7 +164,7 @@ class CounterLoop:
             except ConnectionError as e:
                 major_error("Camera connection error", e)
             except Exception as e:
-                print(222, e)
+                major_error("Error in detection loop", e)
 
     def maybe_close(self):
         if self.server_stopped.is_set():
