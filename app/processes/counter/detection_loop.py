@@ -140,7 +140,7 @@ class CounterLoop:
                             tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
                             persist=True,
                             conf=0.001,
-                            vid_stride=1,
+                            vid_stride=0,
                             iou=0.4,
                             stream=False,
                             augment=False,
