@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 
 from multiprocessing.synchronize import Event as EventClass
-from ultralytics import YOLO
+from ultralytics import YOLOE
 
 from app.utils.mmap import mmap_context, mmap_write, pathname_img
 from app.utils.stop_detection import major_error
@@ -46,13 +46,17 @@ class CounterLoop:
 
         self.tick = 0
 
-        self.model = YOLO(
+        self.model = YOLOE(
             f"{os.path.dirname(__file__)}/../../../models/{self.args.model}", "track"
         )
 
         self.counters = Counters(args, all_counters)
 
         self.classes = self.counters.classes
+        
+        print(self.classes)
+        
+        self.model.set_classes(self.classes, self.model.get_text_pe(self.classes))
 
         self.last_console_log = time.time() + 5
         self.errors = 0
@@ -129,16 +133,15 @@ class CounterLoop:
                         
                         self.detect_bad_camera(frame)
                         
-                        
                         r = self.model.track(
                             frame,
                             imgsz=736,
                             tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
                             persist=True,
                             conf=0.001,
-                            vid_stride=1,
-                            classes=self.classes,
+                            vid_stride=2,
                             iou=0.4,
+                            stream=False,
                             augment=False,
                             verbose=False,
                             device="mps",

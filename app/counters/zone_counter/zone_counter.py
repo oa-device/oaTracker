@@ -15,7 +15,6 @@ from shapely.prepared import prep
 from queue import Queue
 
 import pyarrow as pa
-import pyarrow.parquet as pq
 
 
 def connect_with_retry(remote=False, max_attempts=5):
@@ -63,7 +62,7 @@ class ZoneCounter(Counter):
     name = "zone_counter"
 
     def __init__(self, args) -> None:
-        self.classes = [0, 2, 3, 5]
+        self.classes = ["person", "bus", "taxi", "car", "boat", "bicycle"]
         super().__init__(args, ZoneCounter.name)
         self.setup()
 

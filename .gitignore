@@ -67,3 +67,6 @@ uv.lock
 
 events.db
 events.db.wal
+
+models/*
+mobileclip_blt.ts
