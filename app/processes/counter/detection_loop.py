@@ -156,7 +156,7 @@ class CounterLoop:
                         self.log_visualization(frame, r, now, shared_memory_img)
 
                         # throttle
-                        time.sleep(max(0.2 - (time.monotonic() - now_mono), 0.02))
+                        time.sleep(max(0.33 - (time.monotonic() - now_mono), 0.02))
 
                         print(time.monotonic() - now_mono)
                         
