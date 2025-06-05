@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 dependencies = [
-    "git+https://github.com/ultralytics/CLIP.git",
+    "clip@git+https://github.com/ultralytics/CLIP.git",
     "opencv-python",
     "ultralytics",
     "mypy",
