@@ -128,6 +128,7 @@ class CounterLoop:
             try:
                 while True:
                     try:
+                        now_mono = time.monotonic()
                         now = time.time()
                         (_, frame) = self.cam_thread.read()
                         
@@ -139,7 +140,7 @@ class CounterLoop:
                             tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
                             persist=True,
                             conf=0.001,
-                            vid_stride=2,
+                            vid_stride=1,
                             iou=0.4,
                             stream=False,
                             augment=False,
@@ -150,12 +151,15 @@ class CounterLoop:
                         if self.maybe_close():
                             return
 
-                        print(r)
-
                         # handle results
                         self.handle_results(r, now)
                         self.log_visualization(frame, r, now, shared_memory_img)
 
+                        # throttle
+                        time.sleep(max(0.2 - (time.monotonic() - now_mono), 0.02))
+
+                        print(time.monotonic() - now_mono)
+                        
                         if self.maybe_close():
                             return
                     except Exception as e:
