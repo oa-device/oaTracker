@@ -157,8 +157,6 @@ class CounterLoop:
                         # throttle
                         time.sleep(max(0.2 - (time.monotonic() - now_mono), 0.01))
 
-                        print(time.monotonic() - now_mono)
-                        
                         if self.maybe_close():
                             return
                     except Exception as e:
