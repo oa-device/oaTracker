@@ -142,12 +142,11 @@ class CounterLoop:
                             conf=0.001,
                             vid_stride=1,
                             iou=0.4,
-                            stream=True,
+                            stream=False,
                             augment=False,
                             verbose=False,
-                            device="mps",
+                            device=["mps"],
                         )[0]
-
                         if self.maybe_close():
                             return
 
