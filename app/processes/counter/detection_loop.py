@@ -99,7 +99,9 @@ class CounterLoop:
         result: ultralytics.engine.results.Results,
         cam_ts: float,
         shared_memory_img: mmap.mmap,
+        log_to_cloud: bool
     ) -> None:
+        original_frame = np.copy(frame)
         try:
             frame = self.counters.plot(
                 img=frame,
@@ -107,9 +109,15 @@ class CounterLoop:
                 cam_ts=cam_ts,
                 labels=self.model.names,
             )
-            _, img = imencode(".webp", frame, [int(cv2.IMWRITE_WEBP_QUALITY), 20])
+            _, img = imencode(".webp", frame, [int(cv2.IMWRITE_WEBP_QUALITY), 10])
             if _:
                 mmap_write(shared_memory_img, 512000, img.tobytes())
+                
+            if log_to_cloud:
+                    self.client.put_object(Body=img.tobytes(), Bucket='detectiondb-prod', Key=f"cams/img/detection_{self.args.camId}.webp", ACL='public-read', ContentType='image/webp')
+                    _, cam = imencode(".webp", original_frame, [int(cv2.IMWRITE_WEBP_QUALITY), 10])
+                    if _:
+                        self.client.put_object(Body=cam.tobytes(), Bucket='detectiondb-prod', Key=f"cams/img/cam_{self.args.camId}.webp", ACL='public-read', ContentType='image/webp')
         except:
             print('logging viz error')
 
@@ -158,9 +166,12 @@ class CounterLoop:
 
                         # handle results
                         self.handle_results(r, now)
-                        self.log_visualization(frame, r, now, shared_memory_img)
+                        
+                        log_to_cloud=time.monotonic() - last_update > 2
+                        
+                        self.log_visualization(frame, r, now, shared_memory_img, log_to_cloud)
 
-                        if time.monotonic() - last_update > 2:
+                        if log_to_cloud:
                             self.client.put_object(Body=f"""boot,cam_id,last_update\n{int(self.args.boot_int / 10)},{self.args.camId},{int(time.time())}""".encode('utf-8'), Bucket='detectiondb-prod', Key=f"cams/stats/{self.args.camId}.csv")
                             last_update = time.monotonic()
 
