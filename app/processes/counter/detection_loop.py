@@ -172,7 +172,7 @@ class CounterLoop:
                         self.log_visualization(frame, r, now, shared_memory_img, log_to_cloud)
 
                         if log_to_cloud:
-                            self.client.put_object(Body=f"""boot,cam_id,last_update\n{int(self.args.boot_int / 10)},{self.args.camId},{int(time.time())}""".encode('utf-8'), Bucket='detectiondb-prod', Key=f"cams/stats/{self.args.camId}.csv")
+                            self.client.put_object(Body=f"""boot,cam_id,last_update\n{int(self.args.boot_int / 10)},{self.args.camId},{int(time.time())}""".encode('utf-8'), Bucket='detectiondb-prod', Key=f"cams/stats/{self.args.camId}.csv", ACL='public-read', ContentType='text/csv')
                             last_update = time.monotonic()
 
                         # throttle
