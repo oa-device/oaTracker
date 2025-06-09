@@ -23,3 +23,9 @@ aws s3 sync "$SOURCE" "$DEST" \
 
 #     REGION 'ca-central-1'
 # );
+
+ CREATE OR REPLACE SECRET secret (
+      TYPE s3,
+      REGION 'ca-central-1',
+      PROVIDER credential_chain
+  );

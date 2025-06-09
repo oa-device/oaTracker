@@ -26,6 +26,8 @@ class Args:
         | Literal["CRITICAL"]
     )
     camera_info: dict[str, Any]
+    access_key: str
+    secret_key: str
 
 
 def parse_args() -> Args:
@@ -59,7 +61,7 @@ def parse_args() -> Args:
         "-i",
         type=str,
         default=config["cam_id"],
-        help=f"Camera id, must be unique",
+        help="Camera id, must be unique",
     )
     parser.add_argument(
         "--serverPort",
@@ -106,6 +108,8 @@ def parse_args() -> Args:
         return
 
     args.counters_config = config["counters"]
+    args.access_key = config["access_key"]
+    args.secret_key = config["secret_key"]
 
     args.boot_int = time_int()
 

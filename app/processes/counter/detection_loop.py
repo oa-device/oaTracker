@@ -3,9 +3,8 @@ import os
 import time
 import traceback
 from typing import Any, NamedTuple
-
+import boto3
 import ultralytics.engine.results
-
 from app.counters import Counters
 from app.parse_args import Args
 from app.processes.counter.video_capture_threading import VideoCaptureThreading
@@ -13,6 +12,8 @@ from app.utils.logger import get_logger
 from cv2 import imencode
 import cv2
 import numpy as np
+
+
 
 from multiprocessing.synchronize import Event as EventClass
 from ultralytics import YOLOE
@@ -49,12 +50,15 @@ class CounterLoop:
         self.model = YOLOE(
             f"{os.path.dirname(__file__)}/../../../models/{self.args.model}", "track"
         )
-
+        
+        self.client = boto3.client('s3',
+            aws_access_key_id=self.args.access_key,
+            aws_secret_access_key=self.args.secret_key,
+        )
+                
         self.counters = Counters(args, all_counters)
 
         self.classes = self.counters.classes
-        
-        print(self.classes)
         
         self.model.set_classes(self.classes, self.model.get_text_pe(self.classes))
 
@@ -120,6 +124,8 @@ class CounterLoop:
         self.counters.update(now, boxes, self.model.predictor.trackers[0].removed_stracks)  # type: ignore
 
     def start(self) -> Any:
+        last_update = 0.0
+        
         with mmap_context(pathname_img, 512000) as shared_memory_img:
 
             if self.maybe_close():
@@ -154,13 +160,16 @@ class CounterLoop:
                         self.handle_results(r, now)
                         self.log_visualization(frame, r, now, shared_memory_img)
 
+                        if time.monotonic() - last_update > 2:
+                            self.client.put_object(Body=f"""boot,cam_id,last_update\n{int(self.args.boot_int / 10)},{self.args.camId},{int(time.time())}""".encode('utf-8'), Bucket='detectiondb-prod', Key=f"cams/stats/{self.args.camId}.csv")
+                            last_update = time.monotonic()
+
                         # throttle
                         time.sleep(max(0.1 - (time.monotonic() - now_mono), 0.01))
 
                         if self.maybe_close():
                             return
                     except Exception as e:
-                        
                         tbe = traceback.TracebackException.from_exception(e)
                         stack_frames = traceback.extract_stack()
                         tbe.stack.extend(stack_frames)

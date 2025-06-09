@@ -35,6 +35,8 @@ class Config(TypedDict):
     cors: Cors
     cam_id: str | None
     counters: list[dict[str, Any]]
+    access_key: str
+    secret_key: str
 
 
 def get_config() -> Config:
