@@ -1,0 +1,43 @@
+---
+# run-commands.yml - Multi-line output friendly version
+
+- name: Run commands on multiple hosts
+  hosts: cameras
+  gather_facts: no
+  
+  tasks:
+    - name: Check system uptime
+      ansible.builtin.command: uptime
+      register: uptime_result
+      changed_when: false
+
+    - name: Check python service
+      ansible.builtin.shell: ps -e | grep '[p]ython -m app' || echo 'No python service running'
+      register: service_result
+      changed_when: false
+
+    - name: Check S3 keys
+      ansible.builtin.shell: grep '_key' /Users/admin/Orangead/tracker/config.yaml || echo 'No S3 keys found'
+      register: config_result
+      changed_when: false
+
+    - name: Check git status
+      ansible.builtin.shell: cd /Users/admin/Orangead/tracker/ && git fetch origin && git status
+      register: git_result
+      changed_when: false
+
+    - name: "=== {{ inventory_hostname }} - SYSTEM UPTIME ==="
+      ansible.builtin.debug:
+        var: uptime_result.stdout
+
+    - name: "=== {{ inventory_hostname }} - PYTHON SERVICE ==="
+      ansible.builtin.debug:
+        var: service_result.stdout
+
+    - name: "=== {{ inventory_hostname }} - S3 CONFIGURATION ==="
+      ansible.builtin.debug:
+        var: config_result.stdout_lines
+
+    - name: "=== {{ inventory_hostname }} - GIT STATUS ==="
+      ansible.builtin.debug:
+        var: git_result.stdout_lines

@@ -35,7 +35,7 @@ function ctrl_c() {
 
 while true
 do
-    setsid -w python -m app "$@" &
+    setsid -w python -m app "$@" | grep -v "🚀" &
     SETSID_PID=$!
     wait $SETSID_PID
     echo RESTARTING

@@ -34,5 +34,6 @@ dependencies = [
     "ipywidgets_bokeh",
     'pyobjc; platform_system == "Darwin"',
     'pyobjc-framework-Quartz; platform_system == "Darwin"',
-    'pyobjc-framework-AVFoundation; platform_system == "Darwin"'
+    'pyobjc-framework-AVFoundation; platform_system == "Darwin"',
+    "sshsync>=0.11.2",
 ]

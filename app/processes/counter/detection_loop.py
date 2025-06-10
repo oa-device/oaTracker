@@ -1,5 +1,7 @@
 import mmap
 import os
+from queue import Queue
+import threading
 import time
 import traceback
 from typing import Any, NamedTuple
@@ -14,13 +16,16 @@ import cv2
 import numpy as np
 
 
-
 from multiprocessing.synchronize import Event as EventClass
 from ultralytics import YOLOE
 
 from app.utils.mmap import mmap_context, mmap_write, pathname_img
 from app.utils.stop_detection import major_error
+
 logger = get_logger(__name__)
+
+
+LOOP_TIMEOUT = 10.0  # 10 seconds timeout before restarting
 
 
 class Tracked(NamedTuple):
@@ -34,8 +39,87 @@ def byte_size(s):
     return len(s.encode("utf-8"))
 
 
-class CounterLoop:
+def log_visualization(
+    client,
+    frame,
+    plot,
+    shared_memory_img: mmap.mmap,
+    log_to_cloud: bool,
+    camId: str
+) -> None:
+    try:
+        _, img = imencode(".webp", plot, [int(cv2.IMWRITE_WEBP_QUALITY), 10])
+        if _:
+            mmap_write(shared_memory_img, 512000, img.tobytes())
 
+        if log_to_cloud:
+            client.put_object(
+                Body=img.tobytes(),
+                Bucket="detectiondb-prod",
+                Key=f"cams/img/detection_{camId}.webp",
+                ACL="public-read",
+                ContentType="image/webp",
+            )
+            _, cam = imencode(
+                ".webp", frame, [int(cv2.IMWRITE_WEBP_QUALITY), 10]
+            )
+            if _:
+                client.put_object(
+                    Body=cam.tobytes(),
+                    Bucket="detectiondb-prod",
+                    Key=f"cams/img/cam_{camId}.webp",
+                    ACL="public-read",
+                    ContentType="image/webp",
+                )
+    except:
+        print("logging viz error")
+
+def second_thread(q, boot_int, camId, access_key, secret_key):
+    try:
+        last_update = 0.0
+        client = boto3.client(
+            "s3",
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+        )
+        with mmap_context(pathname_img, 512000) as shared_memory_img:
+            while True:
+                try:
+                    (frame, plot) = q.get(timeout=LOOP_TIMEOUT)
+                    log_to_cloud = time.monotonic() - last_update > 2
+
+                    log_visualization(client, frame, plot, shared_memory_img, log_to_cloud, camId)
+
+                    if log_to_cloud:
+                        client.put_object(
+                            Body=f"""boot,cam_id,last_update\n{int(boot_int / 10)},{camId},{int(time.time())}""".encode(
+                                "utf-8"
+                            ),
+                            Bucket="detectiondb-prod",
+                            Key=f"cams/stats/{camId}.csv",
+                            ACL="public-read",
+                            ContentType="text/csv",
+                        )
+                        last_update = time.monotonic()
+                except Exception as e:
+                    tbe = traceback.TracebackException.from_exception(e)
+                    stack_frames = traceback.extract_stack()
+                    tbe.stack.extend(stack_frames)
+                    formatted_traceback = "".join(tbe.format())
+                    print(f"Formatted Traceback:\n{formatted_traceback}")
+                    print("raw err", e)
+                    major_error("Error in detection second thread", e)
+    except Exception as e:
+        tbe = traceback.TracebackException.from_exception(e)
+        stack_frames = traceback.extract_stack()
+        tbe.stack.extend(stack_frames)
+        formatted_traceback = "".join(tbe.format())
+        print(f"Formatted Traceback:\n{formatted_traceback}")
+        print("raw err", e)
+        major_error("Error in detection second thread", e)
+
+
+class CounterLoop:
     def __init__(self, args: Args, all_counters, server_stopped: EventClass):
         self.running = True
         self.args = args
@@ -50,16 +134,11 @@ class CounterLoop:
         self.model = YOLOE(
             f"{os.path.dirname(__file__)}/../../../models/{self.args.model}", "track"
         )
-        
-        self.client = boto3.client('s3',
-            aws_access_key_id=self.args.access_key,
-            aws_secret_access_key=self.args.secret_key,
-        )
-                
+
         self.counters = Counters(args, all_counters)
 
         self.classes = self.counters.classes
-        
+
         self.model.set_classes(self.classes, self.model.get_text_pe(self.classes))
 
         self.last_console_log = time.time() + 5
@@ -71,21 +150,41 @@ class CounterLoop:
         self.cam_thread = VideoCaptureThreading()
         self.cam_thread.start()
         self.last_frame = None
-        
+
+        self.second_thread_queue = Queue(maxsize=120)
+
+        self.second_thread = threading.Thread(
+            target=second_thread,
+            args=(
+                self.second_thread_queue,
+                self.args.boot_int,
+                self.args.camId,
+                self.args.access_key,
+                self.args.secret_key,
+            ),
+        )
+        self.second_thread.start()
+
         try:
-            self.crowd_counter_enabled = self.args.counters_config.get('crowd_counter').get('enabled', False)
+            self.crowd_counter_enabled = self.args.counters_config.get(
+                "crowd_counter"
+            ).get("enabled", False)
         except:
             self.crowd_counter_enabled = False
         try:
-            self.zone_counter_enabled = self.args.counters_config.get('zone_counter').get('enabled', False)
+            self.zone_counter_enabled = self.args.counters_config.get(
+                "zone_counter"
+            ).get("enabled", False)
         except:
             self.crowd_counter_enabled = False
-        
+
         if not self.crowd_counter_enabled and not self.zone_counter_enabled:
             major_error("No tracker selected", Exception("No tracker selected"))
         if self.crowd_counter_enabled and self.zone_counter_enabled:
-            major_error("Only one tracker allowed", Exception("Only one tracker allowed"))
-            
+            major_error(
+                "Only one tracker allowed", Exception("Only one tracker allowed")
+            )
+
     def log_to_console(self) -> None:
         if time.time() - self.last_console_log < 5:
             return
@@ -93,103 +192,71 @@ class CounterLoop:
         self.inference_perf_data = self.inference_perf_data[-10:]
         self.last_console_log = time.time()
 
-    def log_visualization(
-        self,
-        frame,
-        result: ultralytics.engine.results.Results,
-        cam_ts: float,
-        shared_memory_img: mmap.mmap,
-        log_to_cloud: bool
-    ) -> None:
-        original_frame = np.copy(frame)
-        try:
-            frame = self.counters.plot(
-                img=frame,
-                boxes=result.boxes,
-                cam_ts=cam_ts,
-                labels=self.model.names,
-            )
-            _, img = imencode(".webp", frame, [int(cv2.IMWRITE_WEBP_QUALITY), 10])
-            if _:
-                mmap_write(shared_memory_img, 512000, img.tobytes())
-                
-            if log_to_cloud:
-                    self.client.put_object(Body=img.tobytes(), Bucket='detectiondb-prod', Key=f"cams/img/detection_{self.args.camId}.webp", ACL='public-read', ContentType='image/webp')
-                    _, cam = imencode(".webp", original_frame, [int(cv2.IMWRITE_WEBP_QUALITY), 10])
-                    if _:
-                        self.client.put_object(Body=cam.tobytes(), Bucket='detectiondb-prod', Key=f"cams/img/cam_{self.args.camId}.webp", ACL='public-read', ContentType='image/webp')
-        except:
-            print('logging viz error')
 
     def handle_results(self, r: ultralytics.engine.results.Results, now: float):
         # print(now, r.speed)
         self.inference_perf_data.append(r.speed["inference"])
         self.inference_perf_data = self.inference_perf_data[-10:]
-        self.visualization_perf_mean = "{:.2f}".format(round(np.mean(self.inference_perf_data), 2))  # type: ignore
+        self.visualization_perf_mean = "{:.2f}".format(
+            round(np.mean(self.inference_perf_data), 2)
+        )  # type: ignore
         boxes: ultralytics.engine.results.Boxes = [
             d for d in (r.boxes if r.boxes is not None else []) if d.is_track
         ]  # Boxes object for bbox outputs
-        self.counters.update(now, boxes, self.model.predictor.trackers[0].removed_stracks)  # type: ignore
+        self.counters.update(
+            now, boxes, self.model.predictor.trackers[0].removed_stracks
+        )  # type: ignore
 
     def start(self) -> Any:
-        last_update = 0.0
-        
-        with mmap_context(pathname_img, 512000) as shared_memory_img:
-
-            if self.maybe_close():
-                return
-
+        while True:
             try:
-                while True:
-                    try:
-                        now_mono = time.monotonic()
-                        now = time.time()
-                        (_, frame) = self.cam_thread.read()
-                        
-                        self.detect_bad_camera(frame)
-                        
-                        r = self.model.track(
-                            frame,
-                            imgsz=736,
-                            tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
-                            persist=True,
-                            conf=0.001,
-                            vid_stride=0,
-                            iou=0.4,
-                            stream=False,
-                            augment=False,
-                            verbose=False,
-                            device=["mps"],
-                        )[0]
-                        if self.maybe_close():
-                            return
+                now_mono = time.monotonic()
+                now = time.time()
+                (_, frame) = self.cam_thread.read()
 
-                        # handle results
-                        self.handle_results(r, now)
-                        
-                        log_to_cloud=time.monotonic() - last_update > 2
-                        
-                        self.log_visualization(frame, r, now, shared_memory_img, log_to_cloud)
+                self.detect_bad_camera(frame)
 
-                        if log_to_cloud:
-                            self.client.put_object(Body=f"""boot,cam_id,last_update\n{int(self.args.boot_int / 10)},{self.args.camId},{int(time.time())}""".encode('utf-8'), Bucket='detectiondb-prod', Key=f"cams/stats/{self.args.camId}.csv", ACL='public-read', ContentType='text/csv')
-                            last_update = time.monotonic()
+                r = self.model.track(
+                    frame,
+                    imgsz=736,
+                    tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
+                    persist=True,
+                    conf=0.001,
+                    vid_stride=0,
+                    iou=0.4,
+                    stream=False,
+                    augment=False,
+                    verbose=False,
+                    device=["mps"],
+                )[0]
 
-                        # throttle
-                        time.sleep(max(0.1 - (time.monotonic() - now_mono), 0.01))
+                if self.maybe_close():
+                    return
 
-                        if self.maybe_close():
-                            return
-                    except Exception as e:
-                        tbe = traceback.TracebackException.from_exception(e)
-                        stack_frames = traceback.extract_stack()
-                        tbe.stack.extend(stack_frames)
-                        formatted_traceback = "".join(tbe.format())
-                        print(f"Formatted Traceback:\n{formatted_traceback}")
-                        print(111, e)
-            except ConnectionError as e:
-                major_error("Camera connection error", e)
+                # handle results
+                self.handle_results(r, now)
+
+                plot = self.counters.plot(
+                    img=np.copy(frame),
+                    boxes=r.boxes,
+                    cam_ts=now,
+                    labels=self.model.names,
+                )
+
+                self.second_thread_queue.put((frame, plot))
+
+                # throttle
+                time.sleep(max(0.1 - (time.monotonic() - now_mono), 0.01))
+
+                if self.maybe_close():
+                    return
             except Exception as e:
+                tbe = traceback.TracebackException.from_exception(e)
+                stack_frames = traceback.extract_stack()
+                tbe.stack.extend(stack_frames)
+                formatted_traceback = "".join(tbe.format())
+                print(f"Formatted Traceback:\n{formatted_traceback}")
+                print("raw err", e)
                 major_error("Error in detection loop", e)
 
     def maybe_close(self):
@@ -219,27 +286,27 @@ class CounterLoop:
 
     def maybe_crash(self):
         self.errors = self.errors + 1
-        
+
     def detect_bad_camera(self, frame):
         if self.last_frame is None:
             self.last_frame = frame
             return
-        
+
         if fast_frame_comparison(frame, self.last_frame):
             self.freeze_frame_counter += 1
-            print('Same frame !!!!')
-        
-        
+            print("Same frame !!!!")
+
         if self.freeze_frame_counter > 5:
             major_error("Camera freeze error", Exception("Camera freeze error"))
             return
-            
+
         self.last_frame = frame
+
 
 def fast_frame_comparison(img1, img2):
     if img1.shape != img2.shape:
         return False
-    
+
     # For same shape, use efficient numpy operations
     difference = np.maximum(img1, img2) - np.minimum(img1, img2)
     return np.sum(difference) == 0

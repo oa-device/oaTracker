@@ -8,7 +8,6 @@ class DuckDBFlightServer(flight.FlightServerBase):
         self.conn = duckdb.connect(db_path)
         self.db_path = db_path
         
-        self.conn.checkpoint()
         
         # Create table if it doesn't exist
         cur = self.conn.cursor()
@@ -30,7 +29,6 @@ class DuckDBFlightServer(flight.FlightServerBase):
         super().__init__(location)
         
     def on_close(self):
-        self.conn.checkpoint()
         print('Closing flight server')
         # self.event_server.set()
         self.shutdown()
