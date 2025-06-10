@@ -234,7 +234,7 @@ def api_zone_movement(start="entrance", end="exit"):
         MAX(CASE WHEN event_name IN ('enter_zone_{end}', 'leave_zone_{end}') THEN event_ts END) ORDER BY start_ts DESC LIMIT 15;"""
         )
 
-    except Exception as e:
+    except Exception:
         return []
     return [(bytes_to_uuid(x[0]), str(x[3]), str(x[4])) for x in result]
 
@@ -245,7 +245,7 @@ def api_zone_last_15():
         result = execute_query(
             """SELECT track_id, event_ts as _event_ts, strftime(event_ts, '%Y-%m-%dT%H:%M:%S.%g+00:00') as event_ts, event_name, track_conf, track_class FROM zone_events ORDER BY _event_ts DESC LIMIT 15;"""
         )
-    except Exception as e:
+    except Exception:
         return []
     return [
         (bytes_to_uuid(x[0]), str(x[1]), str(x[2]), str(x[3]), str(x[4]))
@@ -276,7 +276,7 @@ def api_last_seen_from():
         
         return result
         
-    except Exception as e:
+    except Exception:
         return {
         "last_seen_zone_out_top_left": "",
         "last_seen_zone_out_door_right": "",
@@ -338,7 +338,7 @@ SELECT
 FROM DwellTimes;"""
         )[0]["mean_dwell_time_seconds"]
 
-    except Exception as e:
+    except Exception:
         return 0
     return result
 

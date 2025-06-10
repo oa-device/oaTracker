@@ -50,7 +50,7 @@ def main():
     counter_process = CounterProcess(args, server_stopped)
     counter_process.start()
 
-    def stop_server(*args):
+    def stop_server(*args2):
         stop_detection("CTRL+C", {}, True)
 
     signal.signal(signal.SIGUSR2, stop_server)

@@ -58,13 +58,15 @@ class VideoCaptureThreading:
 
     """
 
-    def __init__(self, width=736, height=552) -> None:
+    def __init__(self, camId: str, width=736, height=552 ) -> None:
         self.__width = width
         self.__height = height
         self.__cap: cv2.VideoCapture = None  # type: ignore
         self.__set_cap()
         self.__started = False
         self.__queue: deque[Numpy.NDArray[np.uint8]] = deque(maxlen=2)
+
+        self.camId = camId
 
         grabbed = False
         frame = None
@@ -76,7 +78,7 @@ class VideoCaptureThreading:
             grabbed, frame = self.__cap.read()
             if time.monotonic() - start > 3:
                 e = Exception("Camera timed out")
-                major_error("Camera connection error", e)
+                major_error(camId, "Camera connection error", e)
                 raise e
 
         self.__queue.append(
@@ -119,7 +121,7 @@ class VideoCaptureThreading:
                 i += 1
                 if i >= 200:
                     e = Exception("Camera timed out while reading from camera thread queue")
-                    major_error("Camera timed out while reading from camera thread queue", e)
+                    major_error(self.camId, "Camera timed out while reading from camera thread queue", e)
                     raise e
 
     def isOpened(self):
@@ -136,7 +138,7 @@ class VideoCaptureThreading:
             self.__cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.__height)
         except Exception:
             e = ValueError("Error setting capture")
-            major_error("Error setting capture", e)
+            major_error(self.camId, "Error setting capture", e)
             raise e
 
     def __update_cam(self) -> None:
@@ -156,6 +158,6 @@ class VideoCaptureThreading:
                     self.__set_cap()
                 if i >= 25:
                     e = Exception("Camera timed out in camera thread")
-                    major_error("Camera timed out in camera thread", e)
+                    major_error(self.camId, "Camera timed out in camera thread", e)
                     raise e
                 pass

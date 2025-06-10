@@ -108,7 +108,7 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
                     formatted_traceback = "".join(tbe.format())
                     print(f"Formatted Traceback:\n{formatted_traceback}")
                     print("raw err", e)
-                    major_error("Error in detection second thread", e)
+                    major_error(camId, "Error in detection second thread", e)
     except Exception as e:
         tbe = traceback.TracebackException.from_exception(e)
         stack_frames = traceback.extract_stack()
@@ -116,7 +116,7 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
         formatted_traceback = "".join(tbe.format())
         print(f"Formatted Traceback:\n{formatted_traceback}")
         print("raw err", e)
-        major_error("Error in detection second thread", e)
+        major_error(camId, "Error in detection second thread", e)
 
 
 class CounterLoop:
@@ -179,10 +179,11 @@ class CounterLoop:
             self.crowd_counter_enabled = False
 
         if not self.crowd_counter_enabled and not self.zone_counter_enabled:
-            major_error("No tracker selected", Exception("No tracker selected"))
+            major_error(
+                self.args.camId, "No tracker selected", Exception("No tracker selected"))
         if self.crowd_counter_enabled and self.zone_counter_enabled:
             major_error(
-                "Only one tracker allowed", Exception("Only one tracker allowed")
+                self.args.camId, "Only one tracker allowed", Exception("Only one tracker allowed")
             )
 
     def log_to_console(self) -> None:
@@ -257,7 +258,8 @@ class CounterLoop:
                 formatted_traceback = "".join(tbe.format())
                 print(f"Formatted Traceback:\n{formatted_traceback}")
                 print("raw err", e)
-                major_error("Error in detection loop", e)
+                major_error(
+                self.args.camId, "Error in detection loop", e)
 
     def maybe_close(self):
         if self.server_stopped.is_set():
@@ -297,7 +299,8 @@ class CounterLoop:
             print("Same frame !!!!")
 
         if self.freeze_frame_counter > 5:
-            major_error("Camera freeze error", Exception("Camera freeze error"))
+            major_error(
+                self.args.camId, "Camera freeze error", Exception("Camera freeze error"))
             return
 
         self.last_frame = frame

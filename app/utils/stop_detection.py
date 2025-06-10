@@ -26,5 +26,5 @@ def stop_detection(message: str, data: Any, fast_reload=False):
         )
 
 
-def major_error(message: str, error: Any):
-    stop_detection(f"Major error: ${message}", str(error), False)
+def major_error(camId: str, message: str, error: Any):
+    stop_detection(f"{camId} Major error: {message}", str(error), False)
