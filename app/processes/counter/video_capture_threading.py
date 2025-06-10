@@ -76,6 +76,7 @@ class VideoCaptureThreading:
         logger.info("Waiting for camera, timeout is 3 seconds")
         while not grabbed and self.__cap:
             grabbed, frame = self.__cap.read()
+            time.sleep(1 / 33)
             if time.monotonic() - start > 3:
                 e = Exception("Camera timed out")
                 major_error(camId, "Camera connection error", e)

@@ -25,7 +25,7 @@ from app.utils.stop_detection import major_error
 logger = get_logger(__name__)
 
 
-LOOP_TIMEOUT = 10.0  # 10 seconds timeout before restarting
+LOOP_TIMEOUT = 5.0  # 10 seconds timeout before restarting
 
 
 class Tracked(NamedTuple):
@@ -38,14 +38,8 @@ class Tracked(NamedTuple):
 def byte_size(s):
     return len(s.encode("utf-8"))
 
-
 def log_visualization(
-    client,
-    frame,
-    plot,
-    shared_memory_img: mmap.mmap,
-    log_to_cloud: bool,
-    camId: str
+    client, frame, plot, shared_memory_img: mmap.mmap, log_to_cloud: bool, camId: str
 ) -> None:
     try:
         _, img = imencode(".webp", plot, [int(cv2.IMWRITE_WEBP_QUALITY), 10])
@@ -60,9 +54,7 @@ def log_visualization(
                 ACL="public-read",
                 ContentType="image/webp",
             )
-            _, cam = imencode(
-                ".webp", frame, [int(cv2.IMWRITE_WEBP_QUALITY), 10]
-            )
+            _, cam = imencode(".webp", frame, [int(cv2.IMWRITE_WEBP_QUALITY), 10])
             if _:
                 client.put_object(
                     Body=cam.tobytes(),
@@ -73,6 +65,7 @@ def log_visualization(
                 )
     except:
         print("logging viz error")
+
 
 def second_thread(q, boot_int, camId, access_key, secret_key):
     try:
@@ -88,7 +81,9 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
                     (frame, plot) = q.get(timeout=LOOP_TIMEOUT)
                     log_to_cloud = time.monotonic() - last_update > 2
 
-                    log_visualization(client, frame, plot, shared_memory_img, log_to_cloud, camId)
+                    log_visualization(
+                        client, frame, plot, shared_memory_img, log_to_cloud, camId
+                    )
 
                     if log_to_cloud:
                         client.put_object(
@@ -121,70 +116,85 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
 
 class CounterLoop:
     def __init__(self, args: Args, all_counters, server_stopped: EventClass):
-        self.running = True
-        self.args = args
-
-        self.fps = 0.0
-
-        self.inference_perf_data: list[float] = []
-        self.inference_perf_mean = 0.0
-
-        self.tick = 0
-
-        self.model = YOLOE(
-            f"{os.path.dirname(__file__)}/../../../models/{self.args.model}", "track"
-        )
-
-        self.counters = Counters(args, all_counters)
-
-        self.classes = self.counters.classes
-
-        self.model.set_classes(self.classes, self.model.get_text_pe(self.classes))
-
-        self.last_console_log = time.time() + 5
-        self.errors = 0
-        self.freeze_frame_counter = 0
-
-        self.log: dict[str, Any] = {}
-        self.server_stopped = server_stopped
-        self.cam_thread = VideoCaptureThreading()
-        self.cam_thread.start()
-        self.last_frame = None
-
-        self.second_thread_queue = Queue(maxsize=120)
-
-        self.second_thread = threading.Thread(
-            target=second_thread,
-            args=(
-                self.second_thread_queue,
-                self.args.boot_int,
-                self.args.camId,
-                self.args.access_key,
-                self.args.secret_key,
-            ),
-        )
-        self.second_thread.start()
-
         try:
-            self.crowd_counter_enabled = self.args.counters_config.get(
-                "crowd_counter"
-            ).get("enabled", False)
-        except:
-            self.crowd_counter_enabled = False
-        try:
-            self.zone_counter_enabled = self.args.counters_config.get(
-                "zone_counter"
-            ).get("enabled", False)
-        except:
-            self.crowd_counter_enabled = False
+            self.running = True
+            self.args = args
 
-        if not self.crowd_counter_enabled and not self.zone_counter_enabled:
-            major_error(
-                self.args.camId, "No tracker selected", Exception("No tracker selected"))
-        if self.crowd_counter_enabled and self.zone_counter_enabled:
-            major_error(
-                self.args.camId, "Only one tracker allowed", Exception("Only one tracker allowed")
+            self.fps = 0.0
+
+            self.inference_perf_data: list[float] = []
+            self.inference_perf_mean = 0.0
+
+            self.tick = 0
+
+            self.model = YOLOE(
+                f"{os.path.dirname(__file__)}/../../../models/{self.args.model}",
+                "track",
             )
+
+            self.counters = Counters(args, all_counters)
+
+            self.classes = self.counters.classes
+
+            self.model.set_classes(self.classes, self.model.get_text_pe(self.classes))
+
+            self.last_console_log = time.time() + 5
+            self.errors = 0
+            self.freeze_frame_counter = 0
+
+            self.log: dict[str, Any] = {}
+            self.server_stopped = server_stopped
+            self.cam_thread = VideoCaptureThreading(self.args.camId)
+            self.cam_thread.start()
+            self.last_frame = None
+            
+            self.second_thread_queue = Queue(maxsize=120)
+
+            self.second_thread = threading.Thread(
+                target=second_thread,
+                args=(
+                    self.second_thread_queue,
+                    self.args.boot_int,
+                    self.args.camId,
+                    self.args.access_key,
+                    self.args.secret_key,
+                ),
+            )
+            self.second_thread.start()
+
+            try:
+                self.crowd_counter_enabled = self.args.counters_config.get(
+                    "crowd_counter"
+                ).get("enabled", False)
+            except:
+                self.crowd_counter_enabled = False
+            try:
+                self.zone_counter_enabled = self.args.counters_config.get(
+                    "zone_counter"
+                ).get("enabled", False)
+            except:
+                self.crowd_counter_enabled = False
+
+            if not self.crowd_counter_enabled and not self.zone_counter_enabled:
+                major_error(
+                    self.args.camId,
+                    "No tracker selected",
+                    Exception("No tracker selected"),
+                )
+            if self.crowd_counter_enabled and self.zone_counter_enabled:
+                major_error(
+                    self.args.camId,
+                    "Only one tracker allowed",
+                    Exception("Only one tracker allowed"),
+                )
+        except Exception as e:
+            tbe = traceback.TracebackException.from_exception(e)
+            stack_frames = traceback.extract_stack()
+            tbe.stack.extend(stack_frames)
+            formatted_traceback = "".join(tbe.format())
+            print(f"Formatted Traceback:\n{formatted_traceback}")
+            print("raw err", e)
+            major_error(self.args.camId, "Error in detection init", e)
 
     def log_to_console(self) -> None:
         if time.time() - self.last_console_log < 5:
@@ -192,7 +202,6 @@ class CounterLoop:
         logger.info(f"Detection, mean inference time: {self.inference_perf_mean}")
         self.inference_perf_data = self.inference_perf_data[-10:]
         self.last_console_log = time.time()
-
 
     def handle_results(self, r: ultralytics.engine.results.Results, now: float):
         # print(now, r.speed)
@@ -258,8 +267,7 @@ class CounterLoop:
                 formatted_traceback = "".join(tbe.format())
                 print(f"Formatted Traceback:\n{formatted_traceback}")
                 print("raw err", e)
-                major_error(
-                self.args.camId, "Error in detection loop", e)
+                major_error(self.args.camId, "Error in detection loop", e)
 
     def maybe_close(self):
         if self.server_stopped.is_set():
@@ -300,7 +308,8 @@ class CounterLoop:
 
         if self.freeze_frame_counter > 5:
             major_error(
-                self.args.camId, "Camera freeze error", Exception("Camera freeze error"))
+                self.args.camId, "Camera freeze error", Exception("Camera freeze error")
+            )
             return
 
         self.last_frame = frame

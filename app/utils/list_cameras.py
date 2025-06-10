@@ -38,7 +38,6 @@ else:
     def list_available_cameras():
         level = os.environ.get("OPENCV_LOG_LEVEL")
         os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
-        print(os.environ["OPENCV_LOG_LEVEL"])
         available_cameras = []
         for index in range(10):  # Adjust the range as needed
             cap = cv2.VideoCapture(index)
@@ -51,7 +50,6 @@ else:
             del os.environ["OPENCV_LOG_LEVEL"]
         else:
             os.environ["OPENCV_LOG_LEVEL"] = level
-        print(os.environ.get("OPENCV_LOG_LEVEL"))
         return available_cameras
 
 

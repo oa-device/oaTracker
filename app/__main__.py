@@ -77,9 +77,17 @@ import os
 
 def wait_for_reset(server_stopped, api_process):
     try:
+        with mmap_context(
+            "/tmp/stop_detection.json", 512000
+        ) as shared_memory_stop_detection:
+            stop_detection_bytes = mmap_read_nonblocking(
+                shared_memory_stop_detection
+            )
+            print("/tmp/stop_detection.json content: ", stop_detection_bytes)
         os.remove("/tmp/stop_detection.json")
         print("/tmp/stop_detection.json removed")
-    except:
+    except Exception as e:
+        print(e)
         pass
     with mmap_context(
         "/tmp/stop_detection.json", 512000
@@ -90,14 +98,18 @@ def wait_for_reset(server_stopped, api_process):
                     shared_memory_stop_detection
                 )
                 if stop_detection_bytes:
+                    print(888)
                     stop_detection = json.loads(
                         stop_detection_bytes.decode(encoding="utf-8")
                     )
 
                     mmap_write(shared_memory_stop_detection, 512000, bytes([]))
 
-                    server_stopped.set()
                     print(json.dumps(stop_detection, indent=4))
+                    
+                    time.sleep(0.1)
+                    
+                    server_stopped.set()
 
                     if not stop_detection["fast_reload"]:
                         print("!!! MAJOR ERROR !!!")
