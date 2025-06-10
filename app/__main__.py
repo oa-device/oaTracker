@@ -43,11 +43,11 @@ def main():
     logger.info("Spawning sync process")
     db_process = DbProcess(args, server_stopped)
     db_process.start()
+    counter_process.start()
 
     api_process = ApiProcess(args, server_stopped)  # type: ignore
     thread = Thread(target=wait_for_reset, args=(server_stopped, api_process))
     thread.daemon = True
-    counter_process.start()
     thread.start()
 
     def stop_server(*args2):
