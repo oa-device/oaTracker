@@ -37,18 +37,18 @@ def main():
 
     server_stopped = multiprocessing.Event()
 
-    api_process = ApiProcess(args, server_stopped)  # type: ignore
-    thread = Thread(target=wait_for_reset, args=(server_stopped, api_process))
-    thread.daemon = True
-    thread.start()
+    logger.info("Spawning counter process")
+    counter_process = CounterProcess(args, server_stopped)
 
     logger.info("Spawning sync process")
     db_process = DbProcess(args, server_stopped)
     db_process.start()
-    
-    logger.info("Spawning counter process")
-    counter_process = CounterProcess(args, server_stopped)
+
+    api_process = ApiProcess(args, server_stopped)  # type: ignore
+    thread = Thread(target=wait_for_reset, args=(server_stopped, api_process))
+    thread.daemon = True
     counter_process.start()
+    thread.start()
 
     def stop_server(*args2):
         stop_detection("CTRL+C", {}, True)

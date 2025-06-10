@@ -21,6 +21,7 @@ from ultralytics import YOLOE
 
 from app.utils.mmap import mmap_context, mmap_write, pathname_img
 from app.utils.stop_detection import major_error
+from app.utils.tracker_persistence import load_tracker, save_tracker
 
 logger = get_logger(__name__)
 
@@ -104,6 +105,7 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
                     print(f"Formatted Traceback:\n{formatted_traceback}")
                     print("raw err", e)
                     major_error(camId, "Error in detection second thread", e)
+                    return
     except Exception as e:
         tbe = traceback.TracebackException.from_exception(e)
         stack_frames = traceback.extract_stack()
@@ -181,12 +183,14 @@ class CounterLoop:
                     "No tracker selected",
                     Exception("No tracker selected"),
                 )
+                return
             if self.crowd_counter_enabled and self.zone_counter_enabled:
                 major_error(
                     self.args.camId,
                     "Only one tracker allowed",
                     Exception("Only one tracker allowed"),
                 )
+                return
         except Exception as e:
             tbe = traceback.TracebackException.from_exception(e)
             stack_frames = traceback.extract_stack()
@@ -218,6 +222,8 @@ class CounterLoop:
         )  # type: ignore
 
     def start(self) -> Any:
+        last_tracker_persist=0.0
+        need_to_load = True
         while True:
             try:
                 now_mono = time.monotonic()
@@ -239,6 +245,14 @@ class CounterLoop:
                     verbose=False,
                     device=["mps"],
                 )[0]
+                
+                if need_to_load and load_tracker(self.model):
+                    print('Tracker loaded from local save !')
+                    need_to_load = False
+                    continue
+                elif need_to_load:
+                    print('Not using local tracker save')
+                    need_to_load = False
 
                 if self.maybe_close():
                     return
@@ -254,6 +268,10 @@ class CounterLoop:
                 )
 
                 self.second_thread_queue.put((frame, plot))
+                
+                if now - last_tracker_persist > 5.0:
+                    save_tracker(self.model)
+                    last_tracker_persist = now
 
                 # throttle
                 time.sleep(max(0.1 - (time.monotonic() - now_mono), 0.01))
@@ -268,6 +286,7 @@ class CounterLoop:
                 print(f"Formatted Traceback:\n{formatted_traceback}")
                 print("raw err", e)
                 major_error(self.args.camId, "Error in detection loop", e)
+                return
 
     def maybe_close(self):
         if self.server_stopped.is_set():
@@ -322,3 +341,19 @@ def fast_frame_comparison(img1, img2):
     # For same shape, use efficient numpy operations
     difference = np.maximum(img1, img2) - np.minimum(img1, img2)
     return np.sum(difference) == 0
+
+
+    # tracker_state = {}
+    # if hasattr(model.predictor, 'trackers') and model.predictor.trackers:
+    #     # Save the tracker's internal state
+    #     for idx, tracker in enumerate(model.predictor.trackers):
+    #         if tracker is not None:
+    #             tracker_state[idx] = {
+    #                 'frame_count': getattr(tracker, 'frame_count', 0),
+    #                 'track_count': getattr(tracker, 'track_count_', 0)
+    #             }
+    
+    # # Save to file
+    # with open('manual_tracker_state.pkl', 'wb') as f:
+    #     pickle.dump(tracker_state, f)
+    
