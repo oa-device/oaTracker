@@ -35,7 +35,7 @@ function ctrl_c() {
 
 while true
 do
-    setsid -w python -m app "$@" | grep -v "🚀" &
+    setsid -w python -m app "$@" | grep -v "🚀" | awk '{print strftime("%Y-%m-%d %H:%M:%S"), $0}' &
     SETSID_PID=$!
     wait $SETSID_PID
     echo RESTARTING
