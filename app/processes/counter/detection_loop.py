@@ -229,7 +229,11 @@ class CounterLoop:
             try:
                 now_mono = time.monotonic()
                 now = time.time()
-                (_, frame) = self.cam_thread.read()
+                try:
+                    (_, frame) = self.cam_thread.read()
+                except:
+                    time.sleep(0.1)
+                    continue
 
                 self.detect_bad_camera(frame)
 
