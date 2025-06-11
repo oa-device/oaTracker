@@ -82,9 +82,12 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
                     (frame, plot) = q.get(timeout=LOOP_TIMEOUT)
                     log_to_cloud = time.monotonic() - last_update > 2
 
-                    log_visualization(
-                        client, frame, plot, shared_memory_img, log_to_cloud, camId
-                    )
+                    try:
+                        log_visualization(
+                            client, frame, plot, shared_memory_img, log_to_cloud, camId
+                        )
+                    except:
+                        pass
 
                     if log_to_cloud:
                         client.put_object(
@@ -97,6 +100,7 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
                             ContentType="text/csv",
                         )
                         last_update = time.monotonic()
+                        print('Sending images and debug data to cloud !')
                 except Exception as e:
                     tbe = traceback.TracebackException.from_exception(e)
                     stack_frames = traceback.extract_stack()
