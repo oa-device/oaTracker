@@ -102,7 +102,7 @@ class VideoCaptureThreading:
             except Exception:
                 time.sleep(0.01)
                 i += 1
-                if i >= 200:
+                if i >= 100:
                     e = Exception("Camera timed out while reading from camera thread queue")
                     major_error(self.camId, "Camera timed out while reading from camera thread queue", e)
                     raise e
@@ -128,6 +128,7 @@ class VideoCaptureThreading:
         """This function is the main loop for the cam thread, picks a frame and adds it the the raw queue"""
         i = 0
         while self.__started:
+            print(11, i)
             try:
                 grabbed, frame = self.__cap.read()
                 if grabbed:
