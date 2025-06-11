@@ -79,7 +79,6 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
         with mmap_context(pathname_img, 512000) as shared_memory_img:
             while True:
                 try:
-                    print(112233)
                     (frame, plot) = q.get(timeout=LOOP_TIMEOUT)
                     log_to_cloud = time.monotonic() - last_update > 2
 

@@ -128,7 +128,6 @@ class VideoCaptureThreading:
         """This function is the main loop for the cam thread, picks a frame and adds it the the raw queue"""
         i = 0
         while self.__started:
-            print(11, i)
             try:
                 grabbed, frame = self.__cap.read()
                 if grabbed:
