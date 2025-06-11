@@ -1,56 +1,22 @@
 import os
 import cv2  # type: ignore
-import platform
 
-# Check if running on MacOS
-MACOS = platform.system() == "Darwin"
-
-if MACOS:
-    from Foundation import *
-    from AVFoundation import (
-        AVCaptureDeviceDiscoverySession,
-        AVCaptureDeviceTypeBuiltInWideAngleCamera,
-    )
-
-    # Lists available camera indices up to a maximum number for MacOS
-    def list_available_cameras():
-        devices = AVCaptureDeviceDiscoverySession.discoverySessionWithDeviceTypes_mediaType_position_(
-            [
-                AVCaptureDeviceTypeBuiltInWideAngleCamera,
-            ],
-            None,
-            0,
-        ).devices()
-
-        available_cameras = []
-        for index, device in enumerate(devices):
+def list_available_cameras():
+    level = os.environ.get("OPENCV_LOG_LEVEL")
+    os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
+    available_cameras = []
+    for index in range(10):  # Adjust the range as needed
+        cap = cv2.VideoCapture(index)
+        if cap.isOpened():
             available_cameras.append(
-                {
-                    "index": index,
-                    "id": device.uniqueID(),
-                    "name": device.localizedName(),
-                }
+                {"index": index, "id": index, "name": f"Camera {index}"}
             )
-        return available_cameras
-
-else:
-    # Lists available camera indices up to a maximum number for other systems
-    def list_available_cameras():
-        level = os.environ.get("OPENCV_LOG_LEVEL")
-        os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
-        available_cameras = []
-        for index in range(10):  # Adjust the range as needed
-            cap = cv2.VideoCapture(index)
-            if cap.isOpened():
-                available_cameras.append(
-                    {"index": index, "id": index, "name": f"Camera {index}"}
-                )
-                cap.release()
-        if not level:
-            del os.environ["OPENCV_LOG_LEVEL"]
-        else:
-            os.environ["OPENCV_LOG_LEVEL"] = level
-        return available_cameras
+            cap.release()
+    if not level:
+        del os.environ["OPENCV_LOG_LEVEL"]
+    else:
+        os.environ["OPENCV_LOG_LEVEL"] = level
+    return available_cameras
 
 
 # Prints the list of available cameras with more informative names
