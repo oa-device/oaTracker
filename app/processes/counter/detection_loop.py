@@ -26,7 +26,7 @@ from app.utils.tracker_persistence import load_tracker, save_tracker
 logger = get_logger(__name__)
 
 
-LOOP_TIMEOUT = 5.0  # 10 seconds timeout before restarting
+LOOP_TIMEOUT = 10.0  # 10 seconds timeout before restarting
 
 
 class Tracked(NamedTuple):
@@ -80,27 +80,32 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
             while True:
                 try:
                     (frame, plot) = q.get(timeout=LOOP_TIMEOUT)
-                    log_to_cloud = time.monotonic() - last_update > 2
+                    while True:
+                        try:
+                            log_to_cloud = time.monotonic() - last_update > 2
 
-                    try:
-                        log_visualization(
-                            client, frame, plot, shared_memory_img, log_to_cloud, camId
-                        )
-                    except:
-                        pass
+                            try:
+                                log_visualization(
+                                    client, frame, plot, shared_memory_img, log_to_cloud, camId
+                                )
+                            except:
+                                pass
 
-                    if log_to_cloud:
-                        client.put_object(
-                            Body=f"""boot,cam_id,last_update\n{int(boot_int / 10)},{camId},{int(time.time())}""".encode(
-                                "utf-8"
-                            ),
-                            Bucket="detectiondb-prod",
-                            Key=f"cams/stats/{camId}.csv",
-                            ACL="public-read",
-                            ContentType="text/csv",
-                        )
-                        last_update = time.monotonic()
-                        print('Sending images and debug data to cloud !')
+                            if log_to_cloud:
+                                client.put_object(
+                                    Body=f"""boot,cam_id,last_update\n{int(boot_int / 10)},{camId},{int(time.time())}""".encode(
+                                        "utf-8"
+                                    ),
+                                    Bucket="detectiondb-prod",
+                                    Key=f"cams/stats/{camId}.csv",
+                                    ACL="public-read",
+                                    ContentType="text/csv",
+                                )
+                                last_update = time.monotonic()
+                                print('Sending images and debug data to cloud !')
+                            break
+                        except Exception:
+                            pass
                 except Exception as e:
                     tbe = traceback.TracebackException.from_exception(e)
                     stack_frames = traceback.extract_stack()
