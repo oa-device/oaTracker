@@ -23,7 +23,7 @@ function ctrl_c() {
     echo "** Trapped second CTRL-C, hard shutdown"
       kill -9 "$SETSID_PID"
       echo "$SETSID_PID"
-      pkill -f "CoreMLPlayer/.venv/bin/python -c from multiprocessing.spawn"
+      pkill -f ".venv/bin/python -c from multiprocessing.spawn"
       exit 1
     fi
     TWICE=1

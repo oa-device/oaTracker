@@ -84,39 +84,43 @@ def wait_for_reset(server_stopped, true):
     except Exception as e:
         print(e)
         pass
-    with mmap_context(
-        "/tmp/stop_detection.json", 512000
-    ) as shared_memory_stop_detection:
-        while True:
-            try:
-                stop_detection_bytes = mmap_read_nonblocking(
-                    shared_memory_stop_detection
-                )
-                if stop_detection_bytes:
-                    print(888)
-                    stop_detection = json.loads(
-                        stop_detection_bytes.decode(encoding="utf-8")
-                    )
+    while True:
+        try:
+            with mmap_context(
+                "/tmp/stop_detection.json", 512000
+            ) as shared_memory_stop_detection:
+                while True:
+                    try:
+                        stop_detection_bytes = mmap_read_nonblocking(
+                            shared_memory_stop_detection
+                        )
+                        if stop_detection_bytes:
+                            print(888)
+                            stop_detection = json.loads(
+                                stop_detection_bytes.decode(encoding="utf-8")
+                            )
 
-                    mmap_write(shared_memory_stop_detection, 512000, bytes([]))
+                            mmap_write(shared_memory_stop_detection, 512000, bytes([]))
 
-                    print(json.dumps(stop_detection, indent=4))
-                    
-                    time.sleep(0.1)
-                    
-                    server_stopped.set()
+                            print(json.dumps(stop_detection, indent=4))
+                            
+                            time.sleep(0.1)
+                            
+                            server_stopped.set()
 
-                    if not stop_detection["fast_reload"]:
-                        print("!!! MAJOR ERROR !!!")
-                    else:
-                        print("Restarting detection")
+                            if not stop_detection["fast_reload"]:
+                                print("!!! MAJOR ERROR !!!")
+                            else:
+                                print("Restarting detection")
 
-                    return
+                            return
 
-            except Exception as a:
-                print(a)
+                    except Exception as a:
+                        print(a)
 
-            time.sleep(1 / 33)
+                    time.sleep(1 / 33)
+        except:
+            pass
 
 
 def motd():
