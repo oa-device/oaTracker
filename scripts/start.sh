@@ -33,9 +33,11 @@ function ctrl_c() {
     exit 0
 }
 
+command -v setsid > /dev/null && CMD=setsid || CMD=/opt/homebrew/opt/util-linux/bin/setsid
+
 while true
 do
-    setsid -w python -m app "$@" | grep -v "🚀" | awk '{print strftime("%Y-%m-%d %H:%M:%S"), $0}' &
+    ${CMD} -w python -m app "$@" &
     SETSID_PID=$!
     wait $SETSID_PID
     echo RESTARTING
