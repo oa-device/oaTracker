@@ -43,7 +43,7 @@ def main():
     logger.info("Spawning sync process")
     db_process = DbProcess(args, server_stopped)
     db_process.start()
-    counter_process.start()
+
 
     api_process = ApiProcess(args, server_stopped)  # type: ignore
     thread = Thread(target=wait_for_reset, args=(server_stopped, api_process))
@@ -57,7 +57,7 @@ def main():
 
     logger.info("Spawning API process")
     api_process.start()
-
+    counter_process.start()
     thread.join()
     
     logger.info("counter_process join")

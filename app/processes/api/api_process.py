@@ -186,8 +186,12 @@ client_last_presence = 0
 async def message_stream(start: str = "entrance", end: str = "exit"):
     async def event_generator():
         global client_last_presence, server_stopped
-        while not server_stopped.is_set():
+        while True:
             try:
+                if server_stopped.is_set():
+                    print('cutting connection')
+                    return
+                    
                 client_last_presence = time.time()
                 yield {
                     "id": str(client_last_presence),
