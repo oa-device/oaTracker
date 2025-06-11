@@ -1,10 +1,9 @@
-import asyncio
 import json
 import signal
 from threading import Thread
 import time
 
-from app.processes import ApiProcess, CounterProcess, DbProcess
+from app.processes import CounterProcess, DbProcess
 
 import multiprocessing
 from app.config import TORCH_DEVICE
@@ -39,8 +38,7 @@ def main():
     logger.info("Spawning counter process")
     counter_process = CounterProcess(args, server_stopped)
 
-    api_process = ApiProcess(args, server_stopped)  # type: ignore
-    thread = Thread(target=wait_for_reset, args=(server_stopped, api_process))
+    thread = Thread(target=wait_for_reset, args=(server_stopped, True))
     thread.daemon = True
     thread.start()
 
@@ -54,9 +52,6 @@ def main():
         stop_detection("CTRL+C", {}, True)
 
     signal.signal(signal.SIGUSR2, stop_server)
-
-    logger.info("Spawning API process")
-    api_process.start()
 
     thread.join()
     
@@ -75,7 +70,7 @@ def main():
 import os
 
 
-def wait_for_reset(server_stopped, api_process):
+def wait_for_reset(server_stopped, true):
     try:
         with mmap_context(
             "/tmp/stop_detection.json", 512000
@@ -116,12 +111,6 @@ def wait_for_reset(server_stopped, api_process):
                     else:
                         print("Restarting detection")
 
-                    # close api, ignore async errors
-                    try:
-                        asyncio.run(api_process.close())
-                    except:
-                        pass
-
                     return
 
             except Exception as a:
@@ -151,7 +140,6 @@ def motd():
     print(f'   {red}        #((((((###(((((((        {reset}      ')
     print(f'   {red}              *#(#,              {reset}      ')
     print('                                                      ')
-    print('Dashboard available at http://127.0.0.1:8000/dashboard')
     # fmt: on
 
 

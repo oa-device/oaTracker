@@ -14,14 +14,12 @@ import yaml
 from sse_starlette import EventSourceResponse
 from pyarrow import flight
 import uvicorn
-from app.parse_args import Args
-from app.processes.api.frame_streamer import FrameStreamer
+from .frame_streamer import FrameStreamer
 
 
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.utils.stop_detection import stop_detection
-from app.utils.logger import get_logger
+from api.logger import get_logger
 import duckdb
 
 
@@ -137,8 +135,7 @@ logger = get_logger(__name__)
 # used to show in the dashboard when the app is offline and to reboot when it's back online
 @app.get("/online")
 def online():
-    global server_stopped
-    return not server_stopped.is_set()
+    return True
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -155,7 +152,7 @@ async def minute_statistics_page(request: Request):
 
 @app.get("/edit_config", response_class=HTMLResponse)
 async def config_editor(request: Request):
-    return templates.TemplateResponse("config/index.html.jinja", {"request": request, "config_data": args})  # type: ignore
+    return templates.TemplateResponse("config/index.html.jinja", {"request": request})  # type: ignore
 
 
 @app.get("/config", response_class=HTMLResponse)
@@ -174,7 +171,6 @@ async def post_config(request: Request):
 
         yaml.dump(data, file)
 
-        stop_detection("reload_config", {}, True)
         return json.dumps({"ok": True})
     print(request)
 
@@ -185,12 +181,9 @@ client_last_presence = 0
 @app.get("/dashboard/sse")
 async def message_stream(start: str = "entrance", end: str = "exit"):
     async def event_generator():
-        global client_last_presence, server_stopped
+        global client_last_presence
         while True:
             try:
-                if server_stopped.is_set():
-                    print('cutting connection')
-                    return
                     
                 client_last_presence = time.time()
                 yield {
@@ -470,27 +463,8 @@ def video_feed():
     return fs.get_stream()  # type: ignore
 
 
-from multiprocessing.synchronize import Event as EventClass
-
-args: Args = None  # type:ignore
-server_stopped: EventClass = None  # type:ignore
-
-
-class ApiProcess:
-    def __init__(self, _args: Args, _server_stopped: EventClass):
-        global args, server_stopped
-
-        args = _args
-        server_stopped = _server_stopped
-
-    async def close(self):
-        self.server.should_exit = True
-        self.server.force_exit = True
-        # await self.server.shutdown()
-
-    def start(self):
-        config = uvicorn.Config(
-            app, host="0.0.0.0", port=8080, log_level="info", loop="asyncio"
-        )
-        self.server = uvicorn.Server(config=config)
-        self.server.run()
+config = uvicorn.Config(
+    app, host="0.0.0.0", port=8080, log_level="info", loop="asyncio"
+)
+server = uvicorn.Server(config=config)
+server.run()
