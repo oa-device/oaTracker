@@ -68,24 +68,6 @@ class VideoCaptureThreading:
 
         self.camId = camId
 
-        grabbed = False
-        frame = None
-
-        start = time.monotonic()
-        # get first frame
-        logger.info("Waiting for camera, timeout is 3 seconds")
-        while not grabbed and self.__cap:
-            grabbed, frame = self.__cap.read()
-            time.sleep(1 / 33)
-            if time.monotonic() - start > 3:
-                e = Exception("Camera timed out")
-                major_error(camId, "Camera connection error", e)
-                raise e
-
-        self.__queue.append(
-            cv2.resize(frame, (width, height), interpolation=cv2.INTER_NEAREST)
-        )  # type: ignore
-
     def start(self) -> None:
         """Starts the thread"""
         if self.__started:
