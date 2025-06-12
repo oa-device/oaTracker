@@ -1,8 +1,8 @@
 # Default YOLO tracker settings for BoT-SORT tracker https://github.com/NirAharon/BoT-SORT
 
 tracker_type: botsort # tracker type, ['botsort', 'bytetrack']
-track_high_thresh: 0.4 # threshold for the first association
-track_low_thresh: 0.35 # threshold for the second association
+track_high_thresh: 0.5 # threshold for the first association
+track_low_thresh: 0.45 # threshold for the second association
 new_track_thresh: 0.55 # threshold for init new track if the detection does not match any tracks
 track_buffer: 2.5 # buffer to calculate the time when to remove tracks
 match_thresh: 0.92 # threshold for matching tracks
@@ -12,7 +12,7 @@ fuse_score: True # Whether to fuse confidence scores with the iou distances befo
 # BoT-SORT settings
 gmc_method: none # method of global motion compensation
 # ReID model related thresh
-proximity_thresh: 0.5
+proximity_thresh: 0.9
 appearance_thresh: 0.25
 with_reid: False
 model: auto
