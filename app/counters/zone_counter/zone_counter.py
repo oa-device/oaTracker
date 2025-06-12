@@ -17,10 +17,17 @@ from queue import Queue
 import pyarrow as pa
 
 
-def connect_with_retry(remote=False, max_attempts=5):
+def connect_with_retry(remote=False, max_attempts=150):
     for attempt in range(max_attempts):
         try:
-            client = flight.connect(f"grpc://{'localhost' if not remote else 'detectiondb.orangead.ca' }:8815")
+            client = flight.connect(f"grpc://{'localhost' if not remote else 'detectiondb.orangead.ca' }:8815",
+                options=[
+                    ('grpc.keepalive_time_ms', 30000),
+                    ('grpc.keepalive_timeout_ms', 5000),
+                    ('grpc.max_receive_message_length', 64 * 1024 * 1024),
+                    ('grpc.enable_retries', 1),
+                    ('grpc.retry_buffer_size', 64 * 1024 * 1024),
+                ])
             return client
         except flight.FlightUnavailableError:
             if attempt < max_attempts - 1:
@@ -46,6 +53,8 @@ def db_thread(q, remote=False):
             writer, _ = client.do_put(item[0], item[1].schema)
             writer.write_table(item[1])
             writer.close()
+            if remote:
+                print('Sent detection data to db')
         except Exception as e:
             tbe = traceback.TracebackException.from_exception(e)
             stack_frames = traceback.extract_stack()
