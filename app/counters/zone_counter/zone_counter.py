@@ -42,7 +42,7 @@ def db_thread(q, remote=False):
                 continue
             if item is None:
                 continue
-            client.wait_for_available(timeout=10)
+            client.wait_for_available(timeout=30)
             writer, _ = client.do_put(item[0], item[1].schema)
             writer.write_table(item[1])
             writer.close()
@@ -208,7 +208,7 @@ class ZoneCounter(Counter):
                         ],
                     )
 
-            if now - self.last_db_update > 1:
+            if now - self.last_db_update > 2:
                 self.update_db(
                     now, set(int(strack_id.idx) for strack_id in _removed_stracks)
                 )
