@@ -21,7 +21,7 @@ def connect_with_retry(remote=False, max_attempts=150):
     for attempt in range(max_attempts):
         try:
             client = flight.connect(f"grpc://{'localhost' if not remote else 'detectiondb.orangead.ca' }:8815",
-                generic_optionslist=[
+                generic_options=[
                     ('grpc.keepalive_time_ms', 30000),
                     ('grpc.keepalive_timeout_ms', 5000),
                     ('grpc.max_receive_message_length', 64 * 1024 * 1024),
