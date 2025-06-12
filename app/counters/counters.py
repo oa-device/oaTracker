@@ -7,7 +7,6 @@ import ultralytics.engine.results
 import ultralytics.trackers
 from ultralytics.utils.plotting import Annotator
 import datetime
-from typing import Any
 from uuid import uuid4
 import cv2
 
@@ -117,15 +116,13 @@ class Counters:
                     continue
                 conf, id, cls = float(d.conf), int(d.id), int(d.cls)
 
-                box_labels = self.get_labels(id)
                 name = "" if id is None else f"id:{id} {labels[cls]}"
                 
                 label = name
                 
                 if conf:
-                    box_label = box_labels if len(box_labels) != 0 else ""
                     con = int(conf * 100)
-                    label = f"{box_label} {con}"
+                    label = f"{name} {con}"
                 
                 annotator.box_label(d.xyxy[0], label, color=(0, 225, 27))
 

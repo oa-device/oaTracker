@@ -56,7 +56,6 @@ class GenericCounter(Counter):
             for x in tracker.removed_stracks
             if x.track_id not in self.deleted
         ]:
-            print(not_deleted, self.track_uuids)
             if not_deleted in self.track_uuids:
                 not_deleted_uuid = self.track_uuids[not_deleted]
                 if not_deleted_uuid in self.data_by_trackid:
