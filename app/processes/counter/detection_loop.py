@@ -89,6 +89,7 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
                                     client, frame, plot, shared_memory_img, log_to_cloud, camId
                                 )
                             except:
+                                time.sleep(0.05)
                                 pass
 
                             if log_to_cloud:
@@ -105,6 +106,7 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
                                 print('Sending images and debug data to cloud !')
                             break
                         except Exception:
+                            time.sleep(0.05)
                             pass
                 except Exception as e:
                     tbe = traceback.TracebackException.from_exception(e)

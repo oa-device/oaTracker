@@ -55,7 +55,6 @@ def db_thread(q, remote=False):
             print(e)
             client = connect_with_retry(remote)
             time.sleep(0.01)
-            pass
 
 class ZoneCounter(Counter):
 

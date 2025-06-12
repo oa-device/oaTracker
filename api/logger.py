@@ -1,8 +1,5 @@
 import logging
 import json
-from logging.handlers import TimedRotatingFileHandler
-from pathlib import Path
-from datetime import datetime
 import time
 from pygments import highlight, lexers, formatters
 
@@ -48,8 +45,8 @@ def maybe_json_color(json: str, color: bool):
 
 
 def setup_logger(log_dir="logs", level=logging.INFO, file_only=False):
-    log_dir = Path(log_dir)
-    log_dir.mkdir(exist_ok=True)
+    # log_dir = Path(log_dir)
+    # log_dir.mkdir(exist_ok=True)
 
     logger = logging.getLogger()
     logger.setLevel(level)
@@ -57,24 +54,24 @@ def setup_logger(log_dir="logs", level=logging.INFO, file_only=False):
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
 
-    log_file = log_dir / f"{datetime.now().strftime('%Y-%m-%d')}.log"
-    file_handler = TimedRotatingFileHandler(
-        log_file, when="midnight", interval=1, backupCount=30
-    )
+    # log_file = log_dir / f"{datetime.now().strftime('%Y-%m-%d')}.log"
+    # file_handler = TimedRotatingFileHandler(
+    #     log_file, when="midnight", interval=1, backupCount=30
+    # )
 
-    file_handler_formatter = CloudCompatibleFormatter()
-    file_handler.setFormatter(file_handler_formatter)
-    file_handler.setLevel(level)
+    # file_handler_formatter = CloudCompatibleFormatter()
+    # file_handler.setFormatter(file_handler_formatter)
+    # file_handler.setLevel(level)
 
-    logger.addHandler(file_handler)
+    # logger.addHandler(file_handler)
 
-    if not file_only:
-        console_handler_formatter = CloudCompatibleFormatter()
-        console_handler_formatter.setColors()
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(console_handler_formatter)
-        console_handler.setLevel(level)
-        logger.addHandler(console_handler)
+    # if not file_only:
+    console_handler_formatter = CloudCompatibleFormatter()
+    console_handler_formatter.setColors()
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(console_handler_formatter)
+    console_handler.setLevel(level)
+    logger.addHandler(console_handler)
 
     return logger
 

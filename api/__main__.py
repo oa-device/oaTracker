@@ -19,7 +19,6 @@ from .frame_streamer import FrameStreamer
 
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.logger import get_logger
 import duckdb
 
 
@@ -129,7 +128,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 templates = Jinja2Templates(directory="templates")
 
-logger = get_logger(__name__)
 
 
 # used to show in the dashboard when the app is offline and to reboot when it's back online

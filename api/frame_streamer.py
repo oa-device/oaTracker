@@ -8,14 +8,12 @@ import time
 from typing import Mapping, Union
 from fastapi import BackgroundTasks
 from fastapi.responses import StreamingResponse
-import logging
 
 from app.utils.mmap import mmap_context, mmap_read_nonblocking
-from app.utils.mmap import pathname_img, mmap_context
+from app.utils.mmap import pathname_img
 
 
 loading_cam_filepath = os.path.normpath(Path(__file__).parent / "loading_cam.jpg")
-logger = logging.getLogger(__name__)
 
 
 class FrameStreamer:
@@ -26,7 +24,7 @@ class FrameStreamer:
         with open(loading_cam_filepath, "rb") as loading_cam_file:
             self.img = loading_cam_file.read()
         self.__thread = threading.Thread(
-            name=f"Read_img_on_disk",
+            name="Read_img_on_disk",
             target=self.__update,
             args=(),
         )
@@ -46,7 +44,7 @@ class FrameStreamer:
                         img = loading_cam
 
                     self.img = img
-                except Exception as a:
+                except Exception:
                     print(1)
                     pass
 
@@ -63,7 +61,7 @@ class FrameStreamer:
                     b"--frame\r\n"
                     b"Content-Type: image/webp\r\n\r\n" + self.img + b"\r\n"
                 )
-            except Exception as a:
+            except Exception:
                 pass
 
             await asyncio.sleep(1 / 15)

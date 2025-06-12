@@ -83,7 +83,6 @@ def wait_for_reset(server_stopped, true):
         print("/tmp/stop_detection.json removed")
     except Exception as e:
         print(e)
-        pass
     while True:
         try:
             with mmap_context(
@@ -95,7 +94,6 @@ def wait_for_reset(server_stopped, true):
                             shared_memory_stop_detection
                         )
                         if stop_detection_bytes:
-                            print(888)
                             stop_detection = json.loads(
                                 stop_detection_bytes.decode(encoding="utf-8")
                             )
@@ -120,6 +118,7 @@ def wait_for_reset(server_stopped, true):
 
                     time.sleep(1 / 33)
         except:
+            time.sleep(1 / 33)
             pass
 
 
