@@ -70,18 +70,7 @@ class ZoneCounter(Counter):
     name = "zone_counter"
 
     def __init__(self, args) -> None:
-        self.classes = [
-            "person",
-            "bicycle",
-            "car",
-            "motorcycle",
-            "airplane",
-            "bus",
-            "train",
-            "truck",
-            "boat",
-            "taxi"
-        ]
+        self.classes = [0, 2, 3, 5]
         super().__init__(args, ZoneCounter.name)
         self.setup()
 

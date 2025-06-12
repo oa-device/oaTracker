@@ -17,7 +17,7 @@ import numpy as np
 
 
 from multiprocessing.synchronize import Event as EventClass
-from ultralytics import YOLOE
+from ultralytics import YOLO
 
 from app.utils.mmap import mmap_context, mmap_write, pathname_img
 from app.utils.stop_detection import major_error
@@ -140,16 +140,12 @@ class CounterLoop:
 
             self.tick = 0
 
-            self.model = YOLOE(
+            self.model = YOLO(
                 f"{os.path.dirname(__file__)}/../../../models/{self.args.model}",
                 "track",
             )
 
             self.counters = Counters(args, all_counters)
-
-            self.classes = self.counters.classes
-
-            self.model.set_classes(self.classes, self.model.get_text_pe(self.classes))
 
             self.last_console_log = time.time() + 5
             self.errors = 0
@@ -274,7 +270,7 @@ class CounterLoop:
 
                 # handle results
                 self.handle_results(r, now)
-
+                
                 plot = self.counters.plot(
                     img=np.copy(frame),
                     boxes=r.boxes,
@@ -312,21 +308,6 @@ class CounterLoop:
                 pass
             print("Detection stopped")
             return True
-
-    def format_tracked(self, t):
-        val = t.xyxy
-
-        return Tracked(
-            (
-                float(val[0][0]),
-                float(val[0][1]),
-                float(val[0][0] + val[0][2]),
-                float(val[0][1] + val[0][3]),
-            ),
-            int(t.id),
-            float(t.conf),
-            self.model.names[int(t.cls)],
-        )
 
     def maybe_crash(self):
         self.errors = self.errors + 1
