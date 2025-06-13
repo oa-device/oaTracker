@@ -146,6 +146,7 @@ class CounterLoop:
             )
 
             self.counters = Counters(args, all_counters)
+            self.classes = self.counters.classes
 
             self.last_console_log = time.time() + 5
             self.errors = 0
@@ -254,6 +255,7 @@ class CounterLoop:
                     stream=False,
                     augment=False,
                     verbose=False,
+                    classes=self.classes,
                     device=["mps"],
                 )[0]
                 
