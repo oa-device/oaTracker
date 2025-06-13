@@ -251,7 +251,7 @@ class CounterLoop:
                     persist=True,
                     conf=0.001,
                     vid_stride=0,
-                    iou=0.4,
+                    iou=0.1,
                     stream=False,
                     augment=False,
                     verbose=False,
@@ -287,7 +287,7 @@ class CounterLoop:
                     last_tracker_persist = now
 
                 # throttle
-                time.sleep(max(0.1 - (time.monotonic() - now_mono), 0.01))
+                time.sleep(max(0.2 - (time.monotonic() - now_mono), 0.01))
 
                 if self.maybe_close():
                     return
