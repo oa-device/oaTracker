@@ -282,7 +282,7 @@ class CounterLoop:
 
                 self.second_thread_queue.put((frame, plot))
                 
-                if now - last_tracker_persist > 5.0:
+                if now - last_tracker_persist > 1.0:
                     save_tracker(self.model)
                     last_tracker_persist = now
 

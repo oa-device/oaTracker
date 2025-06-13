@@ -82,7 +82,6 @@ class ZoneCounter(Counter):
 
         self.cam_id = args.camId
 
-        self.THREE_HOURS = 60 * 60 * 3
         self.device = None
         
         self.local_queue = Queue(maxsize=0)
@@ -206,7 +205,7 @@ class ZoneCounter(Counter):
                         ],
                     )
 
-            if now - self.last_db_update > 2:
+            if now - self.last_db_update > 1:
                 self.update_db(
                     now, set(int(strack_id.idx) for strack_id in _removed_stracks)
                 )
