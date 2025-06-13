@@ -133,7 +133,7 @@ class VideoCaptureThreading:
                 if grabbed:
                     i = 0
                     self.__queue.append(
-                        cv2.resize(frame, (640, 480), interpolation=cv2.INTER_NEAREST)
+                        cv2.resize(frame, (1280, 720), interpolation=cv2.INTER_NEAREST)
                     )  # type: ignore
             except Exception:
                 i += 1
