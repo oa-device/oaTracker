@@ -58,7 +58,7 @@ class VideoCaptureThreading:
 
     """
 
-    def __init__(self, camId: str, width=736, height=552 ) -> None:
+    def __init__(self, camId: str, width=1280, height=720 ) -> None:
         self.__width = width
         self.__height = height
         self.__cap: cv2.VideoCapture = None  # type: ignore

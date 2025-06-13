@@ -6,6 +6,7 @@ import time
 import traceback
 from typing import Any, NamedTuple
 import boto3
+from ultralytics import YOLO
 import ultralytics.engine.results
 from app.counters import Counters
 from app.parse_args import Args
@@ -17,7 +18,6 @@ import numpy as np
 
 
 from multiprocessing.synchronize import Event as EventClass
-from ultralytics import YOLO
 
 from app.utils.mmap import mmap_context, mmap_write, pathname_img
 from app.utils.stop_detection import major_error
@@ -140,11 +140,6 @@ class CounterLoop:
 
             self.tick = 0
 
-            self.model = YOLO(
-                f"{os.path.dirname(__file__)}/../../../models/{self.args.model}",
-                "track",
-            )
-
             self.counters = Counters(args, all_counters)
             self.classes = self.counters.classes
 
@@ -199,6 +194,17 @@ class CounterLoop:
                     Exception("Only one tracker allowed"),
                 )
                 return
+            
+            # if self.crowd_counter_enabled
+
+            # else:
+            self.model = YOLO(
+                f"{os.path.dirname(__file__)}/../../../models/{self.args.model}",
+                "track",
+            )
+
+            
+            
         except Exception as e:
             tbe = traceback.TracebackException.from_exception(e)
             stack_frames = traceback.extract_stack()
