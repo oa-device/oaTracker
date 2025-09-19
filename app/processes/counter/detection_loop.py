@@ -9,7 +9,7 @@ import boto3
 import ultralytics.engine.results
 from app.counters import Counters
 from app.parse_args import Args
-from app.processes.counter.video_capture_threading import VideoCaptureThreading
+from app.processes.counter.local_img_threading import LocalImgThreading
 from app.utils.logger import get_logger
 from cv2 import imencode
 import cv2
@@ -154,7 +154,7 @@ class CounterLoop:
 
             self.log: dict[str, Any] = {}
             self.server_stopped = server_stopped
-            self.cam_thread = VideoCaptureThreading(self.args.camId)
+            self.cam_thread = LocalImgThreading()
             self.cam_thread.start()
             self.last_frame = None
             
