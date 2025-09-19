@@ -115,7 +115,6 @@ class ZoneCounter(Counter):
             if self.device is None:
                 dev = boxes[0].xywh.get_device()
                 self.device = "cpu" if dev < 0 else dev
-
             ids = [int(box.id.item()) for box in valid_boxes]
 
             xywh_data = torch.stack([box.xywh[0] for box in valid_boxes]).to(

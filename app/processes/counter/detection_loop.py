@@ -6,9 +6,11 @@ import time
 import traceback
 from typing import Any, NamedTuple
 import boto3
+import torch
 import ultralytics.engine.results
 from app.counters import Counters
 from app.parse_args import Args
+from app.processes.counter.bot_sort import BOTSORT
 from app.processes.counter.video_capture_threading import VideoCaptureThreading
 from app.utils.logger import get_logger
 from cv2 import imencode
@@ -16,6 +18,7 @@ import cv2
 import numpy as np
 
 
+from ultralytics.utils import YAML, IterableSimpleNamespace
 from multiprocessing.synchronize import Event as EventClass
 from ultralytics import YOLO
 
@@ -38,6 +41,7 @@ class Tracked(NamedTuple):
 
 def byte_size(s):
     return len(s.encode("utf-8"))
+
 
 def log_visualization(
     client, frame, plot, shared_memory_img: mmap.mmap, log_to_cloud: bool, camId: str
@@ -86,7 +90,12 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
 
                             try:
                                 log_visualization(
-                                    client, frame, plot, shared_memory_img, log_to_cloud, camId
+                                    client,
+                                    frame,
+                                    plot,
+                                    shared_memory_img,
+                                    log_to_cloud,
+                                    camId,
                                 )
                             except:
                                 time.sleep(0.05)
@@ -103,7 +112,7 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
                                     ContentType="text/csv",
                                 )
                                 last_update = time.monotonic()
-                                print('Sending images and debug data to cloud !')
+                                print("Sending images and debug data to cloud !")
                             break
                         except Exception:
                             time.sleep(0.05)
@@ -147,17 +156,28 @@ class CounterLoop:
 
             self.counters = Counters(args, all_counters)
             self.classes = self.counters.classes
+            self.names = {
+                0: "person", 2: "car", 3: "motorcycle", 5: "bus"
+            }
+            self.results = None
 
             self.last_console_log = time.time() + 5
             self.errors = 0
             self.freeze_frame_counter = 0
+
+            self.tracker_cfg = IterableSimpleNamespace(
+                **YAML.load(f"{os.path.dirname(__file__)}/botsort_custom.yaml")
+            )
+            self.result = None
+            tracker = BOTSORT(self.tracker_cfg, 30)
+            self.tracker = load_tracker(tracker)
 
             self.log: dict[str, Any] = {}
             self.server_stopped = server_stopped
             self.cam_thread = VideoCaptureThreading(self.args.camId)
             self.cam_thread.start()
             self.last_frame = None
-            
+
             self.second_thread_queue = Queue(maxsize=120)
 
             self.second_thread = threading.Thread(
@@ -216,22 +236,21 @@ class CounterLoop:
         self.last_console_log = time.time()
 
     def handle_results(self, r: ultralytics.engine.results.Results, now: float):
-        # print(now, r.speed)
         self.inference_perf_data.append(r.speed["inference"])
         self.inference_perf_data = self.inference_perf_data[-10:]
         self.visualization_perf_mean = "{:.2f}".format(
             round(np.mean(self.inference_perf_data), 2)
         )  # type: ignore
         boxes: ultralytics.engine.results.Boxes = [
-            d for d in (r.boxes if r.boxes is not None else []) if d.is_track
+            d for d in (r.boxes if r.boxes is not None else []) if True
         ]  # Boxes object for bbox outputs
         self.counters.update(
-            now, boxes, self.model.predictor.trackers[0].removed_stracks
+            now, boxes, self.tracker.removed_stracks
         )  # type: ignore
+        
 
     def start(self) -> Any:
-        last_tracker_persist=0.0
-        need_to_load = True
+        last_tracker_persist = 0.0
         while True:
             try:
                 now_mono = time.monotonic()
@@ -242,37 +261,39 @@ class CounterLoop:
                     time.sleep(0.1)
                     continue
 
+                if self.results is None:
+                    self.results = ultralytics.engine.results.Results(orig_img=frame, path="", names=self.names, speed={"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0})
+
                 self.detect_bad_camera(frame)
 
-                r = self.model.track(
+                detection = self.model.predict(
                     frame,
-                    imgsz=736,
-                    tracker=f"{os.path.dirname(__file__)}/botsort_custom.yaml",
-                    persist=True,
                     conf=0.001,
-                    vid_stride=0,
-                    iou=0.1,
+                    vid_stride=3,
                     stream=False,
                     augment=False,
                     verbose=False,
                     classes=self.classes,
                     device=["mps"],
                 )[0]
-                
-                if need_to_load and load_tracker(self.model):
-                    print('Tracker loaded from local save !')
-                    need_to_load = False
-                    continue
-                elif need_to_load:
-                    print('Not using local tracker save')
-                    need_to_load = False
+
+
+                det = detection.boxes.cpu().numpy()
+
+                tracks = self.tracker.update(
+                    det, detection.orig_img, getattr(detection, "feats", None)
+                )
+
+                self.results.update(boxes=torch.as_tensor(tracks)[:, :-1])
+
+                r = self.results
 
                 if self.maybe_close():
                     return
 
                 # handle results
                 self.handle_results(r, now)
-                
+
                 plot = self.counters.plot(
                     img=np.copy(frame),
                     boxes=r.boxes,
@@ -281,9 +302,9 @@ class CounterLoop:
                 )
 
                 self.second_thread_queue.put((frame, plot))
-                
+
                 if now - last_tracker_persist > 1.0:
-                    save_tracker(self.model)
+                    save_tracker(self.tracker)
                     last_tracker_persist = now
 
                 # throttle
@@ -340,7 +361,6 @@ def fast_frame_comparison(img1, img2):
     difference = np.maximum(img1, img2) - np.minimum(img1, img2)
     return np.sum(difference) == 0
 
-
     # tracker_state = {}
     # if hasattr(model.predictor, 'trackers') and model.predictor.trackers:
     #     # Save the tracker's internal state
@@ -350,8 +370,7 @@ def fast_frame_comparison(img1, img2):
     #                 'frame_count': getattr(tracker, 'frame_count', 0),
     #                 'track_count': getattr(tracker, 'track_count_', 0)
     #             }
-    
+
     # # Save to file
     # with open('manual_tracker_state.pkl', 'wb') as f:
     #     pickle.dump(tracker_state, f)
-    
