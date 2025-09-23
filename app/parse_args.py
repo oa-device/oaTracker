@@ -30,6 +30,14 @@ class Args:
     secret_key: str
 
 
+def yolo_source_type(value: str) -> int | str:
+    """Convert yolo_source argument to int if possible, otherwise return as string."""
+    try:
+        return int(value)
+    except ValueError:
+        return value
+
+
 def parse_args() -> Args:
     config = get_config()
 
@@ -45,7 +53,7 @@ def parse_args() -> Args:
     parser.add_argument(
         "--yolo_source",
         "-s",
-        type=int,
+        type=yolo_source_type,
         default=config["default_yolo_source"],
         help=f"Yolo source to use. (Default is {config['default_yolo_source']})",
     )
