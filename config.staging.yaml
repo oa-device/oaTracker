@@ -2,7 +2,7 @@
 # Configured to consume frames from oaCamBridge staging setup
 
 default_yolo_source: "/tmp/webcam/"        # Use frames from oaCamBridge
-cam_id: staging-test
+cam_id: aaaaa018-9247-7xxx-xxxx-xxxxxxxxxxxx
 cors:
   allowed_headers:
   - Content-Type
@@ -32,7 +32,7 @@ counters:
         - 100
   crowd_counter:
     enabled: false
-default_model: yolo12s.pt                  # Use smaller model for staging
+default_model: yolo11n.pt                  # Use working model for staging
 default_server_port: 8000
 access_key: staging_key
 secret_key: staging_secret
