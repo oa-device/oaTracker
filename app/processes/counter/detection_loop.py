@@ -154,7 +154,7 @@ class CounterLoop:
 
             self.log: dict[str, Any] = {}
             self.server_stopped = server_stopped
-            self.cam_thread = LocalImgThreading()
+            self.cam_thread = LocalImgThreading(folder_path=self.args.yolo_source)
             self.cam_thread.start()
             self.last_frame = None
             
