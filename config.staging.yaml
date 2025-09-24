@@ -1,8 +1,5 @@
-# oaTracker Staging Configuration
-# Configured to consume frames from oaCamBridge staging setup
-
-default_yolo_source: "/tmp/webcam/"        # Use frames from oaCamBridge
-cam_id: aaaaa018-9247-7xxx-xxxx-xxxxxxxxxxxx
+default_yolo_source: "/tmp/webcam/"
+cam_id: 22222222-2222-2222-2222-222222222222
 cors:
   allowed_headers:
   - Content-Type
@@ -11,16 +8,15 @@ cors:
   - OPTIONS
   allowed_origins:
   - http://localhost:5173
-  - http://localhost:3000                  # Add common dev ports for staging
 counters:
   zone_counter:
     enabled: true
     zones:
     - color:
-      - 255
       - 0
-      - 0                                   # Red zone for staging visibility
-      name: staging_zone
+      - 0
+      - 200
+      name: main
       points:
       - - 0
         - 0
@@ -32,7 +28,7 @@ counters:
         - 100
   crowd_counter:
     enabled: false
-default_model: yolo11n.pt                  # Use working model for staging
+default_model: yolo11n.pt
 default_server_port: 8000
 access_key: staging_key
 secret_key: staging_secret
