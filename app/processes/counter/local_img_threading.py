@@ -110,8 +110,12 @@ class LocalImgThreading:
             if not os.path.exists(self.__folder_path):
                 os.mkdir(self.__folder_path)
 
-            # Get all webp files in the folder
-            image_files = glob.glob(os.path.join(self.__folder_path, '*.webp'))
+            # Get all image files from the folder - WebP first, then JPG as fallback
+            webp_files = glob.glob(os.path.join(self.__folder_path, '*.webp'))
+            jpg_files = glob.glob(os.path.join(self.__folder_path, '*.jpg'))
+
+            # Prefer WebP for efficiency, but support JPG for compatibility
+            image_files = webp_files + jpg_files
 
             if not image_files:
                 return None
