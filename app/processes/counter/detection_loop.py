@@ -47,7 +47,7 @@ def log_visualization(
         if _:
             mmap_write(shared_memory_img, 512000, img.tobytes())
 
-        if log_to_cloud:
+        if log_to_cloud and client is not None:
             client.put_object(
                 Body=img.tobytes(),
                 Bucket="detectiondb-prod",
@@ -56,7 +56,7 @@ def log_visualization(
                 ContentType="image/webp",
             )
             _, cam = imencode(".webp", frame, [int(cv2.IMWRITE_WEBP_QUALITY), 10])
-            if _:
+            if _ and client is not None:
                 client.put_object(
                     Body=cam.tobytes(),
                     Bucket="detectiondb-prod",
@@ -71,11 +71,15 @@ def log_visualization(
 def second_thread(q, boot_int, camId, access_key, secret_key):
     try:
         last_update = 0.0
-        client = boto3.client(
-            "s3",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-        )
+        # Only create boto3 client if we have valid credentials
+        client = None
+        has_aws_credentials = access_key and secret_key and access_key.strip() and secret_key.strip()
+        if has_aws_credentials:
+            client = boto3.client(
+                "s3",
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
         with mmap_context(pathname_img, 512000) as shared_memory_img:
             while True:
                 try:
@@ -92,7 +96,7 @@ def second_thread(q, boot_int, camId, access_key, secret_key):
                                 time.sleep(0.05)
                                 pass
 
-                            if log_to_cloud:
+                            if log_to_cloud and client is not None:
                                 client.put_object(
                                     Body=f"""boot,cam_id,last_update\n{int(boot_int / 10)},{camId},{int(time.time())}""".encode(
                                         "utf-8"
